@@ -46,6 +46,14 @@ def renderizar_secao_resultado(resultado):
                 "Nenhuma linha de receita de 'fundo de reserva' foi encontrada no demonstrativo — "
                 "o percentual do fundo de reserva foi considerado 0%."
             )
+        if resultado.fundo_reserva_percentual_limitado:
+            st.warning(
+                "O percentual do fundo de reserva calculado automaticamente a partir do histórico "
+                "ficou muito alto (maior ou igual a 50%) — provavelmente por causa de alguma "
+                "contribuição extraordinária pontual nos últimos 12 meses, não uma mensalidade "
+                "recorrente. Para o cálculo não travar, o percentual foi limitado a 50%. Vale a "
+                "pena conferir manualmente a linha de 'fundo de reserva' no demonstrativo original."
+            )
         if resultado.observacoes:
             st.markdown("**Observações**")
             st.write(escapar_markdown(resultado.observacoes))
@@ -79,6 +87,11 @@ def renderizar_secao_resultado(resultado):
         st.write(f"Percentual automático: **{fmt_pct(resultado.fundo_reserva_percentual_automatico)}**")
         if not resultado.fundo_reserva_linha_encontrada:
             st.caption("Nenhuma linha de 'fundo de reserva' encontrada no demonstrativo — considerado 0%.")
+        if resultado.fundo_reserva_percentual_limitado:
+            st.caption(
+                "O percentual calculado automaticamente ficou muito alto e foi limitado a 50%. "
+                "Confira a linha de 'fundo de reserva' no demonstrativo original."
+            )
 
     with abas[4]:
         st.pyplot(grafico_despesas_por_categoria(resultado))

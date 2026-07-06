@@ -119,6 +119,11 @@ def gerar_previsao(
     percentual_reajuste_automatico = _calcular_reajuste_automatico(demonstrativo)
     fundo_reserva_percentual, fundo_reserva_linha_encontrada = _calcular_fundo_reserva_automatico(demonstrativo)
 
+    TETO_FUNDO_RESERVA = 0.5
+    fundo_reserva_percentual_limitado = fundo_reserva_percentual >= TETO_FUNDO_RESERVA
+    if fundo_reserva_percentual_limitado:
+        fundo_reserva_percentual = TETO_FUNDO_RESERVA
+
     despesas_previstas = _calcular_despesas_previstas(demonstrativo, formulario, percentual_reajuste_automatico)
     total_despesas_historico = sum(l.valor_historico for l in despesas_previstas)
     total_despesas_previsto = sum(l.valor_previsto for l in despesas_previstas)
@@ -129,8 +134,6 @@ def gerar_previsao(
     # Se fundo_reserva = pct * receita_rateio, então:
     #   receita_rateio * (1 - pct) = despesas - outras_receitas
     numerador = total_despesas_previsto - total_outras_receitas_previsto
-    if fundo_reserva_percentual >= 1:
-        raise ValueError("O percentual do fundo de reserva não pode ser 100% ou mais.")
     receita_rateio_calculada = numerador / (1 - fundo_reserva_percentual)
 
     numero_unidades = formulario.numero_unidades
@@ -175,6 +178,7 @@ def gerar_previsao(
         fundo_reserva_valor=fundo_reserva_valor,
         fundo_reserva_percentual_automatico=fundo_reserva_percentual,
         fundo_reserva_linha_encontrada=fundo_reserva_linha_encontrada,
+        fundo_reserva_percentual_limitado=fundo_reserva_percentual_limitado,
         receita_rateio_necessaria=receita_rateio_necessaria,
         numero_unidades=numero_unidades,
         valor_por_unidade_sem_ajuste=valor_por_unidade_sem_ajuste,

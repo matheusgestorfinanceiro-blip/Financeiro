@@ -73,6 +73,18 @@ def test_fundo_de_reserva_automatico_quando_linha_existe():
     assert resultado.fundo_reserva_valor == pytest.approx(resultado.receita_rateio_necessaria * 0.10)
 
 
+def test_fundo_de_reserva_e_limitado_quando_percentual_automatico_ultrapassa_teto():
+    # fundo de reserva histórico (900) maior que a receita ordinária (1000) -> 90%, acima do teto de 50%
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0, fundo_reserva=900.0)
+    formulario = _formulario()
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    assert resultado.fundo_reserva_percentual_limitado is True
+    assert resultado.fundo_reserva_percentual_automatico == pytest.approx(0.5)
+    # não deve levantar exceção, e o cálculo deve fechar com o teto de 50%
+    # R = despesas + 0.50 * R  =>  0.50 * R = 1000  =>  R = 2000
+    assert resultado.receita_rateio_necessaria == pytest.approx(2000.0)
+
+
 def test_fundo_de_reserva_zero_quando_linha_nao_existe():
     demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
     formulario = _formulario()

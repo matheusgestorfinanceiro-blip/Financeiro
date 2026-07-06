@@ -157,6 +157,14 @@ def _pagina_fundo_e_taxa(pdf: RelatorioPDF, resultado):
     if not resultado.fundo_reserva_linha_encontrada:
         pdf.set_font("Helvetica", "I", 9)
         pdf.multi_cell(0, 5, "Nenhuma linha de 'fundo de reserva' encontrada no demonstrativo - considerado 0%.")
+    if resultado.fundo_reserva_percentual_limitado:
+        pdf.set_font("Helvetica", "I", 9)
+        pdf.multi_cell(
+            0, 5,
+            "O percentual calculado automaticamente ficou muito alto (maior ou igual a 50%) e foi "
+            "limitado a 50% para o cálculo não travar. Confira a linha de 'fundo de reserva' no "
+            "demonstrativo original.",
+        )
 
 
 def _pagina_graficos(pdf: RelatorioPDF, resultado, arquivos_temp: list[str]):

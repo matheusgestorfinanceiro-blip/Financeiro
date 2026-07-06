@@ -97,6 +97,7 @@ class ResultadoPrevisao:
     valor_por_unidade_com_inadimplencia: float
     percentual_inadimplencia: float
     valor_por_unidade_sugerido_pelo_sistema: float | None = None
+    fundo_reserva_percentual_limitado: bool = False
 
     rateio_tipo: str = "igualitario"
     rateio_por_unidade: pd.DataFrame = None  # colunas: unidade, fracao_ou_igual, valor
