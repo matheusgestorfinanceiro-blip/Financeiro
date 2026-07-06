@@ -55,7 +55,6 @@ def grafico_composicao_taxa_condominial(resultado):
     fatias = {
         "Despesas (líq. outras receitas)": max(despesa_pura, 0),
         "Fundo de reserva": resultado.fundo_reserva_valor,
-        "Taxa de administração": resultado.taxa_administracao_valor,
     }
     fig, ax = plt.subplots(figsize=(5, 5))
     ax.pie(fatias.values(), labels=fatias.keys(), autopct="%1.1f%%")

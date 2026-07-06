@@ -40,24 +40,21 @@ class AjusteManual:
 
 @dataclass
 class DadosFormulario:
-    """Dados obrigatórios e opcionais preenchidos pelo usuário."""
+    """Dados obrigatórios e opcionais preenchidos pelo usuário.
+
+    O percentual de reajuste e o percentual do fundo de reserva não são mais
+    digitados pelo usuário — são calculados automaticamente pelo motor de
+    cálculo a partir do próprio Demonstrativo de Receitas e Despesas (veja
+    `src/calculo/previsao.py`)."""
 
     nome_condominio: str
     periodo_inicio: str
     periodo_fim: str
-    percentual_reajuste: float
     numero_unidades: int
-
-    # Fundo de reserva
-    fundo_reserva_percentual: float
-    fundo_reserva_base: str = "rateio"  # "rateio" ou "despesas"
-
-    # Taxa de administração
-    taxa_administracao_modo: str = "percentual_despesas"  # "percentual_despesas" | "percentual_rateio" | "valor_fixo"
-    taxa_administracao_valor: float = 0.0  # percentual (ex 0.08) ou valor em R$, conforme o modo
 
     # Rateio
     rateio_tipo: str = "igualitario"  # "igualitario" ou "fracao_ideal"
+    valor_unico_por_unidade: float | None = None  # quando informado, substitui o cálculo automático
     fracoes_ideais: pd.DataFrame | None = None  # colunas: unidade, fracao (soma = 1.0)
 
     observacoes: str = ""
@@ -89,17 +86,20 @@ class ResultadoPrevisao:
 
     total_outras_receitas_previsto: float
 
+    percentual_reajuste_automatico: float
     fundo_reserva_valor: float
-    taxa_administracao_valor: float
+    fundo_reserva_percentual_automatico: float
+    fundo_reserva_linha_encontrada: bool
 
     receita_rateio_necessaria: float
     numero_unidades: int
     valor_por_unidade_sem_ajuste: float
     valor_por_unidade_com_inadimplencia: float
     percentual_inadimplencia: float
+    valor_por_unidade_sugerido_pelo_sistema: float | None = None
 
-    rateio_tipo: str
-    rateio_por_unidade: pd.DataFrame  # colunas: unidade, fracao_ou_igual, valor
+    rateio_tipo: str = "igualitario"
+    rateio_por_unidade: pd.DataFrame = None  # colunas: unidade, fracao_ou_igual, valor
 
-    total_despesas_historico_por_mes: dict  # {mes: valor}
-    total_receitas_historico_por_mes: dict
+    total_despesas_historico_por_mes: dict = field(default_factory=dict)  # {mes: valor}
+    total_receitas_historico_por_mes: dict = field(default_factory=dict)

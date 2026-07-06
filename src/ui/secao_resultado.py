@@ -19,7 +19,7 @@ def renderizar_secao_resultado(resultado):
             "1. Resumo executivo",
             "2. Despesas por categoria",
             "3. Receitas e rateio",
-            "4. Fundo de reserva e taxa",
+            "4. Fundo de reserva",
             "5. Gráficos",
         ]
     )
@@ -28,13 +28,24 @@ def renderizar_secao_resultado(resultado):
         col1, col2 = st.columns(2)
         col1.metric("Total de despesas previsto", fmt_moeda(resultado.total_despesas_previsto))
         col2.metric("Total de despesas no histórico", fmt_moeda(resultado.total_despesas_historico))
-        col1.metric("Fundo de reserva previsto", fmt_moeda(resultado.fundo_reserva_valor))
-        col2.metric("Taxa de administração prevista", fmt_moeda(resultado.taxa_administracao_valor))
+        col1.metric("Reajuste aplicado (automático)", fmt_pct(resultado.percentual_reajuste_automatico))
+        col2.metric("Fundo de reserva previsto", fmt_moeda(resultado.fundo_reserva_valor))
         col1.metric("Valor por unidade (sem ajuste)", fmt_moeda(resultado.valor_por_unidade_sem_ajuste))
         col2.metric(
             f"Valor por unidade (c/ inadimplência {fmt_pct(resultado.percentual_inadimplencia)})",
             fmt_moeda(resultado.valor_por_unidade_com_inadimplencia),
         )
+        if resultado.valor_por_unidade_sugerido_pelo_sistema is not None:
+            st.info(
+                "Você definiu um valor único por unidade. Para comparação, o sistema calcularia "
+                f"automaticamente **{fmt_moeda(resultado.valor_por_unidade_sugerido_pelo_sistema)}** por unidade "
+                "com base nas despesas, fundo de reserva e outras receitas."
+            )
+        if not resultado.fundo_reserva_linha_encontrada:
+            st.warning(
+                "Nenhuma linha de receita de 'fundo de reserva' foi encontrada no demonstrativo — "
+                "o percentual do fundo de reserva foi considerado 0%."
+            )
         if resultado.observacoes:
             st.markdown("**Observações**")
             st.write(escapar_markdown(resultado.observacoes))
@@ -58,15 +69,16 @@ def renderizar_secao_resultado(resultado):
         st.dataframe(df, use_container_width=True)
 
     with abas[2]:
-        st.write(f"Tipo de rateio: **{'Fração ideal' if resultado.rateio_tipo == 'fracao_ideal' else 'Igualitário'}**")
+        st.write(f"Tipo de rateio: **{'Fração ideal' if resultado.rateio_tipo == 'fracao_ideal' else 'Taxa única por unidade'}**")
         st.write(f"Inadimplência considerada: **{fmt_pct(resultado.percentual_inadimplencia)}**")
         st.dataframe(resultado.rateio_por_unidade, use_container_width=True)
 
     with abas[3]:
         st.markdown("**Fundo de reserva**")
         st.write(fmt_moeda(resultado.fundo_reserva_valor))
-        st.markdown("**Taxa de administração**")
-        st.write(fmt_moeda(resultado.taxa_administracao_valor))
+        st.write(f"Percentual automático: **{fmt_pct(resultado.fundo_reserva_percentual_automatico)}**")
+        if not resultado.fundo_reserva_linha_encontrada:
+            st.caption("Nenhuma linha de 'fundo de reserva' encontrada no demonstrativo — considerado 0%.")
 
     with abas[4]:
         st.pyplot(grafico_despesas_por_categoria(resultado))

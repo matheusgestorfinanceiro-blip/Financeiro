@@ -40,8 +40,8 @@ def _pagina_resumo_executivo(pdf: RelatorioPDF, resultado):
     linhas = [
         ("Total de despesas previsto (12 meses)", _fmt_moeda(resultado.total_despesas_previsto)),
         ("Total de despesas no histórico (12 meses)", _fmt_moeda(resultado.total_despesas_historico)),
+        ("Reajuste aplicado (calculado automaticamente)", _fmt_pct(resultado.percentual_reajuste_automatico)),
         ("Fundo de reserva previsto", _fmt_moeda(resultado.fundo_reserva_valor)),
-        ("Taxa de administração prevista", _fmt_moeda(resultado.taxa_administracao_valor)),
         ("Receita de rateio necessária (total)", _fmt_moeda(resultado.receita_rateio_necessaria)),
         ("Valor sugerido por unidade (sem ajuste de inadimplência)", _fmt_moeda(resultado.valor_por_unidade_sem_ajuste)),
         (
@@ -49,11 +49,24 @@ def _pagina_resumo_executivo(pdf: RelatorioPDF, resultado):
             _fmt_moeda(resultado.valor_por_unidade_com_inadimplencia),
         ),
     ]
+    if resultado.valor_por_unidade_sugerido_pelo_sistema is not None:
+        linhas.append(
+            ("Valor que o sistema calcularia automaticamente (referência)", _fmt_moeda(resultado.valor_por_unidade_sugerido_pelo_sistema))
+        )
     for rotulo, valor in linhas:
         pdf.set_font("Helvetica", size=11)
         pdf.cell(130, 8, rotulo)
         pdf.set_font("Helvetica", "B", 11)
         pdf.cell(0, 8, valor, new_x="LMARGIN", new_y="NEXT")
+
+    if not resultado.fundo_reserva_linha_encontrada:
+        pdf.ln(2)
+        pdf.set_font("Helvetica", "I", 9)
+        pdf.multi_cell(
+            0, 5,
+            "Nenhuma linha de receita de 'fundo de reserva' foi encontrada no demonstrativo - "
+            "o percentual do fundo de reserva foi considerado 0%.",
+        )
 
     if resultado.observacoes:
         pdf.ln(4)
@@ -98,7 +111,7 @@ def _pagina_receitas_e_rateio(pdf: RelatorioPDF, resultado):
     pdf.cabecalho_pagina("3. Receitas e rateio por unidade", resultado)
 
     pdf.set_font("Helvetica", size=11)
-    tipo_rateio = "Fração ideal" if resultado.rateio_tipo == "fracao_ideal" else "Igualitário"
+    tipo_rateio = "Fração ideal" if resultado.rateio_tipo == "fracao_ideal" else "Taxa única por unidade"
     pdf.cell(0, 8, f"Tipo de rateio: {tipo_rateio}", new_x="LMARGIN", new_y="NEXT")
     pdf.cell(
         0, 8,
@@ -123,13 +136,12 @@ def _pagina_receitas_e_rateio(pdf: RelatorioPDF, resultado):
 
 def _pagina_fundo_e_taxa(pdf: RelatorioPDF, resultado):
     pdf.add_page()
-    pdf.cabecalho_pagina("4. Fundo de reserva e taxa de administração", resultado)
+    pdf.cabecalho_pagina("4. Fundo de reserva", resultado)
 
     pdf.set_font("Helvetica", size=11)
     pdf.multi_cell(
         0, 7,
-        "Este demonstrativo mostra como o fundo de reserva e a taxa de administração "
-        "foram calculados, para apresentação em assembleia.",
+        "Este demonstrativo mostra como o fundo de reserva foi calculado, para apresentação em assembleia.",
     )
     pdf.ln(4)
 
@@ -137,12 +149,14 @@ def _pagina_fundo_e_taxa(pdf: RelatorioPDF, resultado):
     pdf.cell(0, 8, "Fundo de reserva", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", size=10)
     pdf.cell(0, 7, f"Valor previsto: {_fmt_moeda(resultado.fundo_reserva_valor)}", new_x="LMARGIN", new_y="NEXT")
-
-    pdf.ln(4)
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 8, "Taxa de administração", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", size=10)
-    pdf.cell(0, 7, f"Valor previsto: {_fmt_moeda(resultado.taxa_administracao_valor)}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(
+        0, 7,
+        f"Percentual automático sobre a receita de rateio: {_fmt_pct(resultado.fundo_reserva_percentual_automatico)}",
+        new_x="LMARGIN", new_y="NEXT",
+    )
+    if not resultado.fundo_reserva_linha_encontrada:
+        pdf.set_font("Helvetica", "I", 9)
+        pdf.multi_cell(0, 5, "Nenhuma linha de 'fundo de reserva' encontrada no demonstrativo - considerado 0%.")
 
 
 def _pagina_graficos(pdf: RelatorioPDF, resultado, arquivos_temp: list[str]):
