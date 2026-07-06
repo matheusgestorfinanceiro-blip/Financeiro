@@ -5,7 +5,7 @@ from src.calculo.previsao import gerar_previsao
 from src.models.schema import AjusteManual, DadosDemonstrativo, DadosFormulario, DadosInadimplencia
 
 
-def _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0, outras_receitas=0.0, fundo_reserva=0.0):
+def _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0, outras_receitas=0.0):
     meses = [f"Mes{i}" for i in range(1, 13)]
     df_despesas = pd.DataFrame(
         [
@@ -17,15 +17,13 @@ def _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0, outras_rec
     ]
     if outras_receitas:
         receitas.append({"categoria": "Juros", **{m: outras_receitas / 12 for m in meses}, "total": outras_receitas})
-    if fundo_reserva:
-        receitas.append({"categoria": "Fundo de Reserva", **{m: fundo_reserva / 12 for m in meses}, "total": fundo_reserva})
     df_receitas = pd.DataFrame(receitas)
     return DadosDemonstrativo(
         condominio="Condomínio Teste",
         meses=meses,
         df_receitas=df_receitas,
         df_despesas=df_despesas,
-        total_receitas=total_rateio + outras_receitas + fundo_reserva,
+        total_receitas=total_rateio + outras_receitas,
         total_despesas=total_despesa,
     )
 
@@ -33,8 +31,7 @@ def _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0, outras_rec
 def _formulario(**kwargs):
     base = dict(
         nome_condominio="Condomínio Teste",
-        periodo_inicio="2026-01",
-        periodo_fim="2026-12",
+        periodo="Janeiro/2026 a Dezembro/2026",
         numero_unidades=10,
         rateio_tipo="igualitario",
     )
@@ -61,37 +58,46 @@ def test_reajuste_automatico_quando_despesa_maior_que_receita():
     assert resultado.receita_rateio_necessaria == pytest.approx(1250.0)
 
 
-def test_fundo_de_reserva_automatico_quando_linha_existe():
-    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0, fundo_reserva=100.0)
-    formulario = _formulario()
+def test_sem_fundo_de_reserva():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    formulario = _formulario(possui_fundo_reserva=False)
     resultado = gerar_previsao(demonstrativo, None, formulario)
-    assert resultado.fundo_reserva_linha_encontrada is True
-    # 100 / 1000 = 0.10
-    assert resultado.fundo_reserva_percentual_automatico == pytest.approx(0.10)
+    assert resultado.fundo_reserva_valor == pytest.approx(0.0)
+    assert resultado.fundo_reserva_percentual == pytest.approx(0.0)
+    assert resultado.receita_rateio_necessaria == pytest.approx(1000.0)
+
+
+def test_fundo_de_reserva_percentual_resolve_equacao():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    formulario = _formulario(
+        possui_fundo_reserva=True, fundo_reserva_modo="percentual", fundo_reserva_valor_input=0.10
+    )
+    resultado = gerar_previsao(demonstrativo, None, formulario)
     # R = despesas + 0.10 * R  =>  0.90 * R = 1000  =>  R = 1111.11...
     assert resultado.receita_rateio_necessaria == pytest.approx(1000 / 0.9)
     assert resultado.fundo_reserva_valor == pytest.approx(resultado.receita_rateio_necessaria * 0.10)
 
 
-def test_fundo_de_reserva_e_limitado_quando_percentual_automatico_ultrapassa_teto():
-    # fundo de reserva histórico (900) maior que a receita ordinária (1000) -> 90%, acima do teto de 50%
-    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0, fundo_reserva=900.0)
-    formulario = _formulario()
-    resultado = gerar_previsao(demonstrativo, None, formulario)
-    assert resultado.fundo_reserva_percentual_limitado is True
-    assert resultado.fundo_reserva_percentual_automatico == pytest.approx(0.5)
-    # não deve levantar exceção, e o cálculo deve fechar com o teto de 50%
-    # R = despesas + 0.50 * R  =>  0.50 * R = 1000  =>  R = 2000
-    assert resultado.receita_rateio_necessaria == pytest.approx(2000.0)
-
-
-def test_fundo_de_reserva_zero_quando_linha_nao_existe():
+def test_fundo_de_reserva_percentual_e_limitado_a_teto_defensivo():
     demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
-    formulario = _formulario()
+    formulario = _formulario(
+        possui_fundo_reserva=True, fundo_reserva_modo="percentual", fundo_reserva_valor_input=1.5
+    )
+    # não deve levantar exceção, mesmo com um percentual absurdo digitado
     resultado = gerar_previsao(demonstrativo, None, formulario)
-    assert resultado.fundo_reserva_linha_encontrada is False
-    assert resultado.fundo_reserva_percentual_automatico == pytest.approx(0.0)
-    assert resultado.fundo_reserva_valor == pytest.approx(0.0)
+    assert resultado.fundo_reserva_percentual < 1.0
+    assert resultado.receita_rateio_necessaria > 0
+
+
+def test_fundo_de_reserva_valor_fixo_por_unidade():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    formulario = _formulario(
+        numero_unidades=10, possui_fundo_reserva=True, fundo_reserva_modo="valor_fixo", fundo_reserva_valor_input=20.0
+    )
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    # 20 por unidade x 10 unidades = 200, somado direto (sem equação)
+    assert resultado.fundo_reserva_valor == pytest.approx(200.0)
+    assert resultado.receita_rateio_necessaria == pytest.approx(1200.0)
 
 
 def test_outras_receitas_abatem_a_receita_de_rateio_necessaria():

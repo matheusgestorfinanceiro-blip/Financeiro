@@ -11,6 +11,14 @@ from src.relatorio.pdf_export import gerar_pdf_previsao
 from src.ui.formatacao import escapar_markdown, fmt_moeda, fmt_pct
 
 
+def _descricao_fundo_reserva(resultado) -> str:
+    if not resultado.possui_fundo_reserva:
+        return "Este condomínio não possui fundo de reserva nesta previsão."
+    if resultado.fundo_reserva_modo == "valor_fixo":
+        return "Fundo de reserva: valor fixo por unidade."
+    return f"Fundo de reserva: {fmt_pct(resultado.fundo_reserva_percentual)} sobre a receita de rateio."
+
+
 def renderizar_secao_resultado(resultado):
     st.header("3. Previsão orçamentária — resultado final")
 
@@ -41,19 +49,7 @@ def renderizar_secao_resultado(resultado):
                 f"automaticamente **{fmt_moeda(resultado.valor_por_unidade_sugerido_pelo_sistema)}** por unidade "
                 "com base nas despesas, fundo de reserva e outras receitas."
             )
-        if not resultado.fundo_reserva_linha_encontrada:
-            st.warning(
-                "Nenhuma linha de receita de 'fundo de reserva' foi encontrada no demonstrativo — "
-                "o percentual do fundo de reserva foi considerado 0%."
-            )
-        if resultado.fundo_reserva_percentual_limitado:
-            st.warning(
-                "O percentual do fundo de reserva calculado automaticamente a partir do histórico "
-                "ficou muito alto (maior ou igual a 50%) — provavelmente por causa de alguma "
-                "contribuição extraordinária pontual nos últimos 12 meses, não uma mensalidade "
-                "recorrente. Para o cálculo não travar, o percentual foi limitado a 50%. Vale a "
-                "pena conferir manualmente a linha de 'fundo de reserva' no demonstrativo original."
-            )
+        st.caption(_descricao_fundo_reserva(resultado))
         if resultado.observacoes:
             st.markdown("**Observações**")
             st.write(escapar_markdown(resultado.observacoes))
@@ -84,14 +80,7 @@ def renderizar_secao_resultado(resultado):
     with abas[3]:
         st.markdown("**Fundo de reserva**")
         st.write(fmt_moeda(resultado.fundo_reserva_valor))
-        st.write(f"Percentual automático: **{fmt_pct(resultado.fundo_reserva_percentual_automatico)}**")
-        if not resultado.fundo_reserva_linha_encontrada:
-            st.caption("Nenhuma linha de 'fundo de reserva' encontrada no demonstrativo — considerado 0%.")
-        if resultado.fundo_reserva_percentual_limitado:
-            st.caption(
-                "O percentual calculado automaticamente ficou muito alto e foi limitado a 50%. "
-                "Confira a linha de 'fundo de reserva' no demonstrativo original."
-            )
+        st.caption(_descricao_fundo_reserva(resultado))
 
     with abas[4]:
         st.pyplot(grafico_despesas_por_categoria(resultado))

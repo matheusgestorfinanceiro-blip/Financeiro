@@ -5,11 +5,13 @@ Para rodar: streamlit run app.py
 import streamlit as st
 
 from src.calculo.previsao import gerar_previsao
+from src.ui.estilo import aplicar_estilo_azul
 from src.ui.secao_formulario import renderizar_secao_formulario
 from src.ui.secao_resultado import renderizar_secao_resultado
 from src.ui.secao_upload import renderizar_secao_upload
 
 st.set_page_config(page_title="Previsão Orçamentária Condominial", layout="wide")
+aplicar_estilo_azul()
 
 st.title("Previsão Orçamentária Condominial")
 st.caption("Azul Administradora de Condomínios")

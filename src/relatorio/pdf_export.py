@@ -19,6 +19,14 @@ def _fmt_pct(valor: float) -> str:
     return f"{valor * 100:.2f}".replace(".", ",") + "%"
 
 
+def _descricao_fundo_reserva(resultado) -> str:
+    if not resultado.possui_fundo_reserva:
+        return "Este condomínio não possui fundo de reserva nesta previsão."
+    if resultado.fundo_reserva_modo == "valor_fixo":
+        return "Fundo de reserva: valor fixo por unidade."
+    return f"Fundo de reserva: {_fmt_pct(resultado.fundo_reserva_percentual)} sobre a receita de rateio."
+
+
 class RelatorioPDF(FPDF):
     def cabecalho_pagina(self, titulo: str, resultado):
         self.set_font("Helvetica", "B", 14)
@@ -26,7 +34,7 @@ class RelatorioPDF(FPDF):
         self.set_font("Helvetica", size=10)
         self.cell(
             0, 6,
-            f"{resultado.nome_condominio}  |  Período: {resultado.periodo_inicio} a {resultado.periodo_fim}",
+            f"{resultado.nome_condominio}  |  Período: {resultado.periodo}",
             new_x="LMARGIN", new_y="NEXT",
         )
         self.ln(4)
@@ -59,14 +67,9 @@ def _pagina_resumo_executivo(pdf: RelatorioPDF, resultado):
         pdf.set_font("Helvetica", "B", 11)
         pdf.cell(0, 8, valor, new_x="LMARGIN", new_y="NEXT")
 
-    if not resultado.fundo_reserva_linha_encontrada:
-        pdf.ln(2)
-        pdf.set_font("Helvetica", "I", 9)
-        pdf.multi_cell(
-            0, 5,
-            "Nenhuma linha de receita de 'fundo de reserva' foi encontrada no demonstrativo - "
-            "o percentual do fundo de reserva foi considerado 0%.",
-        )
+    pdf.ln(2)
+    pdf.set_font("Helvetica", "I", 9)
+    pdf.multi_cell(0, 5, _descricao_fundo_reserva(resultado))
 
     if resultado.observacoes:
         pdf.ln(4)
@@ -149,22 +152,7 @@ def _pagina_fundo_e_taxa(pdf: RelatorioPDF, resultado):
     pdf.cell(0, 8, "Fundo de reserva", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", size=10)
     pdf.cell(0, 7, f"Valor previsto: {_fmt_moeda(resultado.fundo_reserva_valor)}", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(
-        0, 7,
-        f"Percentual automático sobre a receita de rateio: {_fmt_pct(resultado.fundo_reserva_percentual_automatico)}",
-        new_x="LMARGIN", new_y="NEXT",
-    )
-    if not resultado.fundo_reserva_linha_encontrada:
-        pdf.set_font("Helvetica", "I", 9)
-        pdf.multi_cell(0, 5, "Nenhuma linha de 'fundo de reserva' encontrada no demonstrativo - considerado 0%.")
-    if resultado.fundo_reserva_percentual_limitado:
-        pdf.set_font("Helvetica", "I", 9)
-        pdf.multi_cell(
-            0, 5,
-            "O percentual calculado automaticamente ficou muito alto (maior ou igual a 50%) e foi "
-            "limitado a 50% para o cálculo não travar. Confira a linha de 'fundo de reserva' no "
-            "demonstrativo original.",
-        )
+    pdf.cell(0, 7, _descricao_fundo_reserva(resultado), new_x="LMARGIN", new_y="NEXT")
 
 
 def _pagina_graficos(pdf: RelatorioPDF, resultado, arquivos_temp: list[str]):

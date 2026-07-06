@@ -42,20 +42,25 @@ class AjusteManual:
 class DadosFormulario:
     """Dados obrigatórios e opcionais preenchidos pelo usuário.
 
-    O percentual de reajuste e o percentual do fundo de reserva não são mais
-    digitados pelo usuário — são calculados automaticamente pelo motor de
+    O percentual de reajuste é calculado automaticamente pelo motor de
     cálculo a partir do próprio Demonstrativo de Receitas e Despesas (veja
-    `src/calculo/previsao.py`)."""
+    `src/calculo/previsao.py`). O fundo de reserva é controlado manualmente
+    pelo usuário (sem fundo, percentual sobre o rateio, ou valor fixo por
+    unidade)."""
 
     nome_condominio: str
-    periodo_inicio: str
-    periodo_fim: str
+    periodo: str
     numero_unidades: int
 
     # Rateio
     rateio_tipo: str = "igualitario"  # "igualitario" ou "fracao_ideal"
     valor_unico_por_unidade: float | None = None  # quando informado, substitui o cálculo automático
     fracoes_ideais: pd.DataFrame | None = None  # colunas: unidade, fracao (soma = 1.0)
+
+    # Fundo de reserva
+    possui_fundo_reserva: bool = False
+    fundo_reserva_modo: str = "percentual"  # "percentual" ou "valor_fixo"
+    fundo_reserva_valor_input: float = 0.0  # percentual (ex 0.05) ou R$ por unidade, conforme o modo
 
     observacoes: str = ""
     ajustes_manuais: list[AjusteManual] = field(default_factory=list)
@@ -76,8 +81,7 @@ class ResultadoPrevisao:
     """Todos os números já calculados, prontos para montar as 5 páginas finais."""
 
     nome_condominio: str
-    periodo_inicio: str
-    periodo_fim: str
+    periodo: str
     observacoes: str
 
     despesas_previstas: list[LinhaDespesaPrevista]
@@ -88,8 +92,9 @@ class ResultadoPrevisao:
 
     percentual_reajuste_automatico: float
     fundo_reserva_valor: float
-    fundo_reserva_percentual_automatico: float
-    fundo_reserva_linha_encontrada: bool
+    fundo_reserva_percentual: float
+    possui_fundo_reserva: bool
+    fundo_reserva_modo: str
 
     receita_rateio_necessaria: float
     numero_unidades: int
@@ -97,7 +102,6 @@ class ResultadoPrevisao:
     valor_por_unidade_com_inadimplencia: float
     percentual_inadimplencia: float
     valor_por_unidade_sugerido_pelo_sistema: float | None = None
-    fundo_reserva_percentual_limitado: bool = False
 
     rateio_tipo: str = "igualitario"
     rateio_por_unidade: pd.DataFrame = None  # colunas: unidade, fracao_ou_igual, valor

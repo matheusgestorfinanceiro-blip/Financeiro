@@ -45,8 +45,12 @@ def _linhas_do_pdf(caminho_pdf: str) -> list[str]:
 
 
 def _extrair_condominio(linhas: list[str]) -> str:
+    """A primeira linha que sobra depois de remover cabeçalho/rodapé é sempre a
+    linha de identificação do imóvel (código + nome + número entre parênteses),
+    independentemente da palavra usada para nomeá-lo (Condomínio, Residencial,
+    Edifício etc.)."""
     for linha in linhas:
-        if "CONDOMINIO" in linha.upper():
+        if linha.strip():
             return linha.strip()
     return ""
 

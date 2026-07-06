@@ -1,4 +1,9 @@
-"""Tela 2: dados obrigatórios + área de análise (dados opcionais)."""
+"""Tela 2: dados obrigatórios + área de análise (dados opcionais).
+
+Não usa st.form: os campos precisam reagir imediatamente uns aos outros
+(ex: escolher "Sim" no fundo de reserva precisa abrir o campo seguinte na
+hora), o que um st.form não permite, já que só reprocessa a tela no envio.
+"""
 import pandas as pd
 import streamlit as st
 
@@ -10,25 +15,16 @@ def renderizar_secao_formulario(dados_demonstrativo):
     st.header("2. Dados da previsão orçamentária")
 
     nome_padrao = limpar_nome_condominio(dados_demonstrativo.condominio) if dados_demonstrativo else ""
-    periodo_inicio_padrao, periodo_fim_padrao = (
-        sugerir_periodo(dados_demonstrativo.meses) if dados_demonstrativo else ("", "")
-    )
+    periodo_padrao = sugerir_periodo(dados_demonstrativo.meses) if dados_demonstrativo else ""
 
-    with st.form("form_previsao"):
+    with st.container(border=True):
         st.subheader("Dados obrigatórios")
 
-        nome_condominio = st.text_input("Nome do condomínio", value=nome_padrao)
-
         col1, col2 = st.columns(2)
-        with col1:
-            periodo_inicio = st.text_input("Início do período (ex: 2026-08)", value=periodo_inicio_padrao)
-        with col2:
-            periodo_fim = st.text_input("Fim do período (ex: 2027-07)", value=periodo_fim_padrao)
+        nome_condominio = col1.text_input("Nome do condomínio", value=nome_padrao)
+        periodo = col2.text_input("Período de avaliação", value=periodo_padrao)
 
-        st.caption(
-            "O reajuste das despesas e o percentual do fundo de reserva são calculados "
-            "automaticamente a partir do Demonstrativo de Receitas e Despesas."
-        )
+        st.caption("O reajuste das despesas é calculado automaticamente a partir do Demonstrativo de Receitas e Despesas.")
 
         numero_unidades = st.number_input("Número de unidades", min_value=1, value=40, step=1)
 
@@ -52,7 +48,27 @@ def renderizar_secao_formulario(dados_demonstrativo):
                 tabela_inicial, num_rows="dynamic", use_container_width=True, key="tabela_fracoes_ideais"
             )
 
-        st.divider()
+        st.markdown("**Fundo de reserva**")
+        possui_fundo_reserva_label = st.radio("O condomínio possui fundo de reserva?", ["Não", "Sim"], horizontal=True)
+        possui_fundo_reserva = possui_fundo_reserva_label == "Sim"
+        fundo_reserva_modo = "percentual"
+        fundo_reserva_valor_input = 0.0
+        if possui_fundo_reserva:
+            fundo_reserva_modo_label = st.radio(
+                "É um percentual ou um valor fixo?", ["Percentual", "Valor fixo"], horizontal=True
+            )
+            if fundo_reserva_modo_label == "Percentual":
+                fundo_reserva_modo = "percentual"
+                fundo_reserva_valor_input = st.number_input(
+                    "Percentual do fundo de reserva (%)", min_value=0.0, max_value=90.0, value=5.0, step=0.5
+                ) / 100
+            else:
+                fundo_reserva_modo = "valor_fixo"
+                fundo_reserva_valor_input = st.number_input(
+                    "Valor do fundo de reserva por unidade (R$)", min_value=0.0, value=0.0, step=10.0
+                )
+
+    with st.container(border=True):
         st.subheader("Ambiente de análise (opcional)")
         observacoes = st.text_area("Observações para o resumo executivo")
 
@@ -82,29 +98,30 @@ def renderizar_secao_formulario(dados_demonstrativo):
                 },
             )
 
-        enviado = st.form_submit_button("Confirmar dados")
+    enviado = st.button("Confirmar dados", type="primary")
 
-    if not enviado:
-        return None
+    if enviado:
+        ajustes_manuais = []
+        if ajustes_tabela is not None:
+            for _, row in ajustes_tabela.iterrows():
+                if pd.notna(row["reajuste_manual_percentual"]):
+                    ajustes_manuais.append(
+                        AjusteManual(subcategoria=row["subcategoria"], percentual_reajuste=float(row["reajuste_manual_percentual"]) / 100)
+                    )
 
-    ajustes_manuais = []
-    if ajustes_tabela is not None:
-        for _, row in ajustes_tabela.iterrows():
-            if pd.notna(row["reajuste_manual_percentual"]):
-                ajustes_manuais.append(
-                    AjusteManual(subcategoria=row["subcategoria"], percentual_reajuste=float(row["reajuste_manual_percentual"]) / 100)
-                )
+        formulario = DadosFormulario(
+            nome_condominio=nome_condominio,
+            periodo=periodo,
+            numero_unidades=int(numero_unidades),
+            rateio_tipo="fracao_ideal" if rateio_tipo_label == "Por fração ideal" else "igualitario",
+            valor_unico_por_unidade=valor_unico_por_unidade,
+            fracoes_ideais=fracoes_ideais,
+            possui_fundo_reserva=possui_fundo_reserva,
+            fundo_reserva_modo=fundo_reserva_modo,
+            fundo_reserva_valor_input=fundo_reserva_valor_input,
+            observacoes=observacoes,
+            ajustes_manuais=ajustes_manuais,
+        )
+        st.session_state["dados_formulario"] = formulario
 
-    formulario = DadosFormulario(
-        nome_condominio=nome_condominio,
-        periodo_inicio=periodo_inicio,
-        periodo_fim=periodo_fim,
-        numero_unidades=int(numero_unidades),
-        rateio_tipo="fracao_ideal" if rateio_tipo_label == "Por fração ideal" else "igualitario",
-        valor_unico_por_unidade=valor_unico_por_unidade,
-        fracoes_ideais=fracoes_ideais,
-        observacoes=observacoes,
-        ajustes_manuais=ajustes_manuais,
-    )
-    st.session_state["dados_formulario"] = formulario
-    return formulario
+    return st.session_state.get("dados_formulario")

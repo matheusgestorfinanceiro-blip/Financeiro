@@ -33,8 +33,9 @@ def parse_inadimplentes(caminho_pdf: str) -> DadosInadimplencia:
             linhas.extend(texto.split("\n"))
 
     for linha in linhas:
-        if "CONDOMINIO" in linha.upper() and not condominio:
-            condominio = linha.strip()
+        linha_stripped = linha.strip()
+        if linha_stripped and not linha_stripped.lower().startswith("gestor@"):
+            condominio = linha_stripped
             break
 
     registros = []

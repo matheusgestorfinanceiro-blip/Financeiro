@@ -1,10 +1,15 @@
-from src.parsers.demonstrativo_parser import parse_demonstrativo
+from src.parsers.demonstrativo_parser import _extrair_condominio, parse_demonstrativo
 
 
 def test_extrai_condominio_e_meses(caminho_demonstrativo):
     dados = parse_demonstrativo(caminho_demonstrativo)
     assert "CONDOMINIO" in dados.condominio.upper()
     assert len(dados.meses) == 12
+
+
+def test_extrai_condominio_mesmo_sem_a_palavra_condominio():
+    linhas = ["W020A RESIDENCIAL JARDIM DAS FLORES (10)", "Demonstrativo de Receitas e Despesas"]
+    assert _extrair_condominio(linhas) == "W020A RESIDENCIAL JARDIM DAS FLORES (10)"
 
 
 def test_soma_das_linhas_de_receita_bate_com_total_do_periodo(caminho_demonstrativo):

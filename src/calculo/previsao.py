@@ -11,6 +11,8 @@ from src.models.schema import (
     ResultadoPrevisao,
 )
 
+TETO_PERCENTUAL_FUNDO_RESERVA = 0.95
+
 
 def _percentual_para_subcategoria(ajustes: list[AjusteManual], subcategoria: str, padrao: float) -> tuple[float, bool]:
     for ajuste in ajustes:
@@ -41,22 +43,6 @@ def _calcular_reajuste_automatico(demonstrativo: DadosDemonstrativo) -> float:
     return (despesa_ordinaria - receita_ordinaria) / receita_ordinaria
 
 
-def _calcular_fundo_reserva_automatico(demonstrativo: DadosDemonstrativo) -> tuple[float, bool]:
-    """Procura uma linha de receita de 'fundo de reserva' no histórico e calcula
-    o percentual dela sobre a receita ordinária. Retorna (percentual, encontrou_linha)."""
-    df = demonstrativo.df_receitas
-    if df.empty:
-        return 0.0, False
-    mascara = df["categoria"].str.contains("fundo de reserva", case=False, na=False)
-    if not mascara.any():
-        return 0.0, False
-    valor_fundo_reserva = float(df[mascara]["total"].sum())
-    receita_ordinaria = _receita_ordinaria(demonstrativo)
-    if receita_ordinaria <= 0:
-        return 0.0, True
-    return valor_fundo_reserva / receita_ordinaria, True
-
-
 def _calcular_despesas_previstas(
     demonstrativo: DadosDemonstrativo, formulario: DadosFormulario, percentual_reajuste: float
 ) -> list[LinhaDespesaPrevista]:
@@ -83,8 +69,9 @@ def _calcular_despesas_previstas(
 def _calcular_outras_receitas_previstas(
     demonstrativo: DadosDemonstrativo, percentual_reajuste: float
 ) -> float:
-    """Todas as receitas do histórico, exceto o rateio mensal e o fundo de reserva
-    (que já são tratados separadamente no cálculo)."""
+    """Todas as receitas do histórico, exceto o rateio mensal e uma eventual linha
+    histórica de 'fundo de reserva' (o fundo de reserva da previsão é definido
+    manualmente pelo usuário, não a partir do histórico)."""
     df = demonstrativo.df_receitas
     if df.empty:
         return 0.0
@@ -117,12 +104,16 @@ def gerar_previsao(
     formulario: DadosFormulario,
 ) -> ResultadoPrevisao:
     percentual_reajuste_automatico = _calcular_reajuste_automatico(demonstrativo)
-    fundo_reserva_percentual, fundo_reserva_linha_encontrada = _calcular_fundo_reserva_automatico(demonstrativo)
 
-    TETO_FUNDO_RESERVA = 0.5
-    fundo_reserva_percentual_limitado = fundo_reserva_percentual >= TETO_FUNDO_RESERVA
-    if fundo_reserva_percentual_limitado:
-        fundo_reserva_percentual = TETO_FUNDO_RESERVA
+    numero_unidades = formulario.numero_unidades
+
+    fundo_reserva_percentual = 0.0
+    fundo_reserva_fixo_total = 0.0
+    if formulario.possui_fundo_reserva:
+        if formulario.fundo_reserva_modo == "valor_fixo":
+            fundo_reserva_fixo_total = formulario.fundo_reserva_valor_input * numero_unidades
+        else:
+            fundo_reserva_percentual = min(formulario.fundo_reserva_valor_input, TETO_PERCENTUAL_FUNDO_RESERVA)
 
     despesas_previstas = _calcular_despesas_previstas(demonstrativo, formulario, percentual_reajuste_automatico)
     total_despesas_historico = sum(l.valor_historico for l in despesas_previstas)
@@ -130,13 +121,12 @@ def gerar_previsao(
 
     total_outras_receitas_previsto = _calcular_outras_receitas_previstas(demonstrativo, percentual_reajuste_automatico)
 
-    # receita_rateio = despesas + fundo_reserva(receita_rateio) - outras_receitas
+    # receita_rateio = despesas + fundo_fixo + fundo_reserva(receita_rateio) - outras_receitas
     # Se fundo_reserva = pct * receita_rateio, então:
-    #   receita_rateio * (1 - pct) = despesas - outras_receitas
-    numerador = total_despesas_previsto - total_outras_receitas_previsto
+    #   receita_rateio * (1 - pct) = despesas + fundo_fixo - outras_receitas
+    numerador = total_despesas_previsto + fundo_reserva_fixo_total - total_outras_receitas_previsto
     receita_rateio_calculada = numerador / (1 - fundo_reserva_percentual)
 
-    numero_unidades = formulario.numero_unidades
     valor_por_unidade_sugerido = receita_rateio_calculada / numero_unidades if numero_unidades else 0.0
 
     usa_valor_unico = formulario.valor_unico_por_unidade is not None and formulario.rateio_tipo == "igualitario"
@@ -147,7 +137,7 @@ def gerar_previsao(
         valor_por_unidade_sem_ajuste = valor_por_unidade_sugerido
         receita_rateio_necessaria = receita_rateio_calculada
 
-    fundo_reserva_valor = receita_rateio_necessaria * fundo_reserva_percentual
+    fundo_reserva_valor = receita_rateio_necessaria * fundo_reserva_percentual + fundo_reserva_fixo_total
 
     percentual_inadimplencia = inadimplencia.percentual_inadimplencia if inadimplencia else 0.0
     fator_cobertura = 1 - percentual_inadimplencia
@@ -167,8 +157,7 @@ def gerar_previsao(
 
     return ResultadoPrevisao(
         nome_condominio=formulario.nome_condominio,
-        periodo_inicio=formulario.periodo_inicio,
-        periodo_fim=formulario.periodo_fim,
+        periodo=formulario.periodo,
         observacoes=formulario.observacoes,
         despesas_previstas=despesas_previstas,
         total_despesas_historico=total_despesas_historico,
@@ -176,9 +165,9 @@ def gerar_previsao(
         total_outras_receitas_previsto=total_outras_receitas_previsto,
         percentual_reajuste_automatico=percentual_reajuste_automatico,
         fundo_reserva_valor=fundo_reserva_valor,
-        fundo_reserva_percentual_automatico=fundo_reserva_percentual,
-        fundo_reserva_linha_encontrada=fundo_reserva_linha_encontrada,
-        fundo_reserva_percentual_limitado=fundo_reserva_percentual_limitado,
+        fundo_reserva_percentual=fundo_reserva_percentual,
+        possui_fundo_reserva=formulario.possui_fundo_reserva,
+        fundo_reserva_modo=formulario.fundo_reserva_modo,
         receita_rateio_necessaria=receita_rateio_necessaria,
         numero_unidades=numero_unidades,
         valor_por_unidade_sem_ajuste=valor_por_unidade_sem_ajuste,
