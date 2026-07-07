@@ -1,0 +1,82 @@
+"""Análises estatísticas usadas no relatório final: classificação de receitas/despesas
+em ordinárias x extraordinárias, e concentração de inadimplência por competência.
+
+Nenhuma função aqui depende de Streamlit ou fpdf, para poder ser testada isoladamente.
+"""
+import re
+
+import pandas as pd
+
+LIMIAR_COEFICIENTE_VARIACAO = 0.5
+
+
+def classificar_regularidade(valores_mensais: list[float]) -> str:
+    """Classifica uma série de 12 valores mensais como "ordinaria" (distribuição
+    uniforme ao longo do ano, típica de receita/despesa recorrente) ou
+    "extraordinaria" (concentrada em poucos meses, típica de algo eventual).
+
+    Usa o coeficiente de variação (desvio padrão / média). É uma classificação
+    estatística, não uma categorização contábil oficial."""
+    serie = pd.Series(valores_mensais, dtype="float64")
+    media = serie.mean()
+    if not media:
+        return "extraordinaria"
+    coeficiente_variacao = serie.std(ddof=0) / abs(media)
+    return "extraordinaria" if coeficiente_variacao > LIMIAR_COEFICIENTE_VARIACAO else "ordinaria"
+
+
+def classificar_receitas(demonstrativo) -> pd.DataFrame:
+    """Retorna uma cópia de df_receitas com a coluna `classificacao` adicionada."""
+    df = demonstrativo.df_receitas.copy()
+    if df.empty:
+        df["classificacao"] = []
+        return df
+    df["classificacao"] = df[demonstrativo.meses].apply(
+        lambda linha: classificar_regularidade(linha.tolist()), axis=1
+    )
+    return df
+
+
+def classificar_despesas(demonstrativo) -> pd.DataFrame:
+    """Retorna uma cópia de df_despesas com a coluna `classificacao` adicionada."""
+    df = demonstrativo.df_despesas.copy()
+    if df.empty:
+        df["classificacao"] = []
+        return df
+    df["classificacao"] = df[demonstrativo.meses].apply(
+        lambda linha: classificar_regularidade(linha.tolist()), axis=1
+    )
+    return df
+
+
+def _competencia_para_ordenacao(competencia: str) -> tuple[int, int]:
+    m = re.match(r"^(\d{2})/(\d{4})$", competencia.strip())
+    if not m:
+        return (0, 0)
+    mes, ano = m.groups()
+    return (int(ano), int(mes))
+
+
+def concentracao_inadimplencia_por_competencia(inadimplencia) -> pd.DataFrame:
+    """Agrupa o valor total em aberto por mês de competência das cobranças
+    atualmente inadimplentes. Retorna colunas `competencia` e `valor_total`,
+    ordenadas cronologicamente quando possível."""
+    if inadimplencia is None or inadimplencia.unidades.empty:
+        return pd.DataFrame(columns=["competencia", "valor_total"])
+    agrupado = (
+        inadimplencia.unidades.groupby("competencia", as_index=False)["total"]
+        .sum()
+        .rename(columns={"total": "valor_total"})
+    )
+    agrupado = agrupado.sort_values(
+        by="competencia", key=lambda col: col.map(_competencia_para_ordenacao)
+    ).reset_index(drop=True)
+    return agrupado
+
+
+def mes_pico_inadimplencia(df_concentracao: pd.DataFrame) -> str | None:
+    """Identifica a competência com maior valor total em aberto."""
+    if df_concentracao.empty:
+        return None
+    linha_pico = df_concentracao.loc[df_concentracao["valor_total"].idxmax()]
+    return str(linha_pico["competencia"])
