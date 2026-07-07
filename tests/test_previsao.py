@@ -16,7 +16,13 @@ def _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0, outras_rec
         {"categoria": "Rateio Mensal - Taxa de Condomínio", **{m: total_rateio / 12 for m in meses}, "total": total_rateio},
     ]
     if outras_receitas:
-        receitas.append({"categoria": "Juros", **{m: outras_receitas / 12 for m in meses}, "total": outras_receitas})
+        # Concentrada em só 2 dos 12 meses (não uniforme), para ser classificada
+        # como "extraordinaria" pelo coeficiente de variação (veja src/calculo/analise.py) -
+        # imita o comportamento real de juros/multas, que não ocorrem todo mês.
+        valores_juros = {m: 0.0 for m in meses}
+        valores_juros[meses[0]] = outras_receitas * 0.6
+        valores_juros[meses[1]] = outras_receitas * 0.4
+        receitas.append({"categoria": "Juros", **valores_juros, "total": outras_receitas})
     df_receitas = pd.DataFrame(receitas)
     return DadosDemonstrativo(
         condominio="Condomínio Teste",
@@ -56,6 +62,66 @@ def test_reajuste_automatico_quando_despesa_maior_que_receita():
     assert resultado.percentual_reajuste_automatico == pytest.approx(0.25)
     assert resultado.total_despesas_previsto == pytest.approx(1250.0)
     assert resultado.receita_rateio_necessaria == pytest.approx(1250.0)
+
+
+def test_reajuste_correto_mesmo_sem_a_palavra_rateio_na_receita():
+    # A receita ordinária deve ser identificada pela regularidade mensal
+    # (valor uniforme nos 12 meses), não por conter a palavra "rateio" no nome.
+    meses = [f"Mes{i}" for i in range(1, 13)]
+    df_despesas = pd.DataFrame(
+        [
+            {"categoria_pai": "Categoria A", "subcategoria": "Item 1", **{m: 1000.0 / 12 for m in meses}, "total": 1000.0},
+        ]
+    )
+    df_receitas = pd.DataFrame(
+        [
+            {"categoria": "Taxa Condominial", **{m: 800.0 / 12 for m in meses}, "total": 800.0},
+        ]
+    )
+    demonstrativo = DadosDemonstrativo(
+        condominio="Condomínio Teste",
+        meses=meses,
+        df_receitas=df_receitas,
+        df_despesas=df_despesas,
+        total_receitas=800.0,
+        total_despesas=1000.0,
+    )
+    formulario = _formulario()
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    # (1000 - 800) / 800 = 0.25 - não pode explodir só porque o nome não contém "rateio"
+    assert resultado.percentual_reajuste_automatico == pytest.approx(0.25)
+    assert resultado.valor_por_unidade_sugerido_pelo_sistema is None or resultado.valor_por_unidade_sugerido_pelo_sistema >= 0
+
+
+def test_despesa_ordinaria_do_reajuste_ignora_despesas_extraordinarias():
+    # Uma despesa extraordinária (concentrada em poucos meses) não deve inflar
+    # a base de despesa usada no cálculo automático do reajuste.
+    meses = [f"Mes{i}" for i in range(1, 13)]
+    valores_extraordinaria = {m: 0.0 for m in meses}
+    valores_extraordinaria[meses[0]] = 5000.0
+    df_despesas = pd.DataFrame(
+        [
+            {"categoria_pai": "Categoria A", "subcategoria": "Item Ordinario", **{m: 1000.0 / 12 for m in meses}, "total": 1000.0},
+            {"categoria_pai": "Categoria B", "subcategoria": "Obra Emergencial", **valores_extraordinaria, "total": 5000.0},
+        ]
+    )
+    df_receitas = pd.DataFrame(
+        [
+            {"categoria": "Rateio Mensal - Taxa de Condomínio", **{m: 1000.0 / 12 for m in meses}, "total": 1000.0},
+        ]
+    )
+    demonstrativo = DadosDemonstrativo(
+        condominio="Condomínio Teste",
+        meses=meses,
+        df_receitas=df_receitas,
+        df_despesas=df_despesas,
+        total_receitas=1000.0,
+        total_despesas=6000.0,
+    )
+    formulario = _formulario()
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    # Despesa ordinária = 1000 (só "Item Ordinario"), igual à receita ordinária -> sem reajuste.
+    assert resultado.percentual_reajuste_automatico == pytest.approx(0.0)
 
 
 def test_sem_fundo_de_reserva():
