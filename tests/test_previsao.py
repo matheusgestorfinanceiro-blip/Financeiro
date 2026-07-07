@@ -270,3 +270,50 @@ def test_gerar_previsao_identifica_pico_de_inadimplencia():
     )
     resultado = gerar_previsao(demonstrativo, inadimplencia, formulario)
     assert resultado.mes_pico_inadimplencia == "02/2026"
+
+
+def test_arrecadacao_prevista_mensal_com_valor_unico_por_unidade():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    formulario = _formulario(numero_unidades=10, valor_unico_por_unidade=150.0)
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    # Valor informado já é mensal: 150 x 10 unidades = 1500/mês.
+    assert resultado.arrecadacao_prevista_mensal == pytest.approx(1500.0)
+
+
+def test_arrecadacao_prevista_mensal_automatica_e_o_total_anual_dividido_por_12():
+    demonstrativo = _demonstrativo_simples(total_despesa=1200.0, total_rateio=1200.0)
+    formulario = _formulario(numero_unidades=10)
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    # receita_rateio_necessaria é o total de 12 meses (1200); dividido por 12 = 100/mês.
+    assert resultado.receita_rateio_necessaria == pytest.approx(1200.0)
+    assert resultado.arrecadacao_prevista_mensal == pytest.approx(100.0)
+
+
+def test_inadimplencia_valor_total_e_unidades_preenchidos_a_partir_dos_dados():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    formulario = _formulario()
+    unidades = pd.DataFrame(
+        [
+            {"unidade": "AP 02", "competencia": "01/2026", "total": 100.0},
+            {"unidade": "AP 01", "competencia": "01/2026", "total": 50.0},
+        ]
+    )
+    inadimplencia = DadosInadimplencia(
+        condominio="Condomínio Teste",
+        unidades=unidades,
+        qtd_unidades_inadimplentes=2,
+        percentual_inadimplencia=0.2,
+        total_principal=0.0,
+        total_geral=150.0,
+    )
+    resultado = gerar_previsao(demonstrativo, inadimplencia, formulario)
+    assert resultado.inadimplencia_valor_total == pytest.approx(150.0)
+    assert resultado.inadimplencia_unidades == ["AP 01", "AP 02"]
+
+
+def test_inadimplencia_valor_total_e_unidades_vazios_sem_dados_de_inadimplencia():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    formulario = _formulario()
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    assert resultado.inadimplencia_valor_total == pytest.approx(0.0)
+    assert resultado.inadimplencia_unidades == []

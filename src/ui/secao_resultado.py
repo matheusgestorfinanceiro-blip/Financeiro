@@ -11,14 +11,6 @@ from src.relatorio.pdf_export import gerar_pdf_previsao
 from src.ui.formatacao import escapar_markdown, fmt_moeda, fmt_pct
 
 
-def _descricao_fundo_reserva(resultado) -> str:
-    if not resultado.possui_fundo_reserva:
-        return "Este condomínio não possui fundo de reserva nesta previsão."
-    if resultado.fundo_reserva_modo == "valor_fixo":
-        return "Fundo de reserva: valor fixo por unidade."
-    return f"Fundo de reserva: {fmt_pct(resultado.fundo_reserva_percentual)} sobre a receita de rateio."
-
-
 def _total_por_classificacao(df) -> dict:
     if df is None or df.empty:
         return {"ordinaria": 0.0, "extraordinaria": 0.0}
@@ -33,15 +25,15 @@ def renderizar_secao_resultado(resultado):
     st.header("3. Previsão orçamentária — resultado final")
     st.caption(f"Relatório gerado em {resultado.data_geracao}")
 
-    abas = st.tabs(["1. Receitas", "2. Despesas", "3. Inadimplência", "4. Reajuste"])
+    abas = st.tabs(["1. Arrecadações", "2. Despesas", "3. Inadimplência", "4. Reajuste"])
 
     with abas[0]:
         totais = _total_por_classificacao(resultado.receitas_classificadas)
         col1, col2 = st.columns(2)
-        col1.metric("Receita ordinária (histórico)", fmt_moeda(totais["ordinaria"]))
-        col2.metric("Receita extraordinária/eventual (histórico)", fmt_moeda(totais["extraordinaria"]))
-        col1.metric("Receita de rateio necessária (previsto)", fmt_moeda(resultado.receita_rateio_necessaria))
-        col2.metric("Outras receitas previstas", fmt_moeda(resultado.total_outras_receitas_previsto))
+        col1.metric("Ordinário (recorrente ou mensal)", fmt_moeda(totais["ordinaria"]))
+        col2.metric("Extraordinário (eventual)", fmt_moeda(totais["extraordinaria"]))
+        col1.metric("Arrecadação prevista mensalmente", fmt_moeda(resultado.arrecadacao_prevista_mensal))
+        col2.metric("Outras receitas (identificadas no período)", fmt_moeda(resultado.total_outras_receitas_previsto))
         st.pyplot(grafico_receitas_ordinaria_x_extraordinaria(resultado))
         st.caption(
             "Classificação baseada na regularidade mensal do histórico (não é uma classificação contábil "
@@ -52,10 +44,10 @@ def renderizar_secao_resultado(resultado):
     with abas[1]:
         totais = _total_por_classificacao(resultado.despesas_classificadas)
         col1, col2 = st.columns(2)
-        col1.metric("Despesa ordinária (histórico)", fmt_moeda(totais["ordinaria"]))
-        col2.metric("Despesa extraordinária/eventual (histórico)", fmt_moeda(totais["extraordinaria"]))
-        col1.metric("Total de despesas previsto", fmt_moeda(resultado.total_despesas_previsto))
-        col2.metric("Total de despesas no histórico", fmt_moeda(resultado.total_despesas_historico))
+        col1.metric("Ordinárias (recorrente ou mensal)", fmt_moeda(totais["ordinaria"]))
+        col2.metric("Extraordinárias (eventuais)", fmt_moeda(totais["extraordinaria"]))
+        col1.metric("Despesas totais previstas para 12 meses", fmt_moeda(resultado.total_despesas_previsto))
+        col2.metric("Total das despesas apuradas na análise", fmt_moeda(resultado.total_despesas_historico))
         st.pyplot(grafico_despesas_ordinaria_x_extraordinaria(resultado))
 
         import pandas as pd
@@ -76,21 +68,25 @@ def renderizar_secao_resultado(resultado):
         st.dataframe(df, use_container_width=True)
 
     with abas[2]:
-        st.metric("Percentual de inadimplência considerado", fmt_pct(resultado.percentual_inadimplencia))
-        st.pyplot(grafico_evolucao_inadimplencia(resultado))
-        if resultado.mes_pico_inadimplencia:
+        tem_grafico = resultado.concentracao_inadimplencia is not None and not resultado.concentracao_inadimplencia.empty
+        if tem_grafico:
+            st.metric("Percentual de inadimplência apurado", fmt_pct(resultado.percentual_inadimplencia))
+            st.pyplot(grafico_evolucao_inadimplencia(resultado))
             st.caption(
                 f"Mês de competência com maior concentração de cobranças em aberto: "
                 f"**{resultado.mes_pico_inadimplencia}**."
             )
         else:
-            st.caption("Não há cobranças em aberto registradas no relatório de inadimplentes enviado.")
+            col1, col2 = st.columns(2)
+            col1.metric("Percentual de inadimplência apurado", fmt_pct(resultado.percentual_inadimplencia))
+            col2.metric("Valor total em aberto", fmt_moeda(resultado.inadimplencia_valor_total))
+            if resultado.inadimplencia_unidades:
+                st.markdown("**Unidades inadimplentes**")
+                st.write(", ".join(resultado.inadimplencia_unidades))
+            st.caption("Não há dados suficientes no relatório de inadimplentes para montar um gráfico de concentração por mês de competência.")
 
     with abas[3]:
         st.metric("Percentual de reajuste apurado", fmt_pct(resultado.percentual_reajuste_automatico))
-        st.markdown("**Fundo de reserva**")
-        st.write(fmt_moeda(resultado.fundo_reserva_valor))
-        st.caption(_descricao_fundo_reserva(resultado))
         if resultado.valor_por_unidade_sugerido_pelo_sistema is not None:
             st.info(
                 "Você definiu um valor único por unidade. Para comparação, o sistema calcularia "

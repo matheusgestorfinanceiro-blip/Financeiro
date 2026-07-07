@@ -114,3 +114,7 @@ class ResultadoPrevisao:
     concentracao_inadimplencia: pd.DataFrame = None  # colunas: competencia, valor_total
     mes_pico_inadimplencia: str | None = None
     data_geracao: str = ""
+
+    arrecadacao_prevista_mensal: float = 0.0
+    inadimplencia_valor_total: float = 0.0
+    inadimplencia_unidades: list[str] = field(default_factory=list)

@@ -64,6 +64,14 @@ def _extrair_meses(linhas: list[str]) -> list[str]:
     return []
 
 
+def _e_transferencia_entre_contas(texto: str) -> bool:
+    """Identifica linhas de transferência entre contas do próprio condomínio
+    (ex: "(+) Transf. da conta 'Digital PJBank' para a conta 'INVEST PJBANK'"),
+    que não são receita nem despesa real e não devem entrar na análise."""
+    texto_lower = texto.lower()
+    return "transf" in texto_lower and "conta" in texto_lower
+
+
 def parse_demonstrativo(caminho_pdf: str) -> DadosDemonstrativo:
     linhas = _linhas_do_pdf(caminho_pdf)
     condominio = _extrair_condominio(linhas)
@@ -173,13 +181,19 @@ def parse_demonstrativo(caminho_pdf: str) -> DadosDemonstrativo:
             ultima_linha_leaf = registro
         ultimo_tipo = "leaf"
 
+    receitas = [r for r in receitas if not _e_transferencia_entre_contas(r["categoria"])]
+    despesas = [d for d in despesas if not _e_transferencia_entre_contas(d["subcategoria"])]
+
     colunas_receitas = ["categoria", *meses, "total"]
     colunas_despesas = ["categoria_pai", "subcategoria", *meses, "total"]
     df_receitas = pd.DataFrame(receitas, columns=colunas_receitas)
     df_despesas = pd.DataFrame(despesas, columns=colunas_despesas)
 
-    total_receitas = totais.get("total_receitas", df_receitas["total"].sum() if not df_receitas.empty else 0.0)
-    total_despesas = totais.get("total_despesas", df_despesas["total"].sum() if not df_despesas.empty else 0.0)
+    # Transferências entre contas próprias são excluídas da análise, então os
+    # totais sempre refletem a soma das linhas já filtradas (não o "Total de
+    # Receitas/Despesas" impresso no PDF, que ainda incluiria essas linhas).
+    total_receitas = df_receitas["total"].sum() if not df_receitas.empty else 0.0
+    total_despesas = df_despesas["total"].sum() if not df_despesas.empty else 0.0
 
     return DadosDemonstrativo(
         condominio=condominio,

@@ -1,4 +1,8 @@
-from src.parsers.demonstrativo_parser import _extrair_condominio, parse_demonstrativo
+from src.parsers.demonstrativo_parser import (
+    _e_transferencia_entre_contas,
+    _extrair_condominio,
+    parse_demonstrativo,
+)
 
 
 def test_extrai_condominio_e_meses(caminho_demonstrativo):
@@ -34,3 +38,18 @@ def test_saldo_anterior_e_final_sao_extraidos(caminho_demonstrativo):
     dados = parse_demonstrativo(caminho_demonstrativo)
     assert dados.saldo_anterior is not None
     assert dados.saldo_final is not None
+
+
+def test_e_transferencia_entre_contas_identifica_linhas_de_transferencia():
+    assert _e_transferencia_entre_contas(
+        "(+) Transf. da conta 'Digital PJBank' para a conta 'INVEST PJBANK'"
+    )
+    assert _e_transferencia_entre_contas(
+        "(+) Transf. da conta 'INVEST PJBANK' para a conta 'Digital PJBank' Pix Recebido"
+    )
+
+
+def test_e_transferencia_entre_contas_nao_marca_categoria_normal():
+    assert not _e_transferencia_entre_contas("Rateio Mensal - Taxa de Condomínio")
+    assert not _e_transferencia_entre_contas("Sistema de Segurança")
+    assert not _e_transferencia_entre_contas("Conservação e Limpeza em Geral")

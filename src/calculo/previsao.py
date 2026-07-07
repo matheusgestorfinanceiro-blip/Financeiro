@@ -162,9 +162,14 @@ def gerar_previsao(
     if usa_valor_unico:
         valor_por_unidade_sem_ajuste = formulario.valor_unico_por_unidade
         receita_rateio_necessaria = valor_por_unidade_sem_ajuste * numero_unidades if numero_unidades else 0.0
+        # O valor informado pelo usuário já é uma mensalidade (ex: R$ 150/mês).
+        arrecadacao_prevista_mensal = receita_rateio_necessaria
     else:
         valor_por_unidade_sem_ajuste = valor_por_unidade_sugerido
         receita_rateio_necessaria = receita_rateio_calculada
+        # receita_rateio_calculada é o total do período de 12 meses; a
+        # arrecadação mensal prevista é esse total dividido por 12.
+        arrecadacao_prevista_mensal = receita_rateio_calculada / 12
 
     fundo_reserva_valor = receita_rateio_necessaria * fundo_reserva_percentual + fundo_reserva_fixo_total
 
@@ -186,6 +191,13 @@ def gerar_previsao(
 
     concentracao_inadimplencia = concentracao_inadimplencia_por_competencia(inadimplencia)
     mes_pico = calcular_mes_pico_inadimplencia(concentracao_inadimplencia)
+
+    inadimplencia_valor_total = inadimplencia.total_geral if inadimplencia else 0.0
+    inadimplencia_unidades = (
+        sorted(inadimplencia.unidades["unidade"].unique().tolist())
+        if inadimplencia is not None and not inadimplencia.unidades.empty
+        else []
+    )
 
     return ResultadoPrevisao(
         nome_condominio=formulario.nome_condominio,
@@ -215,4 +227,7 @@ def gerar_previsao(
         concentracao_inadimplencia=concentracao_inadimplencia,
         mes_pico_inadimplencia=mes_pico,
         data_geracao=date.today().strftime("%d/%m/%Y"),
+        arrecadacao_prevista_mensal=arrecadacao_prevista_mensal,
+        inadimplencia_valor_total=inadimplencia_valor_total,
+        inadimplencia_unidades=inadimplencia_unidades,
     )
