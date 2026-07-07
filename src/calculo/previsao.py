@@ -1,7 +1,15 @@
 """Motor de cálculo da previsão orçamentária. Não depende do Streamlit, então
 pode ser testado isoladamente com números simples (veja tests/test_previsao.py)."""
+from datetime import date
+
 import pandas as pd
 
+from src.calculo.analise import (
+    classificar_despesas,
+    classificar_receitas,
+    concentracao_inadimplencia_por_competencia,
+    mes_pico_inadimplencia as calcular_mes_pico_inadimplencia,
+)
 from src.models.schema import (
     AjusteManual,
     DadosDemonstrativo,
@@ -155,6 +163,11 @@ def gerar_previsao(
         mes: float(demonstrativo.df_receitas[mes].sum()) for mes in demonstrativo.meses
     }
 
+    receitas_classificadas = classificar_receitas(demonstrativo)
+    despesas_classificadas = classificar_despesas(demonstrativo)
+    concentracao_inadimplencia = concentracao_inadimplencia_por_competencia(inadimplencia)
+    mes_pico = calcular_mes_pico_inadimplencia(concentracao_inadimplencia)
+
     return ResultadoPrevisao(
         nome_condominio=formulario.nome_condominio,
         periodo=formulario.periodo,
@@ -178,4 +191,9 @@ def gerar_previsao(
         rateio_por_unidade=rateio_por_unidade,
         total_despesas_historico_por_mes=total_despesas_historico_por_mes,
         total_receitas_historico_por_mes=total_receitas_historico_por_mes,
+        receitas_classificadas=receitas_classificadas,
+        despesas_classificadas=despesas_classificadas,
+        concentracao_inadimplencia=concentracao_inadimplencia,
+        mes_pico_inadimplencia=mes_pico,
+        data_geracao=date.today().strftime("%d/%m/%Y"),
     )

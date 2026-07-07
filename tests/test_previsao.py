@@ -169,3 +169,38 @@ def test_sem_valor_unico_nao_ha_sugestao_de_referencia():
     formulario = _formulario(numero_unidades=10)
     resultado = gerar_previsao(demonstrativo, None, formulario)
     assert resultado.valor_por_unidade_sugerido_pelo_sistema is None
+
+
+def test_gerar_previsao_preenche_campos_do_relatorio_final():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    formulario = _formulario()
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    assert resultado.receitas_classificadas is not None
+    assert "classificacao" in resultado.receitas_classificadas.columns
+    assert resultado.despesas_classificadas is not None
+    assert "classificacao" in resultado.despesas_classificadas.columns
+    assert resultado.concentracao_inadimplencia is not None
+    assert resultado.concentracao_inadimplencia.empty
+    assert resultado.mes_pico_inadimplencia is None
+    assert resultado.data_geracao != ""
+
+
+def test_gerar_previsao_identifica_pico_de_inadimplencia():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    formulario = _formulario()
+    unidades = pd.DataFrame(
+        [
+            {"unidade": "AP 01", "competencia": "01/2026", "total": 100.0},
+            {"unidade": "AP 02", "competencia": "02/2026", "total": 900.0},
+        ]
+    )
+    inadimplencia = DadosInadimplencia(
+        condominio="Condomínio Teste",
+        unidades=unidades,
+        qtd_unidades_inadimplentes=2,
+        percentual_inadimplencia=0.2,
+        total_principal=0.0,
+        total_geral=1000.0,
+    )
+    resultado = gerar_previsao(demonstrativo, inadimplencia, formulario)
+    assert resultado.mes_pico_inadimplencia == "02/2026"

@@ -108,3 +108,9 @@ class ResultadoPrevisao:
 
     total_despesas_historico_por_mes: dict = field(default_factory=dict)  # {mes: valor}
     total_receitas_historico_por_mes: dict = field(default_factory=dict)
+
+    receitas_classificadas: pd.DataFrame = None  # colunas: categoria, <meses>, total, classificacao
+    despesas_classificadas: pd.DataFrame = None  # colunas: categoria_pai, subcategoria, <meses>, total, classificacao
+    concentracao_inadimplencia: pd.DataFrame = None  # colunas: competencia, valor_total
+    mes_pico_inadimplencia: str | None = None
+    data_geracao: str = ""
