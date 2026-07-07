@@ -234,10 +234,9 @@ def _pagina_arrecadacoes(pdf: RelatorioPDF, resultado):
         texto = (
             f"No historico dos ultimos 12 meses, {fmt_pct(pct_ordinaria)} da arrecadacao veio de fontes "
             f"ordinarias e recorrentes (como o rateio mensal), enquanto {fmt_pct(pct_extraordinaria)} "
-            "veio de fontes extraordinarias ou eventuais (ex: juros, multas, receitas pontuais). A "
-            f"arrecadacao mensal prevista para o proximo periodo e de {fmt_moeda(resultado.arrecadacao_prevista_mensal)}. "
-            "Receitas eventuais nao devem ser usadas como base para o calculo do reajuste ou do rateio do "
-            "proximo periodo, pois nao ha garantia de que se repitam."
+            "veio de fontes extraordinarias ou eventuais (ex: juros, multas, receitas pontuais). Receitas "
+            "eventuais nao devem ser usadas como base para o calculo do reajuste ou do rateio do proximo "
+            "periodo, pois nao ha garantia de que se repitam."
         )
     else:
         texto = "Nao ha dados de receita suficientes no historico para esta analise."
