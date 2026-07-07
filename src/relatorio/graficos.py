@@ -12,7 +12,7 @@ CYAN2 = "#38BDF8"
 GRAY = "#94A3B8"
 TOMATO = "#F25C54"
 
-CORES_CATEGORICAS = [CYAN, NAVY2, CYAN2, GRAY]
+CORES_CATEGORICAS = [CYAN, NAVY2, CYAN2, GRAY, "#0A5C73", "#7DB9CC", "#1E3A5F"]
 
 
 def _aplicar_estilo_figura(fig, ax):
@@ -118,6 +118,30 @@ def grafico_receitas_ordinaria_x_extraordinaria(resultado):
         colors=[CYAN, GRAY],
     )
     ax.set_title("Receitas: ordinárias x extraordinárias")
+    ax.title.set_color(NAVY)
+    fig.tight_layout()
+    return fig
+
+
+def grafico_despesas_por_categoria_pai(resultado):
+    """Percentual das despesas previstas por categoria (Com Pessoal, Mensais,
+    Manutenção, Diversas, Serviços Terceirizados etc.)."""
+    fig, ax = plt.subplots(figsize=(6, 6))
+    if not resultado.despesas_previstas:
+        ax.text(0.5, 0.5, "Sem despesas no período", ha="center", va="center", color=GRAY)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        fig.tight_layout()
+        return fig
+
+    df = pd.DataFrame(
+        [{"categoria_pai": l.categoria_pai, "valor": l.valor_previsto} for l in resultado.despesas_previstas]
+    )
+    agrupado = df.groupby("categoria_pai", as_index=False)["valor"].sum().sort_values("valor", ascending=False)
+    cores = [CORES_CATEGORICAS[i % len(CORES_CATEGORICAS)] for i in range(len(agrupado))]
+
+    ax.pie(agrupado["valor"], labels=agrupado["categoria_pai"], autopct="%1.1f%%", colors=cores)
+    ax.set_title("Despesas previstas por categoria")
     ax.title.set_color(NAVY)
     fig.tight_layout()
     return fig

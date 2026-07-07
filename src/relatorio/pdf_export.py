@@ -10,7 +10,7 @@ from src.relatorio.graficos import (
     CYAN,
     GRAY,
     NAVY,
-    grafico_despesas_ordinaria_x_extraordinaria,
+    grafico_despesas_por_categoria_pai,
     grafico_evolucao_inadimplencia,
     grafico_receitas_ordinaria_x_extraordinaria,
 )
@@ -92,37 +92,37 @@ def _largura_util(pdf: RelatorioPDF) -> float:
     return pdf.w - pdf.l_margin - pdf.r_margin
 
 
-def _cartoes_estatisticas(pdf: RelatorioPDF, itens: list[tuple[str, str]]):
-    """Desenha uma grade de "cartões" (2 por linha) com um rótulo pequeno e um
+def _cartoes_estatisticas(pdf: RelatorioPDF, itens: list[tuple[str, str]], colunas: int = 2):
+    """Desenha uma grade de "cartões" (N por linha) com um rótulo pequeno e um
     valor grande em destaque, no lugar de simples linhas de texto."""
     largura_util = _largura_util(pdf)
-    gap = 6
-    largura_cartao = (largura_util - gap) / 2
-    altura_cartao = 24
+    gap = 8
+    largura_cartao = (largura_util - gap * (colunas - 1)) / colunas
+    altura_cartao = 28
     x_inicial = pdf.l_margin
     y_inicial = pdf.get_y()
 
     for i, (rotulo, valor) in enumerate(itens):
-        col = i % 2
-        linha = i // 2
+        col = i % colunas
+        linha = i // colunas
         x = x_inicial + col * (largura_cartao + gap)
         y = y_inicial + linha * (altura_cartao + gap)
 
         pdf.set_fill_color(*_hex_para_rgb(CARD_BG))
         pdf.rect(x, y, largura_cartao, altura_cartao, style="F")
 
-        pdf.set_xy(x + 4, y + 3)
+        pdf.set_xy(x + 4, y + 4)
         pdf.set_font("Helvetica", size=8.5)
         pdf.set_text_color(*_hex_para_rgb(GRAY))
         pdf.multi_cell(largura_cartao - 8, 4, rotulo)
 
-        pdf.set_xy(x + 4, y + 13)
+        pdf.set_xy(x + 4, y + 15)
         pdf.set_font("Helvetica", "B", 14)
         pdf.set_text_color(*_hex_para_rgb(NAVY))
         pdf.cell(largura_cartao - 8, 8, valor)
         pdf.set_text_color(0, 0, 0)
 
-    linhas_de_cartoes = (len(itens) + 1) // 2
+    linhas_de_cartoes = (len(itens) + colunas - 1) // colunas
     pdf.set_xy(pdf.l_margin, y_inicial + linhas_de_cartoes * (altura_cartao + gap))
 
 
@@ -130,8 +130,6 @@ def _caixa_consideracoes(pdf: RelatorioPDF, texto: str, titulo: str = "Considera
     """Desenha uma caixa com fundo destacado em volta de um texto de análise,
     para chamar atenção de forma simples e objetiva."""
     largura_util = _largura_util(pdf)
-    x = pdf.l_margin
-    y = pdf.get_y()
     padding = 4
 
     pdf.set_font("Helvetica", "B", 10)
@@ -141,6 +139,15 @@ def _caixa_consideracoes(pdf: RelatorioPDF, texto: str, titulo: str = "Considera
     linhas = pdf.multi_cell(largura_util - 2 * padding, 5.5, texto, dry_run=True, output="LINES")
     altura_texto = len(linhas) * 5.5
     altura_caixa = altura_titulo + altura_texto + 2 * padding
+
+    # Se a caixa nao couber no espaco restante da pagina, comeca uma pagina
+    # nova para ela inteira, em vez de deixar a quebra automatica do fpdf2
+    # cortar o texto no meio (o que espalhava conteudo numa pagina extra).
+    if pdf.get_y() + altura_caixa > pdf.h - pdf.b_margin:
+        pdf.add_page()
+
+    x = pdf.l_margin
+    y = pdf.get_y()
 
     pdf.set_fill_color(*_hex_para_rgb(DESTAQUE_BG))
     pdf.rect(x, y, largura_util, altura_caixa, style="F")
@@ -156,7 +163,7 @@ def _caixa_consideracoes(pdf: RelatorioPDF, texto: str, titulo: str = "Considera
     pdf.set_text_color(0, 0, 0)
     pdf.multi_cell(largura_util - 2 * padding, 5.5, texto)
 
-    pdf.set_xy(pdf.l_margin, y + altura_caixa + 6)
+    pdf.set_xy(pdf.l_margin, y + altura_caixa + 8)
 
 
 def _pagina_capa(pdf: RelatorioPDF, resultado):
@@ -207,15 +214,20 @@ def _pagina_arrecadacoes(pdf: RelatorioPDF, resultado):
     _cartoes_estatisticas(
         pdf,
         [
-            ("Ordinario (recorrente ou mensal)", fmt_moeda(totais["ordinaria"])),
+            ("Ordinario (recorrente ou anual)", fmt_moeda(totais["ordinaria"])),
             ("Extraordinario (eventual)", fmt_moeda(totais["extraordinaria"])),
             ("Arrecadacao prevista mensalmente", fmt_moeda(resultado.arrecadacao_prevista_mensal)),
-            ("Outras receitas (identificadas no periodo)", fmt_moeda(resultado.total_outras_receitas_previsto)),
         ],
+        colunas=3,
     )
 
     pdf.ln(2)
-    pdf.imagem_temporaria(grafico_receitas_ordinaria_x_extraordinaria(resultado), w=90)
+    largura_grafico = 130
+    pdf.imagem_temporaria(
+        grafico_receitas_ordinaria_x_extraordinaria(resultado),
+        x=(pdf.w - largura_grafico) / 2,
+        w=largura_grafico,
+    )
     pdf.ln(3)
 
     if total_historico:
@@ -244,15 +256,20 @@ def _pagina_despesas(pdf: RelatorioPDF, resultado):
     _cartoes_estatisticas(
         pdf,
         [
-            ("Ordinarias (recorrente ou mensal)", fmt_moeda(totais["ordinaria"])),
-            ("Extraordinarias (eventuais)", fmt_moeda(totais["extraordinaria"])),
+            ("Ordinarias (recorrente ou anual)", fmt_moeda(totais["ordinaria"])),
+            ("Extraordinarias (total anual)", fmt_moeda(totais["extraordinaria"])),
             ("Despesas totais previstas para 12 meses", fmt_moeda(resultado.total_despesas_previsto)),
-            ("Total das despesas apuradas na analise", fmt_moeda(resultado.total_despesas_historico)),
         ],
+        colunas=3,
     )
 
     pdf.ln(2)
-    pdf.imagem_temporaria(grafico_despesas_ordinaria_x_extraordinaria(resultado), w=90)
+    largura_grafico = 130
+    pdf.imagem_temporaria(
+        grafico_despesas_por_categoria_pai(resultado),
+        x=(pdf.w - largura_grafico) / 2,
+        w=largura_grafico,
+    )
     pdf.ln(3)
 
     if total_historico:
@@ -281,10 +298,12 @@ def _pagina_inadimplencia(pdf: RelatorioPDF, resultado):
 
     if tem_grafico:
         _cartoes_estatisticas(
-            pdf, [("Percentual de inadimplencia apurado", fmt_pct(resultado.percentual_inadimplencia))]
+            pdf,
+            [("Percentual de inadimplencia apurado", fmt_pct(resultado.percentual_inadimplencia))],
+            colunas=1,
         )
         pdf.ln(2)
-        pdf.imagem_temporaria(grafico_evolucao_inadimplencia(resultado), w=170)
+        pdf.imagem_temporaria(grafico_evolucao_inadimplencia(resultado), w=_largura_util(pdf))
         pdf.ln(3)
         texto = (
             "O grafico acima mostra o valor em aberto por mes de competencia das cobrancas atualmente "
@@ -331,34 +350,39 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado):
 
     largura_util = _largura_util(pdf)
     pdf.set_fill_color(*_hex_para_rgb(NAVY))
-    altura_destaque = 34
+    altura_destaque = 40
     y_destaque = pdf.get_y()
     pdf.rect(pdf.l_margin, y_destaque, largura_util, altura_destaque, style="F")
 
-    pdf.set_xy(pdf.l_margin, y_destaque + 4)
+    pdf.set_xy(pdf.l_margin, y_destaque + 6)
     pdf.set_font("Helvetica", size=10)
     pdf.set_text_color(255, 255, 255)
     pdf.cell(largura_util, 6, "Percentual de reajuste proposto", align="C", new_x="LMARGIN", new_y="NEXT")
 
-    pdf.set_xy(pdf.l_margin, y_destaque + 10)
+    pdf.set_xy(pdf.l_margin, y_destaque + 12)
     pdf.set_font("Helvetica", "B", 40)
     pdf.set_text_color(*_hex_para_rgb(CYAN))
     pdf.cell(largura_util, 20, fmt_pct(resultado.percentual_reajuste_automatico), align="C")
     pdf.set_text_color(0, 0, 0)
 
-    pdf.set_xy(pdf.l_margin, y_destaque + altura_destaque + 6)
+    pdf.set_xy(pdf.l_margin, y_destaque + altura_destaque + 8)
+
+    totais_receitas = _total_por_classificacao(resultado.receitas_classificadas)
+    totais_despesas = _total_por_classificacao(resultado.despesas_classificadas)
+    receita_ordinaria = totais_receitas["ordinaria"]
+    despesa_ordinaria = totais_despesas["ordinaria"]
 
     if resultado.percentual_reajuste_automatico > 0:
         texto_reajuste = (
-            "O reajuste foi calculado comparando a receita ordinaria (rateio mensal) com a despesa "
-            "ordinaria do historico dos ultimos 12 meses: como a despesa superou a receita, o percentual "
-            "acima e o necessario para equilibrar as duas, mantendo a mesma base de despesas do periodo "
-            "anterior."
+            f"A receita ordinaria do historico (rateio mensal) foi de {fmt_moeda(receita_ordinaria)}, enquanto "
+            f"a despesa ordinaria do mesmo periodo foi de {fmt_moeda(despesa_ordinaria)} - uma diferenca de "
+            f"{fmt_moeda(despesa_ordinaria - receita_ordinaria)}. O percentual acima e o necessario para "
+            "equilibrar as duas, mantendo a mesma base de despesas do periodo anterior."
         )
     else:
         texto_reajuste = (
-            "Nao houve necessidade de reajuste: a receita ordinaria do historico ja cobriu a despesa "
-            "ordinaria do mesmo periodo."
+            f"Nao houve necessidade de reajuste: a receita ordinaria do historico ({fmt_moeda(receita_ordinaria)}) "
+            f"ja cobriu a despesa ordinaria do mesmo periodo ({fmt_moeda(despesa_ordinaria)})."
         )
     _caixa_consideracoes(pdf, texto_reajuste, titulo="Como o reajuste foi apurado")
 
@@ -366,7 +390,8 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado):
     if top_extraordinarias:
         texto_atencao = (
             "As categorias de despesa abaixo tiveram comportamento extraordinario/eventual no historico e "
-            "merecem atencao especial para avaliar se devem se repetir no proximo periodo:"
+            "merecem atencao especial para avaliar se devem se repetir no proximo periodo - reduzir sua "
+            "recorrencia ajuda a manter o reajuste dos proximos periodos mais baixo:"
         )
         for categoria_pai, subcategoria, total in top_extraordinarias:
             texto_atencao += f"\n- {categoria_pai} / {subcategoria}: {fmt_moeda(total)}"
@@ -374,12 +399,6 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado):
         texto_atencao = (
             "Nao foram identificadas categorias de despesa com comportamento fora do padrao no historico "
             "analisado."
-        )
-    if resultado.total_outras_receitas_previsto > 0:
-        texto_atencao += (
-            f"\n\nO condominio conta com {fmt_moeda(resultado.total_outras_receitas_previsto)} em outras "
-            "receitas previstas (juros, multas, eventuais). E recomendavel nao depender dessas receitas "
-            "para cobrir despesas recorrentes, pois nao ha garantia de que se mantenham no mesmo patamar."
         )
     _caixa_consideracoes(pdf, texto_atencao, titulo="Pontos de atencao para equilibrar despesas e receitas")
 
