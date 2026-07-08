@@ -10,13 +10,11 @@ def _df_gastos():
             {
                 "id": 1,
                 "data": "2026-01-10",
-                "categoria": "Material de construção",
+                "categoria": "Material",
                 "descricao": "Cimento e areia",
                 "fornecedor": "Casa do Construtor",
                 "valor": 1200.0,
-                "forma_pagamento": "Pix",
-                "fase": "Estrutura",
-                "status_pagamento": "Pago",
+                "pago": True,
                 "observacoes": "",
             },
             {
@@ -26,9 +24,7 @@ def _df_gastos():
                 "descricao": "Pedreiro - 2 semanas",
                 "fornecedor": "João Pedreiro",
                 "valor": 3000.0,
-                "forma_pagamento": "Transferência",
-                "fase": "Estrutura",
-                "status_pagamento": "Pendente",
+                "pago": False,
                 "observacoes": "",
             },
         ]

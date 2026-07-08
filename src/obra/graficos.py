@@ -2,7 +2,7 @@
 import matplotlib
 import matplotlib.pyplot as plt
 
-from src.obra.calculo import total_por_categoria, total_por_fase, total_por_mes
+from src.obra.calculo import total_por_categoria, total_por_mes
 
 matplotlib.use("Agg")
 
@@ -47,22 +47,6 @@ def grafico_gastos_por_categoria(df):
     ax.barh(agrupado["categoria"], agrupado["valor"], color=cores)
     ax.set_xlabel("R$")
     ax.set_title("Gastos por categoria")
-    _aplicar_estilo_figura(fig, ax)
-    fig.tight_layout()
-    return fig
-
-
-def grafico_gastos_por_fase(df):
-    agrupado = total_por_fase(df)
-    if agrupado.empty:
-        return _grafico_vazio("Gastos por fase da obra")
-
-    agrupado = agrupado.sort_values("valor")
-    fig, ax = plt.subplots(figsize=(8, 4.5))
-    cores = [CORES_CATEGORICAS[i % len(CORES_CATEGORICAS)] for i in range(len(agrupado))]
-    ax.barh(agrupado["fase"], agrupado["valor"], color=cores)
-    ax.set_xlabel("R$")
-    ax.set_title("Gastos por fase da obra")
     _aplicar_estilo_figura(fig, ax)
     fig.tight_layout()
     return fig

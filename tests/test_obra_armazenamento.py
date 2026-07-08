@@ -19,9 +19,7 @@ def test_carregar_gastos_sem_arquivo_retorna_dataframe_vazio(tmp_path):
         "descricao",
         "fornecedor",
         "valor",
-        "forma_pagamento",
-        "fase",
-        "status_pagamento",
+        "pago",
         "observacoes",
     ]
 
@@ -30,11 +28,11 @@ def test_adicionar_gasto_atribui_ids_sequenciais(tmp_path):
     caminho = tmp_path / "gastos.csv"
 
     gasto1 = adicionar_gasto(
-        GastoObra(data="2026-01-10", categoria="Material de construção", descricao="Cimento", valor=250.0),
+        GastoObra(data="2026-01-10", categoria="Material", descricao="Cimento", valor=250.0),
         caminho,
     )
     gasto2 = adicionar_gasto(
-        GastoObra(data="2026-01-15", categoria="Mão de obra", descricao="Pedreiro", valor=800.0),
+        GastoObra(data="2026-01-15", categoria="Mão de obra", descricao="Pedreiro", valor=800.0, pago=False),
         caminho,
     )
 
@@ -45,11 +43,12 @@ def test_adicionar_gasto_atribui_ids_sequenciais(tmp_path):
     assert len(df) == 2
     assert set(df["id"]) == {1, 2}
     assert df["valor"].sum() == 1050.0
+    assert df["pago"].tolist() == [True, False]
 
 
 def test_remover_gasto(tmp_path):
     caminho = tmp_path / "gastos.csv"
-    adicionar_gasto(GastoObra(data="2026-01-10", categoria="Material de construção", descricao="Cimento", valor=250.0), caminho)
+    adicionar_gasto(GastoObra(data="2026-01-10", categoria="Material", descricao="Cimento", valor=250.0), caminho)
     gasto2 = adicionar_gasto(GastoObra(data="2026-01-15", categoria="Mão de obra", descricao="Pedreiro", valor=800.0), caminho)
 
     remover_gasto(gasto2.id, caminho)

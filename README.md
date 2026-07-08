@@ -1,8 +1,46 @@
 # Financeiro
 
 Página dedicada ao financeiro da Azul Administradora para automações dos processos,
-e também ao **sistema de finanças pessoais da família** (veja a seção dedicada
-mais abaixo).
+e também a sistemas pessoais: **finanças da família** e **registro de gastos de
+obra** (veja as seções dedicadas mais abaixo). São três apps independentes no
+mesmo repositório — cada um roda e é publicado separadamente.
+
+## Registro de Obra
+
+Controle simples dos gastos de uma reforma/obra residencial, para acompanhar
+o andamento e gerar, ao final, um relatório em PDF para apresentar ao
+proprietário do imóvel.
+
+### Como rodar
+
+```
+pip install -r requirements.txt
+streamlit run app_obra.py
+```
+
+Uma aba abre no navegador com uma única tela:
+
+- Preencha uma vez os **dados da obra** (nome, proprietário, endereço, início,
+  orçamento previsto e status).
+- Lance cada gasto com o mínimo de campos: o que foi, quanto custou, a data
+  (sempre no formato dia/mês/ano), a categoria e se já foi pago. Fornecedor e
+  observação são opcionais, escondidos em "Mais detalhes" para não atrapalhar
+  quem só quer lançar rápido.
+- Quando quiser, clique em **Gerar relatório em PDF**: capa, resumo executivo,
+  gastos por categoria, evolução no tempo, detalhamento de todos os
+  lançamentos e considerações finais.
+
+Os dados ficam salvos localmente em `data/obra/` (CSV/JSON) e não são
+versionados no Git, por serem dados financeiros pessoais.
+
+### Estrutura
+
+- `app_obra.py` — tela principal.
+- `src/obra/schema.py` — estrutura de um gasto e categorias.
+- `src/obra/armazenamento.py` — persistência em CSV/JSON.
+- `src/obra/calculo.py` — totais, agrupamentos e formatação de datas.
+- `src/obra/graficos.py` — gráficos matplotlib.
+- `src/obra/relatorio_pdf.py` — geração do relatório final em PDF.
 
 ## Sistema de Finanças Pessoais (uso do casal)
 

@@ -2,38 +2,12 @@
 from dataclasses import dataclass
 
 CATEGORIAS_GASTO = [
-    "Material de construção",
+    "Material",
     "Mão de obra",
-    "Projeto e aprovação",
-    "Equipamento e ferramenta",
-    "Elétrica",
-    "Hidráulica",
-    "Acabamento e decoração",
+    "Equipamento",
     "Imprevisto",
     "Outros",
 ]
-
-FASES_OBRA = [
-    "Planejamento",
-    "Demolição",
-    "Estrutura",
-    "Instalações (elétrica/hidráulica)",
-    "Alvenaria e revestimento",
-    "Acabamento",
-    "Finalização e limpeza",
-]
-
-FORMAS_PAGAMENTO = [
-    "Dinheiro",
-    "Pix",
-    "Cartão de crédito",
-    "Cartão de débito",
-    "Transferência",
-    "Boleto",
-    "Outro",
-]
-
-STATUS_PAGAMENTO = ["Pago", "Pendente"]
 
 STATUS_OBRA = ["Planejamento", "Em andamento", "Paralisada", "Concluída"]
 
@@ -47,9 +21,7 @@ class GastoObra:
     descricao: str
     valor: float
     fornecedor: str = ""
-    forma_pagamento: str = ""
-    fase: str = ""
-    status_pagamento: str = "Pago"
+    pago: bool = True
     observacoes: str = ""
     id: int = 0
 
