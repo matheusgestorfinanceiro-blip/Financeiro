@@ -1,0 +1,62 @@
+"""Cálculos e agregações sobre os gastos lançados da obra."""
+import datetime
+
+import pandas as pd
+
+
+def fmt_data_br(data_iso: str) -> str:
+    """Converte 'AAAA-MM-DD' para 'DD/MM/AAAA'. Retorna vazio se não houver data."""
+    if not data_iso:
+        return ""
+    return datetime.date.fromisoformat(str(data_iso)).strftime("%d/%m/%Y")
+
+
+def total_geral(df: pd.DataFrame) -> float:
+    return float(df["valor"].sum()) if not df.empty else 0.0
+
+
+def total_por_categoria(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame(columns=["categoria", "valor"])
+    return df.groupby("categoria", as_index=False)["valor"].sum().sort_values("valor", ascending=False)
+
+
+def total_por_fase(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame(columns=["fase", "valor"])
+    return df.groupby("fase", as_index=False)["valor"].sum().sort_values("valor", ascending=False)
+
+
+def total_por_mes(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame(columns=["mes", "valor", "acumulado"])
+    temp = df.copy()
+    datas = pd.to_datetime(temp["data"])
+    temp["mes"] = datas.dt.strftime("%m/%Y")
+    temp["ordenacao"] = datas.dt.to_period("M")
+    agrupado = temp.groupby(["ordenacao", "mes"], as_index=False)["valor"].sum().sort_values("ordenacao")
+    agrupado["acumulado"] = agrupado["valor"].cumsum()
+    return agrupado[["mes", "valor", "acumulado"]].reset_index(drop=True)
+
+
+def resumo_pagamento(df: pd.DataFrame) -> dict:
+    if df.empty:
+        return {"pago": 0.0, "pendente": 0.0}
+    agrupado = df.groupby("status_pagamento")["valor"].sum()
+    return {
+        "pago": float(agrupado.get("Pago", 0.0)),
+        "pendente": float(agrupado.get("Pendente", 0.0)),
+    }
+
+
+def percentual_orcamento(total_gasto: float, orcamento_previsto: float) -> float | None:
+    if not orcamento_previsto:
+        return None
+    return total_gasto / orcamento_previsto
+
+
+def periodo_coberto(df: pd.DataFrame) -> tuple[str, str] | None:
+    if df.empty:
+        return None
+    datas = pd.to_datetime(df["data"])
+    return datas.min().strftime("%d/%m/%Y"), datas.max().strftime("%d/%m/%Y")
