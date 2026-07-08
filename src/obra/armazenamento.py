@@ -18,9 +18,7 @@ COLUNAS_GASTOS = [
     "descricao",
     "fornecedor",
     "valor",
-    "forma_pagamento",
-    "fase",
-    "status_pagamento",
+    "pago",
     "observacoes",
 ]
 
@@ -31,7 +29,8 @@ def carregar_gastos(caminho: Path = CAMINHO_GASTOS) -> pd.DataFrame:
         return pd.DataFrame(columns=COLUNAS_GASTOS)
     df = pd.read_csv(caminho, dtype={"observacoes": str, "fornecedor": str})
     df["data"] = pd.to_datetime(df["data"]).dt.date.astype(str)
-    for coluna in ("fornecedor", "observacoes", "forma_pagamento", "fase"):
+    df["pago"] = df["pago"].astype(str).str.strip().str.lower().isin(["true", "1"])
+    for coluna in ("fornecedor", "observacoes"):
         df[coluna] = df[coluna].fillna("")
     return df.sort_values("data").reset_index(drop=True)
 

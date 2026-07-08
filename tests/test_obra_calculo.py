@@ -8,7 +8,6 @@ from src.obra.calculo import (
     resumo_pagamento,
     total_geral,
     total_por_categoria,
-    total_por_fase,
     total_por_mes,
 )
 
@@ -17,9 +16,9 @@ from src.obra.calculo import (
 def df_gastos():
     return pd.DataFrame(
         [
-            {"id": 1, "data": "2026-01-10", "categoria": "Material de construção", "fase": "Estrutura", "valor": 1000.0, "status_pagamento": "Pago"},
-            {"id": 2, "data": "2026-01-20", "categoria": "Mão de obra", "fase": "Estrutura", "valor": 2000.0, "status_pagamento": "Pendente"},
-            {"id": 3, "data": "2026-02-05", "categoria": "Material de construção", "fase": "Acabamento", "valor": 500.0, "status_pagamento": "Pago"},
+            {"id": 1, "data": "2026-01-10", "categoria": "Material", "valor": 1000.0, "pago": True},
+            {"id": 2, "data": "2026-01-20", "categoria": "Mão de obra", "valor": 2000.0, "pago": False},
+            {"id": 3, "data": "2026-02-05", "categoria": "Material", "valor": 500.0, "pago": True},
         ]
     )
 
@@ -40,15 +39,8 @@ def test_total_geral_vazio():
 def test_total_por_categoria(df_gastos):
     agrupado = total_por_categoria(df_gastos)
     mapa = dict(zip(agrupado["categoria"], agrupado["valor"]))
-    assert mapa["Material de construção"] == 1500.0
+    assert mapa["Material"] == 1500.0
     assert mapa["Mão de obra"] == 2000.0
-
-
-def test_total_por_fase(df_gastos):
-    agrupado = total_por_fase(df_gastos)
-    mapa = dict(zip(agrupado["fase"], agrupado["valor"]))
-    assert mapa["Estrutura"] == 3000.0
-    assert mapa["Acabamento"] == 500.0
 
 
 def test_total_por_mes_acumulado(df_gastos):

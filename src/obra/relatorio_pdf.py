@@ -1,5 +1,5 @@
 """Monta o relatório final em PDF da obra: capa, resumo executivo, gastos por
-categoria e fase, evolução no tempo, detalhamento de todos os lançamentos e
+categoria, evolução no tempo, detalhamento de todos os lançamentos e
 considerações finais sobre o andamento/finalização da obra."""
 import datetime
 import os
@@ -20,7 +20,6 @@ from src.obra.graficos import (
     NAVY,
     grafico_evolucao_gastos,
     grafico_gastos_por_categoria,
-    grafico_gastos_por_fase,
 )
 from src.ui.formatacao import fmt_moeda, fmt_pct
 
@@ -178,7 +177,7 @@ def _tabela_gastos(pdf: RelatorioObraPDF, df):
             str(gasto.descricao)[:36],
             str(gasto.fornecedor)[:22],
             fmt_moeda(float(gasto.valor)),
-            str(gasto.status_pagamento),
+            "Pago" if gasto.pago else "Pendente",
         ]
         for (_, largura), valor in zip(colunas, valores):
             pdf.cell(largura, 6, valor, fill=True, align="L")
@@ -272,14 +271,12 @@ def _pagina_resumo(pdf: RelatorioObraPDF, dados_obra, df_gastos):
     _caixa_consideracoes(pdf, texto, titulo="Situacao geral")
 
 
-def _pagina_categoria_fase(pdf: RelatorioObraPDF, df_gastos):
+def _pagina_categoria(pdf: RelatorioObraPDF, df_gastos):
     pdf.add_page()
-    pdf.titulo_pagina("2. Gastos por categoria e por fase")
+    pdf.titulo_pagina("2. Gastos por categoria")
 
-    largura_grafico = 140
+    largura_grafico = 160
     pdf.imagem_temporaria(grafico_gastos_por_categoria(df_gastos), x=(pdf.w - largura_grafico) / 2, w=largura_grafico)
-    pdf.ln(3)
-    pdf.imagem_temporaria(grafico_gastos_por_fase(df_gastos), x=(pdf.w - largura_grafico) / 2, w=largura_grafico)
 
 
 def _pagina_evolucao(pdf: RelatorioObraPDF, df_gastos):
@@ -320,7 +317,7 @@ def _pagina_consideracoes_finais(pdf: RelatorioObraPDF, dados_obra, df_gastos):
 
 
 def gerar_pdf_obra(dados_obra, df_gastos) -> bytes:
-    """Gera o relatorio final em PDF (capa, resumo, gastos por categoria/fase,
+    """Gera o relatorio final em PDF (capa, resumo, gastos por categoria,
     evolucao no tempo, detalhamento completo e consideracoes finais) e retorna
     os bytes prontos para download."""
     pdf = RelatorioObraPDF()
@@ -328,7 +325,7 @@ def gerar_pdf_obra(dados_obra, df_gastos) -> bytes:
     try:
         _pagina_capa(pdf, dados_obra, df_gastos)
         _pagina_resumo(pdf, dados_obra, df_gastos)
-        _pagina_categoria_fase(pdf, df_gastos)
+        _pagina_categoria(pdf, df_gastos)
         _pagina_evolucao(pdf, df_gastos)
         _pagina_detalhamento(pdf, df_gastos)
         _pagina_consideracoes_finais(pdf, dados_obra, df_gastos)

@@ -21,12 +21,6 @@ def total_por_categoria(df: pd.DataFrame) -> pd.DataFrame:
     return df.groupby("categoria", as_index=False)["valor"].sum().sort_values("valor", ascending=False)
 
 
-def total_por_fase(df: pd.DataFrame) -> pd.DataFrame:
-    if df.empty:
-        return pd.DataFrame(columns=["fase", "valor"])
-    return df.groupby("fase", as_index=False)["valor"].sum().sort_values("valor", ascending=False)
-
-
 def total_por_mes(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame(columns=["mes", "valor", "acumulado"])
@@ -42,10 +36,9 @@ def total_por_mes(df: pd.DataFrame) -> pd.DataFrame:
 def resumo_pagamento(df: pd.DataFrame) -> dict:
     if df.empty:
         return {"pago": 0.0, "pendente": 0.0}
-    agrupado = df.groupby("status_pagamento")["valor"].sum()
     return {
-        "pago": float(agrupado.get("Pago", 0.0)),
-        "pendente": float(agrupado.get("Pendente", 0.0)),
+        "pago": float(df.loc[df["pago"], "valor"].sum()),
+        "pendente": float(df.loc[~df["pago"], "valor"].sum()),
     }
 
 
