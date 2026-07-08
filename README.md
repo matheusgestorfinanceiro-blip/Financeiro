@@ -29,12 +29,22 @@ Uma aba abre no navegador com uma única tela:
   para você completar — e sempre pede a sua confirmação antes de lançar
   qualquer coisa. Quando não há comprovante (ex: pagamento em dinheiro sem
   nota), ainda é possível lançar manualmente em "Lançar sem comprovante".
-- Quando quiser, clique em **Gerar relatório em PDF**: capa, resumo executivo,
-  gastos por categoria, evolução no tempo, detalhamento de todos os
-  lançamentos e considerações finais.
+- Envie **fotos da evolução da obra** (com a data em que foram tiradas e uma
+  legenda opcional) — elas entram no relatório em PDF organizadas na ordem
+  cronológica de execução.
+- Quando quiser, clique em **Gerar relatório em PDF**, escolhendo o tipo:
+  - **Parcial** (andamento): pode ser gerado a qualquer momento, com ou sem
+    fotos.
+  - **Final** (obra concluída): exige ao menos uma foto de evolução
+    cadastrada.
+  
+  O relatório traz capa, resumo executivo, gastos por categoria, evolução dos
+  gastos no tempo, detalhamento de todos os lançamentos, fotos da evolução
+  (quando houver) e considerações finais.
 
-Os dados ficam salvos localmente em `data/obra/` (CSV/JSON) e não são
-versionados no Git, por serem dados financeiros pessoais.
+Os dados ficam salvos localmente em `data/obra/` (CSV/JSON, fotos em
+`data/obra/fotos/`) e não são versionados no Git, por serem dados financeiros
+e imagens pessoais.
 
 **Publicação (Streamlit Community Cloud):** além do `requirements.txt`, a
 leitura de comprovantes por foto/imagem depende do pacote de sistema

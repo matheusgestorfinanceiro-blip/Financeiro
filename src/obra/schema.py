@@ -38,3 +38,13 @@ class DadosObra:
     orcamento_previsto: float = 0.0
     status_obra: str = "Em andamento"
     observacoes_gerais: str = ""
+
+
+@dataclass
+class FotoObra:
+    """Uma foto de evolução da obra, usada no relatório final."""
+
+    data: str  # "AAAA-MM-DD"
+    nome_arquivo: str  # nome do arquivo salvo em data/obra/fotos/
+    legenda: str = ""
+    id: int = 0

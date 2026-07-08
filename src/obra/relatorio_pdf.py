@@ -1,11 +1,14 @@
 """Monta o relatório final em PDF da obra: capa, resumo executivo, gastos por
-categoria, evolução no tempo, detalhamento de todos os lançamentos e
-considerações finais sobre o andamento/finalização da obra."""
+categoria, evolução no tempo, detalhamento de todos os lançamentos, fotos da
+evolução da obra (quando houver) e considerações finais sobre o
+andamento/finalização da obra."""
 import datetime
 import os
 import tempfile
+from pathlib import Path
 
 from fpdf import FPDF
+from PIL import Image
 
 from src.obra.calculo import (
     fmt_data_br,
@@ -224,9 +227,9 @@ def _pagina_capa(pdf: RelatorioObraPDF, dados_obra, df_gastos):
     pdf.set_text_color(0, 0, 0)
 
 
-def _pagina_resumo(pdf: RelatorioObraPDF, dados_obra, df_gastos):
+def _pagina_resumo(pdf: RelatorioObraPDF, dados_obra, df_gastos, numero: int):
     pdf.add_page()
-    pdf.titulo_pagina("1. Resumo executivo")
+    pdf.titulo_pagina(f"{numero}. Resumo executivo")
 
     total = total_geral(df_gastos)
     pagamento = resumo_pagamento(df_gastos)
@@ -271,37 +274,75 @@ def _pagina_resumo(pdf: RelatorioObraPDF, dados_obra, df_gastos):
     _caixa_consideracoes(pdf, texto, titulo="Situacao geral")
 
 
-def _pagina_categoria(pdf: RelatorioObraPDF, df_gastos):
+def _pagina_categoria(pdf: RelatorioObraPDF, df_gastos, numero: int):
     pdf.add_page()
-    pdf.titulo_pagina("2. Gastos por categoria")
+    pdf.titulo_pagina(f"{numero}. Gastos por categoria")
 
     largura_grafico = 160
     pdf.imagem_temporaria(grafico_gastos_por_categoria(df_gastos), x=(pdf.w - largura_grafico) / 2, w=largura_grafico)
 
 
-def _pagina_evolucao(pdf: RelatorioObraPDF, df_gastos):
+def _pagina_evolucao(pdf: RelatorioObraPDF, df_gastos, numero: int):
     pdf.add_page()
-    pdf.titulo_pagina("3. Evolucao dos gastos ao longo do tempo")
+    pdf.titulo_pagina(f"{numero}. Evolucao dos gastos ao longo do tempo")
 
     pdf.imagem_temporaria(grafico_evolucao_gastos(df_gastos), w=_largura_util(pdf))
     pdf.ln(3)
 
     texto = (
-        "O grafico acima mostra o valor gasto em cada mes (barras) e o total acumulado da obra ao longo "
-        "do tempo (linha), permitindo acompanhar o ritmo de desembolso desde o inicio dos registros."
+        "O grafico acima mostra o valor gasto em cada mes (barras, eixo da esquerda) e o total acumulado "
+        "da obra ao longo do tempo (linha, eixo da direita), com os valores de cada ponto em destaque, "
+        "permitindo acompanhar o ritmo de desembolso desde o inicio dos registros."
     )
     _caixa_consideracoes(pdf, texto)
 
 
-def _pagina_detalhamento(pdf: RelatorioObraPDF, df_gastos):
+def _pagina_detalhamento(pdf: RelatorioObraPDF, df_gastos, numero: int):
     pdf.add_page()
-    pdf.titulo_pagina("4. Detalhamento de todos os lancamentos")
+    pdf.titulo_pagina(f"{numero}. Detalhamento de todos os lancamentos")
     _tabela_gastos(pdf, df_gastos.sort_values("data"))
 
 
-def _pagina_consideracoes_finais(pdf: RelatorioObraPDF, dados_obra, df_gastos):
+def _pagina_fotos(pdf: RelatorioObraPDF, fotos_df, dir_fotos: Path, numero: int):
+    dir_fotos = Path(dir_fotos)
+    largura_util = _largura_util(pdf)
+
     pdf.add_page()
-    pdf.titulo_pagina("5. Consideracoes finais")
+    pdf.titulo_pagina(f"{numero}. Fotos da evolucao da obra")
+    pdf.set_font("Helvetica", size=9)
+    pdf.set_text_color(*_hex_para_rgb(GRAY))
+    pdf.multi_cell(largura_util, 5, "Fotos organizadas na ordem cronologica de execucao da obra.")
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(2)
+
+    for foto in fotos_df.itertuples():
+        caminho_arquivo = dir_fotos / foto.nome_arquivo
+        if not caminho_arquivo.exists():
+            continue
+
+        with Image.open(caminho_arquivo) as imagem:
+            largura_px, altura_px = imagem.size
+        altura_imagem = largura_util * (altura_px / largura_px)
+        altura_legenda = 8
+        altura_bloco = altura_imagem + altura_legenda + 6
+
+        if pdf.get_y() + altura_bloco > pdf.h - pdf.b_margin:
+            pdf.add_page()
+
+        pdf.image(str(caminho_arquivo), x=pdf.l_margin, w=largura_util)
+        pdf.ln(1)
+
+        legenda = f"{fmt_data_br(foto.data)}" + (f" - {foto.legenda}" if foto.legenda else "")
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.set_text_color(*_hex_para_rgb(NAVY))
+        pdf.cell(largura_util, 6, legenda, new_x="LMARGIN", new_y="NEXT")
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(4)
+
+
+def _pagina_consideracoes_finais(pdf: RelatorioObraPDF, dados_obra, df_gastos, numero: int):
+    pdf.add_page()
+    pdf.titulo_pagina(f"{numero}. Consideracoes finais")
 
     total = total_geral(df_gastos)
     texto = (
@@ -316,19 +357,41 @@ def _pagina_consideracoes_finais(pdf: RelatorioObraPDF, dados_obra, df_gastos):
         _caixa_consideracoes(pdf, dados_obra.observacoes_gerais, titulo="Observacoes do responsavel pela obra")
 
 
-def gerar_pdf_obra(dados_obra, df_gastos) -> bytes:
-    """Gera o relatorio final em PDF (capa, resumo, gastos por categoria,
-    evolucao no tempo, detalhamento completo e consideracoes finais) e retorna
-    os bytes prontos para download."""
+def gerar_pdf_obra(
+    dados_obra,
+    df_gastos,
+    fotos_df=None,
+    dir_fotos: Path | None = None,
+    tipo_relatorio: str = "parcial",
+) -> bytes:
+    """Gera o relatorio em PDF (capa, resumo, gastos por categoria, evolucao no
+    tempo, detalhamento completo, fotos da evolucao da obra quando houver, e
+    consideracoes finais) e retorna os bytes prontos para download.
+
+    tipo_relatorio "parcial" pode ser gerado com ou sem fotos. Ja o "final"
+    exige ao menos uma foto de evolucao cadastrada."""
+    tem_fotos = fotos_df is not None and not fotos_df.empty
+
+    if tipo_relatorio == "final" and not tem_fotos:
+        raise ValueError("Inclua ao menos uma foto de evolucao da obra para gerar o relatorio final.")
+
     pdf = RelatorioObraPDF()
     pdf.arquivos_temp = []
     try:
+        numero = 1
         _pagina_capa(pdf, dados_obra, df_gastos)
-        _pagina_resumo(pdf, dados_obra, df_gastos)
-        _pagina_categoria(pdf, df_gastos)
-        _pagina_evolucao(pdf, df_gastos)
-        _pagina_detalhamento(pdf, df_gastos)
-        _pagina_consideracoes_finais(pdf, dados_obra, df_gastos)
+        _pagina_resumo(pdf, dados_obra, df_gastos, numero)
+        numero += 1
+        _pagina_categoria(pdf, df_gastos, numero)
+        numero += 1
+        _pagina_evolucao(pdf, df_gastos, numero)
+        numero += 1
+        _pagina_detalhamento(pdf, df_gastos, numero)
+        numero += 1
+        if tem_fotos:
+            _pagina_fotos(pdf, fotos_df, dir_fotos, numero)
+            numero += 1
+        _pagina_consideracoes_finais(pdf, dados_obra, df_gastos, numero)
         return bytes(pdf.output())
     finally:
         for caminho in pdf.arquivos_temp:
