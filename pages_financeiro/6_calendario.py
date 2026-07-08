@@ -1,4 +1,4 @@
-"""Calendário: em que dia cada despesa vence e cada receita é esperada."""
+"""Calendário: só as despesas a vencer, mês a mês."""
 from datetime import date
 
 import streamlit as st
@@ -14,8 +14,8 @@ aplicar_estilo()
 conexao = obter_conexao()
 selecionar_usuario()
 
-st.title("🗓️ Calendário")
-st.caption("🔵 receita · 🔴 despesa. Clique nas setas para ver outros meses.")
+st.title("🗓️ Calendário de despesas")
+st.caption("Só as despesas a vencer. Clique nas setas para ver outros meses.")
 
 hoje = date.today()
 st.session_state.setdefault("cal_ano", hoje.year)
@@ -43,10 +43,14 @@ with col_titulo:
     )
 
 todos = listar_todos(conexao)
-ocorrencias = lancamentos_do_mes(todos, ano, mes)
+despesas_do_mes = [oc for oc in lancamentos_do_mes(todos, ano, mes) if oc.tipo != TIPO_RECEITA]
 por_dia: dict[int, list] = {}
-for oc in ocorrencias:
+total_mes = 0.0
+for oc in despesas_do_mes:
     por_dia.setdefault(oc.data.day, []).append(oc)
+    total_mes += oc.valor
+
+st.markdown(f"**Total de despesas no mês: :red[{fmt_moeda(total_mes)}]**")
 
 cabecalho = st.columns(7)
 for col, nome in zip(cabecalho, DIAS_SEMANA):
@@ -60,46 +64,47 @@ for semana in semanas_do_mes(ano, mes):
                 st.markdown("&nbsp;")
                 continue
             eh_hoje = date(ano, mes, dia) == hoje
+            ocorrencias_dia = sorted(por_dia.get(dia, []), key=lambda o: -o.valor)
+            total_dia = sum(o.valor for o in ocorrencias_dia)
             fundo = "background-color:#EFF6FF;border-radius:8px;" if eh_hoje else ""
+            if ocorrencias_dia:
+                fundo = "background-color:#FEF2F2;border-radius:8px;" if not eh_hoje else fundo
+
             linhas = ""
-            for oc in sorted(por_dia.get(dia, []), key=lambda o: o.tipo):
-                cor = "#1D4ED8" if oc.tipo == TIPO_RECEITA else "#DC2626"
+            for oc in ocorrencias_dia[:3]:
                 texto = oc.descricao_completa
-                if len(texto) > 13:
-                    texto = texto[:12] + "…"
+                if len(texto) > 14:
+                    texto = texto[:13] + "…"
                 linhas += (
-                    f"<div style='font-size:0.68rem;color:{cor};line-height:1.15;"
-                    f"margin-top:2px;' title='{oc.descricao_completa} — {fmt_moeda(oc.valor)}'>"
-                    f"● {texto}</div>"
+                    f"<div style='font-size:0.72rem;color:#B91C1C;line-height:1.2;margin-top:2px;' "
+                    f"title='{oc.descricao_completa} — {fmt_moeda(oc.valor)}'>{texto}</div>"
                 )
+            if len(ocorrencias_dia) > 3:
+                linhas += f"<div style='font-size:0.68rem;color:#B91C1C;'>+{len(ocorrencias_dia) - 3}</div>"
+
+            cabecalho_dia = f"<div style='font-weight:700'>{dia}</div>"
+            total_html = (
+                f"<div style='font-size:0.75rem;font-weight:700;color:#DC2626;margin-top:2px'>{fmt_moeda(total_dia)}</div>"
+                if total_dia > 0
+                else ""
+            )
             st.markdown(
-                f"<div style='{fundo}padding:4px;min-height:70px'>"
-                f"<div style='font-weight:600'>{dia}</div>{linhas}</div>",
+                f"<div style='{fundo}padding:5px;min-height:78px'>{cabecalho_dia}{total_html}{linhas}</div>",
                 unsafe_allow_html=True,
             )
 
 st.divider()
-st.subheader("Próximos vencimentos e receitas previstas")
+st.subheader("Próximas despesas a vencer")
 
 meses_futuros = proximos_meses(hoje.year, hoje.month, 3)
 futuras = []
 for a, m in meses_futuros:
     futuras.extend(lancamentos_do_mes(todos, a, m))
-futuras = [o for o in futuras if o.data >= hoje]
+despesas_futuras = sorted(
+    (o for o in futuras if o.tipo != TIPO_RECEITA and o.data >= hoje), key=lambda o: o.data
+)[:15]
 
-despesas_futuras = sorted((o for o in futuras if o.tipo != TIPO_RECEITA), key=lambda o: o.data)[:12]
-receitas_futuras = sorted((o for o in futuras if o.tipo == TIPO_RECEITA), key=lambda o: o.data)[:12]
-
-col_desp, col_rec = st.columns(2)
-with col_desp:
-    st.markdown("**🔴 Despesas a vencer**")
-    if not despesas_futuras:
-        st.caption("Nenhuma despesa futura cadastrada.")
-    for oc in despesas_futuras:
-        st.markdown(f"{oc.data.strftime('%d/%m/%Y')} — {oc.descricao_completa} · {fmt_moeda(oc.valor)}")
-with col_rec:
-    st.markdown("**🔵 Receitas previstas**")
-    if not receitas_futuras:
-        st.caption("Nenhuma receita futura cadastrada.")
-    for oc in receitas_futuras:
-        st.markdown(f"{oc.data.strftime('%d/%m/%Y')} — {oc.descricao_completa} · {fmt_moeda(oc.valor)}")
+if not despesas_futuras:
+    st.caption("Nenhuma despesa futura cadastrada.")
+for oc in despesas_futuras:
+    st.markdown(f":red[{oc.data.strftime('%d/%m/%Y')} — {oc.descricao_completa} · {fmt_moeda(oc.valor)}]")
