@@ -56,17 +56,24 @@ pip install -r requirements.txt
 streamlit run app_financas_pessoais.py
 ```
 
-Uma aba abre no navegador (normalmente `http://localhost:8501`) com 5 telas
+Uma aba abre no navegador (normalmente `http://localhost:8501`) com 6 telas
 no menu lateral:
 
-- **Lançamentos** — cadastra receitas/despesas. Cada lançamento pode ser:
+- **Lançamentos** — cadastra receitas/despesas quase todo por clique (tipo,
+  categoria, quando e repetição são botões; só o valor precisa ser digitado).
+  Cada lançamento pode ser:
   - *Única*: acontece só uma vez, no mês da data escolhida (ex: uma compra
     avulsa no mercado).
   - *Fixa*: repete todo mês a partir da data escolhida, indefinidamente (ex:
     salário, aluguel, internet). Pode ser "encerrada" depois, sem apagar o
     histórico já gerado.
-  - *Parcelada*: repete por N meses seguidos a partir da data escolhida (ex:
-    uma compra em 10x no cartão).
+  - *Parcelada*: repete pela quantidade de parcelas escolhida (clicando em um
+    número pronto como 10x, ou digitando outra quantidade). Todas as parcelas
+    futuras já aparecem automaticamente no calendário, no dashboard dos
+    próximos meses e na previsão futura.
+- **Calendário** — mês em formato de calendário (dia/mês/ano) mostrando em
+  que dia cada despesa vence e cada receita é esperada, mais uma lista dos
+  próximos vencimentos e receitas previstas.
 - **Dashboard do mês** — receitas, despesas e saldo do mês escolhido, com
   gráficos de pizza por categoria e o total lançado por cada pessoa.
 - **Histórico** — evolução dos últimos meses (receita, despesa e saldo),
@@ -80,6 +87,8 @@ no menu lateral:
   histórico. Rodando localmente (`streamlit run`), os dados ficam salvos
   normalmente no arquivo, sem esse risco.
 
+Todas as datas exibidas na tela seguem o formato **dia/mês/ano**.
+
 ### Cores
 
 Por convenção do sistema: **receitas em azul**, **despesas em vermelho**, e o
@@ -90,7 +99,8 @@ tons de vermelho e as de receita em tons de azul).
 ### Estrutura
 
 - `app_financas_pessoais.py` — tela principal.
-- `pages_financeiro/` — as 5 telas do Streamlit.
+- `pages_financeiro/` — as 6 telas do Streamlit.
+- `src/pessoal/calendario.py` — monta a grade do calendário mensal.
 - `src/pessoal/modelos.py` — estrutura de um lançamento e suas categorias.
 - `src/pessoal/armazenamento.py` — persistência em SQLite.
 - `src/pessoal/projecao.py` — calcula em que meses cada lançamento

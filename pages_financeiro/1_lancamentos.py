@@ -1,7 +1,6 @@
-"""Cadastro de lançamentos: únicos, fixos (recorrentes) ou parcelados."""
-from datetime import date
+"""Cadastro de lançamentos — pensado para ser feito quase todo clicando."""
+from datetime import date, timedelta
 
-import pandas as pd
 import streamlit as st
 
 from src.pessoal.armazenamento import encerrar_fixa, excluir, inserir, listar_todos
@@ -19,59 +18,121 @@ from src.pessoal.modelos import (
 from src.pessoal.ui.estilo import aplicar_estilo, fmt_moeda
 from src.pessoal.ui.sessao import obter_conexao, selecionar_usuario
 
+OPCOES_PARCELAS = [2, 3, 4, 5, 6, 10, 12, 18, 24]
+
 aplicar_estilo()
 conexao = obter_conexao()
 usuario_atual = selecionar_usuario()
 
-st.title("📝 Lançamentos")
-st.caption("Cadastre receitas e despesas: únicas, fixas (repetem todo mês) ou parceladas.")
+st.title("📝 Novo lançamento")
+st.caption("Clique nas opções abaixo. Só precisa digitar o valor (e a descrição, se quiser).")
 
-with st.form("novo_lancamento", clear_on_submit=True):
-    col1, col2 = st.columns(2)
-    with col1:
-        descricao = st.text_input("Descrição *", placeholder="Ex: Aluguel, Salário, Mercado...")
-        tipo = st.radio("Tipo *", [TIPO_RECEITA, TIPO_DESPESA], format_func=lambda t: "Receita 🔵" if t == TIPO_RECEITA else "Despesa 🔴", horizontal=True)
-        categorias = CATEGORIAS_RECEITA if tipo == TIPO_RECEITA else CATEGORIAS_DESPESA
-        categoria = st.selectbox("Categoria *", categorias)
-        valor = st.number_input("Valor (R$) *", min_value=0.0, step=10.0, format="%.2f")
-    with col2:
-        data_lancamento = st.date_input("Data (1ª ocorrência) *", value=date.today())
-        repeticao = st.selectbox(
-            "Repetição *",
-            [REPETICAO_UNICA, REPETICAO_FIXA, REPETICAO_PARCELADA],
-            format_func=lambda r: {
-                REPETICAO_UNICA: "Única (acontece só neste mês)",
-                REPETICAO_FIXA: "Fixa (repete todo mês)",
-                REPETICAO_PARCELADA: "Parcelada (repete por N meses)",
-            }[r],
-        )
-        parcela_total = None
-        if repeticao == REPETICAO_PARCELADA:
-            parcela_total = st.number_input("Total de parcelas *", min_value=2, step=1, value=2)
-        usuario = st.selectbox("Lançado por", [usuario_atual, *[u for u in USUARIOS_PADRAO if u != usuario_atual]])
-        observacao = st.text_input("Observação (opcional)")
+st.session_state.setdefault("nl_tipo", "Despesa 🔴")
+st.session_state.setdefault("nl_repeticao", "Única")
+st.session_state.setdefault("nl_quando", "Hoje")
+st.session_state.setdefault("nl_usuario", usuario_atual)
 
-    enviado = st.form_submit_button("Salvar lançamento", type="primary")
-    if enviado:
-        if not descricao.strip():
-            st.error("Preencha a descrição.")
-        elif valor <= 0:
-            st.error("O valor deve ser maior que zero.")
-        else:
-            novo = Lancamento(
-                descricao=descricao.strip(),
-                categoria=categoria,
-                tipo=tipo,
-                valor=valor,
-                data=data_lancamento,
-                usuario=usuario,
-                repeticao=repeticao,
-                parcela_total=int(parcela_total) if parcela_total else None,
-                observacao=observacao.strip(),
-            )
-            inserir(conexao, novo)
-            st.success("Lançamento salvo!")
-            st.rerun()
+st.markdown("**O que você quer lançar?**")
+tipo_escolhido = st.segmented_control(
+    "Tipo", ["Receita 🔵", "Despesa 🔴"], key="nl_tipo", label_visibility="collapsed"
+)
+tipo = TIPO_RECEITA if tipo_escolhido == "Receita 🔵" else TIPO_DESPESA
+
+if st.session_state.get("nl_tipo_anterior") != tipo:
+    st.session_state.pop("nl_categoria", None)
+    st.session_state["nl_tipo_anterior"] = tipo
+
+st.markdown("**Categoria**")
+categorias = CATEGORIAS_RECEITA if tipo == TIPO_RECEITA else CATEGORIAS_DESPESA
+categoria = st.pills("Categoria", categorias, key="nl_categoria", label_visibility="collapsed")
+
+col_valor, col_desc = st.columns(2)
+with col_valor:
+    valor = st.number_input("Valor (R$)", min_value=0.0, step=10.0, format="%.2f", key="nl_valor")
+with col_desc:
+    descricao = st.text_input(
+        "Descrição (opcional)",
+        key="nl_descricao",
+        placeholder="Se deixar em branco, usamos a categoria",
+    )
+
+st.markdown("**Quando?**")
+quando = st.segmented_control(
+    "Quando", ["Hoje", "Amanhã", "Escolher data"], key="nl_quando", label_visibility="collapsed"
+)
+if quando == "Amanhã":
+    data_lancamento = date.today() + timedelta(days=1)
+elif quando == "Escolher data":
+    data_lancamento = st.date_input("Data", value=date.today(), format="DD/MM/YYYY", label_visibility="collapsed")
+else:
+    data_lancamento = date.today()
+
+st.markdown("**Isso se repete?**")
+repeticao_escolhida = st.segmented_control(
+    "Repetição",
+    ["Única", "Fixa (todo mês)", "Parcelada"],
+    key="nl_repeticao",
+    label_visibility="collapsed",
+)
+repeticao = {
+    "Única": REPETICAO_UNICA,
+    "Fixa (todo mês)": REPETICAO_FIXA,
+    "Parcelada": REPETICAO_PARCELADA,
+}[repeticao_escolhida]
+
+parcela_total = None
+if repeticao == REPETICAO_PARCELADA:
+    st.markdown("**Em quantas parcelas?**")
+    parcela_total = st.pills(
+        "Parcelas", OPCOES_PARCELAS, key="nl_parcelas", format_func=lambda n: f"{n}x", label_visibility="collapsed"
+    )
+    with st.expander("Outra quantidade de parcelas"):
+        usar_quantidade_personalizada = st.checkbox("Usar outra quantidade", key="nl_usa_parcelas_custom")
+        if usar_quantidade_personalizada:
+            parcela_total = st.number_input("Quantidade", min_value=2, step=1, value=2, key="nl_parcelas_custom")
+
+st.markdown("**Quem lançou?**")
+usuario = st.segmented_control("Usuário", USUARIOS_PADRAO, key="nl_usuario", label_visibility="collapsed")
+
+with st.expander("+ Observação (opcional)"):
+    observacao = st.text_input("Observação", key="nl_observacao", label_visibility="collapsed")
+
+st.divider()
+pode_salvar = bool(categoria) and valor > 0 and bool(usuario)
+if repeticao == REPETICAO_PARCELADA and not parcela_total:
+    pode_salvar = False
+
+if st.button("💾 Salvar lançamento", type="primary", disabled=not pode_salvar, use_container_width=True):
+    novo = Lancamento(
+        descricao=(descricao or "").strip() or categoria,
+        categoria=categoria,
+        tipo=tipo,
+        valor=valor,
+        data=data_lancamento,
+        usuario=usuario,
+        repeticao=repeticao,
+        parcela_total=int(parcela_total) if parcela_total else None,
+        observacao=(observacao or "").strip(),
+    )
+    inserir(conexao, novo)
+    for chave in [
+        "nl_categoria",
+        "nl_valor",
+        "nl_descricao",
+        "nl_parcelas",
+        "nl_usa_parcelas_custom",
+        "nl_parcelas_custom",
+        "nl_observacao",
+    ]:
+        st.session_state.pop(chave, None)
+    st.session_state["mensagem_sucesso"] = f"Lançamento \"{novo.descricao}\" salvo!"
+    st.rerun()
+
+if not categoria:
+    st.caption("👆 Escolha uma categoria para poder salvar.")
+
+if "mensagem_sucesso" in st.session_state:
+    st.toast(st.session_state.pop("mensagem_sucesso"), icon="✅")
 
 st.divider()
 st.subheader("Lançamentos cadastrados")
@@ -83,11 +144,29 @@ if not todos:
 
 col_f1, col_f2 = st.columns(2)
 with col_f1:
-    filtro_tipo = st.multiselect("Filtrar por tipo", [TIPO_RECEITA, TIPO_DESPESA], default=[TIPO_RECEITA, TIPO_DESPESA])
+    st.caption("Filtrar por tipo")
+    filtro_tipo = st.pills(
+        "Filtrar por tipo",
+        [TIPO_RECEITA, TIPO_DESPESA],
+        format_func=lambda t: "Receita 🔵" if t == TIPO_RECEITA else "Despesa 🔴",
+        selection_mode="multi",
+        default=[TIPO_RECEITA, TIPO_DESPESA],
+        key="filtro_tipo",
+        label_visibility="collapsed",
+    )
 with col_f2:
-    filtro_usuario = st.multiselect("Filtrar por usuário", sorted({l.usuario for l in todos}), default=sorted({l.usuario for l in todos}))
+    usuarios_existentes = sorted({l.usuario for l in todos})
+    st.caption("Filtrar por usuário")
+    filtro_usuario = st.pills(
+        "Filtrar por usuário",
+        usuarios_existentes,
+        selection_mode="multi",
+        default=usuarios_existentes,
+        key="filtro_usuario",
+        label_visibility="collapsed",
+    )
 
-filtrados = [l for l in todos if l.tipo in filtro_tipo and l.usuario in filtro_usuario]
+filtrados = [l for l in todos if l.tipo in (filtro_tipo or []) and l.usuario in (filtro_usuario or [])]
 
 for lanc in filtrados:
     cor = "🔵" if lanc.tipo == TIPO_RECEITA else "🔴"

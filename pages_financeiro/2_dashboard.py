@@ -5,6 +5,7 @@ import streamlit as st
 
 from src.pessoal.analise import resumir_mes
 from src.pessoal.armazenamento import listar_todos
+from src.pessoal.calendario import NOMES_MESES
 from src.pessoal.graficos import grafico_pizza_categoria
 from src.pessoal.modelos import TIPO_DESPESA, TIPO_RECEITA
 from src.pessoal.ui.estilo import aplicar_estilo, cartao, fmt_moeda
@@ -17,9 +18,21 @@ selecionar_usuario()
 st.title("📊 Dashboard do mês")
 
 hoje = date.today()
-col_ano, col_mes = st.columns(2)
-ano = col_ano.number_input("Ano", min_value=2000, max_value=2100, value=hoje.year, step=1)
-mes = col_mes.selectbox("Mês", list(range(1, 13)), index=hoje.month - 1, format_func=lambda m: f"{m:02d}")
+st.session_state.setdefault("dash_ano", hoje.year)
+st.session_state.setdefault("dash_mes", hoje.month)
+
+col_ano, col_mes = st.columns([1, 3])
+with col_ano:
+    ano = st.number_input("Ano", min_value=2000, max_value=2100, step=1, key="dash_ano")
+with col_mes:
+    mes = st.pills(
+        "Mês",
+        list(range(1, 13)),
+        format_func=lambda m: NOMES_MESES[m][:3],
+        key="dash_mes",
+        label_visibility="collapsed",
+    )
+mes = mes or hoje.month
 
 todos = listar_todos(conexao)
 resumo = resumir_mes(todos, ano, mes)
