@@ -71,13 +71,14 @@ no menu lateral:
     número pronto como 10x, ou digitando outra quantidade). Todas as parcelas
     futuras já aparecem automaticamente no calendário, no dashboard dos
     próximos meses e na previsão futura.
-- **Calendário** — mês em formato de calendário (dia/mês/ano) mostrando em
-  que dia cada despesa vence e cada receita é esperada, mais uma lista dos
-  próximos vencimentos e receitas previstas.
+- **Calendário** — mostra só as despesas a vencer, mês a mês (dia/mês/ano),
+  com o total do dia e do mês em destaque, mais uma lista das próximas
+  despesas a vencer.
 - **Dashboard do mês** — receitas, despesas e saldo do mês escolhido, com
   gráficos de pizza por categoria e o total lançado por cada pessoa.
-- **Histórico** — evolução dos últimos meses (receita, despesa e saldo),
-  configurável.
+- **Histórico** — evolução dos últimos meses (receita, despesa e saldo) e a
+  lista de todos os lançamentos já cadastrados, com filtros e as opções de
+  encerrar (lançamentos fixos) ou excluir.
 - **Previsão futura** — projeta os próximos meses a partir dos lançamentos
   fixos e das parcelas em andamento, mostrando quando cada parcela termina.
 - **Backup** — exporta todos os lançamentos em CSV (e permite reimportar).
