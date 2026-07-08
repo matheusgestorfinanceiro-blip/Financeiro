@@ -22,10 +22,13 @@ Uma aba abre no navegador com uma única tela:
 
 - Preencha uma vez os **dados da obra** (nome, proprietário, endereço, início,
   orçamento previsto e status).
-- Lance cada gasto com o mínimo de campos: o que foi, quanto custou, a data
-  (sempre no formato dia/mês/ano), a categoria e se já foi pago. Fornecedor e
-  observação são opcionais, escondidos em "Mais detalhes" para não atrapalhar
-  quem só quer lançar rápido.
+- Para lançar um gasto, **envie o comprovante** (PDF, foto ou imagem da nota):
+  o sistema lê o arquivo sozinho (texto do PDF ou OCR da foto) e tenta
+  identificar data, valor e fornecedor automaticamente, preenchendo o
+  formulário. Ele avisa exatamente quais campos não conseguiu identificar,
+  para você completar — e sempre pede a sua confirmação antes de lançar
+  qualquer coisa. Quando não há comprovante (ex: pagamento em dinheiro sem
+  nota), ainda é possível lançar manualmente em "Lançar sem comprovante".
 - Quando quiser, clique em **Gerar relatório em PDF**: capa, resumo executivo,
   gastos por categoria, evolução no tempo, detalhamento de todos os
   lançamentos e considerações finais.
@@ -33,11 +36,18 @@ Uma aba abre no navegador com uma única tela:
 Os dados ficam salvos localmente em `data/obra/` (CSV/JSON) e não são
 versionados no Git, por serem dados financeiros pessoais.
 
+**Publicação (Streamlit Community Cloud):** além do `requirements.txt`, a
+leitura de comprovantes por foto/imagem depende do pacote de sistema
+`tesseract-ocr`, listado em `packages.txt` na raiz do repositório — a
+Streamlit Cloud instala isso automaticamente ao publicar, sem ação manual.
+
 ### Estrutura
 
 - `app_obra.py` — tela principal.
 - `src/obra/schema.py` — estrutura de um gasto e categorias.
 - `src/obra/armazenamento.py` — persistência em CSV/JSON.
+- `src/obra/extracao.py` — leitura do comprovante (PDF/OCR) e identificação
+  automática de data, valor e fornecedor.
 - `src/obra/calculo.py` — totais, agrupamentos e formatação de datas.
 - `src/obra/graficos.py` — gráficos matplotlib.
 - `src/obra/relatorio_pdf.py` — geração do relatório final em PDF.

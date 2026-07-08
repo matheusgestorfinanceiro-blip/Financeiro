@@ -15,6 +15,7 @@ from src.obra.armazenamento import (
     salvar_dados_obra,
 )
 from src.obra.calculo import fmt_data_br, percentual_orcamento, resumo_pagamento, total_geral
+from src.obra.extracao import TextoNaoReconhecido, extrair_texto, interpretar_comprovante
 from src.obra.relatorio_pdf import gerar_pdf_obra
 from src.obra.schema import CATEGORIAS_GASTO, STATUS_OBRA, DadosObra, GastoObra
 from src.ui.estilo import aplicar_estilo_azul
@@ -70,42 +71,138 @@ with st.expander("Dados da obra (preencha uma vez)", expanded=not dados_obra.nom
 st.divider()
 
 st.header("Lançar gasto")
-with st.form("form_novo_gasto", clear_on_submit=True):
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        descricao = st.text_input("O que foi gasto?", placeholder="Ex: Cimento, Pedreiro, Torneira...")
-    with col2:
-        valor = st.number_input("Valor (R$)", min_value=0.0, step=10.0)
-    with col3:
-        data = st.date_input("Data", value=datetime.date.today(), format=FORMATO_DATA)
+st.caption("Envie a nota, o comprovante ou uma foto do recibo — o sistema tenta ler os dados sozinho. Você só confere e confirma antes de lançar.")
 
-    col4, col5 = st.columns(2)
-    with col4:
-        categoria = st.selectbox("Categoria", CATEGORIAS_GASTO)
-    with col5:
-        pago = st.checkbox("Já foi pago", value=True)
+chave_uploader = f"upload_comprovante_{st.session_state.get('versao_uploader', 0)}"
+arquivo = st.file_uploader(
+    "Comprovante (PDF ou foto)", type=["pdf", "png", "jpg", "jpeg", "webp"], key=chave_uploader
+)
 
-    with st.expander("Mais detalhes (opcional)"):
-        fornecedor = st.text_input("Fornecedor/prestador")
-        observacoes = st.text_input("Observação")
+if arquivo is not None:
+    identificador_arquivo = f"{arquivo.name}-{arquivo.size}"
+    if st.session_state.get("comprovante_processado_id") != identificador_arquivo:
+        with st.spinner("Lendo o comprovante..."):
+            try:
+                texto = extrair_texto(arquivo.name, arquivo.getvalue())
+                extraido = interpretar_comprovante(texto)
+                st.session_state["rascunho_gasto"] = extraido
+            except TextoNaoReconhecido:
+                st.session_state["rascunho_gasto"] = None
+                st.warning("Não consegui ler automaticamente esse arquivo. Preencha os campos abaixo manualmente.")
+        st.session_state["comprovante_processado_id"] = identificador_arquivo
 
-    if st.form_submit_button("Adicionar", type="primary"):
-        if not descricao or valor <= 0:
-            st.error("Preencha ao menos o que foi gasto e um valor maior que zero.")
-        else:
-            adicionar_gasto(
-                GastoObra(
-                    data=data.isoformat(),
-                    categoria=categoria,
-                    descricao=descricao,
-                    valor=valor,
-                    fornecedor=fornecedor,
-                    pago=pago,
-                    observacoes=observacoes,
-                )
+if "rascunho_gasto" in st.session_state:
+    extraido = st.session_state["rascunho_gasto"]
+    campos_faltando = extraido.campos_nao_encontrados if extraido else ["data", "valor", "fornecedor"]
+
+    if campos_faltando:
+        st.warning(
+            "Não encontrei automaticamente: **"
+            + ", ".join(campos_faltando)
+            + "**. Preencha antes de confirmar."
+        )
+    else:
+        st.success("Dados identificados! Confira antes de confirmar.")
+
+    if extraido and extraido.texto_bruto:
+        with st.expander("Ver texto identificado no comprovante (conferência)"):
+            st.text(extraido.texto_bruto)
+
+    with st.form("form_confirmar_gasto"):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            descricao = st.text_input(
+                "O que foi gasto?",
+                value=(extraido.descricao_sugerida if extraido else ""),
+                placeholder="Ex: Cimento, Pedreiro, Torneira...",
             )
-            st.success("Gasto lançado!")
+        with col2:
+            valor = st.number_input(
+                "Valor (R$)", min_value=0.0, step=10.0, value=(extraido.valor if extraido and extraido.valor else 0.0)
+            )
+        with col3:
+            data = st.date_input(
+                "Data",
+                value=(datetime.date.fromisoformat(extraido.data) if extraido and extraido.data else datetime.date.today()),
+                format=FORMATO_DATA,
+            )
+
+        col4, col5, col6 = st.columns(3)
+        with col4:
+            categoria = st.selectbox("Categoria", CATEGORIAS_GASTO)
+        with col5:
+            fornecedor = st.text_input("Fornecedor/prestador", value=(extraido.fornecedor if extraido and extraido.fornecedor else ""))
+        with col6:
+            pago = st.checkbox("Já foi pago", value=True)
+
+        observacoes = st.text_input("Observação (opcional)")
+
+        col_confirmar, col_cancelar = st.columns(2)
+        confirmado = col_confirmar.form_submit_button("Confirmar e lançar", type="primary")
+        cancelado = col_cancelar.form_submit_button("Cancelar")
+
+        if confirmado:
+            if not descricao or valor <= 0:
+                st.error("Preencha ao menos o que foi gasto e um valor maior que zero.")
+            else:
+                adicionar_gasto(
+                    GastoObra(
+                        data=data.isoformat(),
+                        categoria=categoria,
+                        descricao=descricao,
+                        valor=valor,
+                        fornecedor=fornecedor,
+                        pago=pago,
+                        observacoes=observacoes,
+                    )
+                )
+                del st.session_state["rascunho_gasto"]
+                st.session_state.pop("comprovante_processado_id", None)
+                st.session_state["versao_uploader"] = st.session_state.get("versao_uploader", 0) + 1
+                st.success("Gasto lançado!")
+                st.rerun()
+        if cancelado:
+            del st.session_state["rascunho_gasto"]
+            st.session_state.pop("comprovante_processado_id", None)
+            st.session_state["versao_uploader"] = st.session_state.get("versao_uploader", 0) + 1
             st.rerun()
+
+with st.expander("Lançar sem comprovante (manual)"):
+    with st.form("form_novo_gasto_manual", clear_on_submit=True):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            descricao_m = st.text_input("O que foi gasto?", placeholder="Ex: Cimento, Pedreiro, Torneira...", key="m_descricao")
+        with col2:
+            valor_m = st.number_input("Valor (R$)", min_value=0.0, step=10.0, key="m_valor")
+        with col3:
+            data_m = st.date_input("Data", value=datetime.date.today(), format=FORMATO_DATA, key="m_data")
+
+        col4, col5 = st.columns(2)
+        with col4:
+            categoria_m = st.selectbox("Categoria", CATEGORIAS_GASTO, key="m_categoria")
+        with col5:
+            pago_m = st.checkbox("Já foi pago", value=True, key="m_pago")
+
+        fornecedor_m = st.text_input("Fornecedor/prestador (opcional)", key="m_fornecedor")
+        observacoes_m = st.text_input("Observação (opcional)", key="m_observacoes")
+
+        if st.form_submit_button("Adicionar", type="primary"):
+            if not descricao_m or valor_m <= 0:
+                st.error("Preencha ao menos o que foi gasto e um valor maior que zero.")
+            else:
+                adicionar_gasto(
+                    GastoObra(
+                        data=data_m.isoformat(),
+                        categoria=categoria_m,
+                        descricao=descricao_m,
+                        valor=valor_m,
+                        fornecedor=fornecedor_m,
+                        pago=pago_m,
+                        observacoes=observacoes_m,
+                    )
+                )
+                st.success("Gasto lançado!")
+                st.rerun()
 
 st.divider()
 
