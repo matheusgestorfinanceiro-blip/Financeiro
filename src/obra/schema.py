@@ -1,0 +1,68 @@
+"""Estruturas de dados do registro de gastos de uma obra/reforma residencial."""
+from dataclasses import dataclass
+
+CATEGORIAS_GASTO = [
+    "Material de construção",
+    "Mão de obra",
+    "Projeto e aprovação",
+    "Equipamento e ferramenta",
+    "Elétrica",
+    "Hidráulica",
+    "Acabamento e decoração",
+    "Imprevisto",
+    "Outros",
+]
+
+FASES_OBRA = [
+    "Planejamento",
+    "Demolição",
+    "Estrutura",
+    "Instalações (elétrica/hidráulica)",
+    "Alvenaria e revestimento",
+    "Acabamento",
+    "Finalização e limpeza",
+]
+
+FORMAS_PAGAMENTO = [
+    "Dinheiro",
+    "Pix",
+    "Cartão de crédito",
+    "Cartão de débito",
+    "Transferência",
+    "Boleto",
+    "Outro",
+]
+
+STATUS_PAGAMENTO = ["Pago", "Pendente"]
+
+STATUS_OBRA = ["Planejamento", "Em andamento", "Paralisada", "Concluída"]
+
+
+@dataclass
+class GastoObra:
+    """Um lançamento de gasto da obra."""
+
+    data: str  # "AAAA-MM-DD"
+    categoria: str
+    descricao: str
+    valor: float
+    fornecedor: str = ""
+    forma_pagamento: str = ""
+    fase: str = ""
+    status_pagamento: str = "Pago"
+    observacoes: str = ""
+    id: int = 0
+
+
+@dataclass
+class DadosObra:
+    """Dados gerais da obra, usados na capa e no resumo do relatório final."""
+
+    nome_obra: str = ""
+    proprietario: str = ""
+    endereco: str = ""
+    data_inicio: str = ""
+    previsao_termino: str = ""
+    orcamento_previsto: float = 0.0
+    status_obra: str = "Em andamento"
+    observacoes_gerais: str = ""

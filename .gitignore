@@ -4,6 +4,7 @@ __pycache__/
 venv/
 .pytest_cache/
 data/historico/
+data/obra/
 data/pessoal/*.db
 *.egg-info/
 .DS_Store
