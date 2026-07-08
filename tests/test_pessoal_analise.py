@@ -21,7 +21,7 @@ def _lancamentos_exemplo():
         tipo=TIPO_RECEITA,
         valor=1600.0,
         data=date(2026, 1, 5),
-        usuario="Esposa",
+        usuario="Walkiria",
         repeticao=REPETICAO_FIXA,
     )
     salario_esposa.id = 2
@@ -41,7 +41,7 @@ def _lancamentos_exemplo():
         tipo=TIPO_DESPESA,
         valor=500.0,
         data=date(2026, 7, 3),
-        usuario="Esposa",
+        usuario="Walkiria",
         repeticao=REPETICAO_UNICA,
     )
     mercado.id = 4
@@ -56,7 +56,7 @@ def test_resumir_mes_calcula_totais_e_saldo():
     assert resumo.saldo == 10100.0
     assert resumo.por_categoria_despesa["Alimentação"] == 500.0
     assert resumo.por_usuario["Matheus"][TIPO_RECEITA] == 11000.0
-    assert resumo.por_usuario["Esposa"][TIPO_DESPESA] == 500.0
+    assert resumo.por_usuario["Walkiria"][TIPO_DESPESA] == 500.0
 
 
 def test_resumir_mes_sem_variavel_nao_conta_no_outro_mes():
