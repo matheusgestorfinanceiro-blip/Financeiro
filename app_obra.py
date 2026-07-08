@@ -8,9 +8,13 @@ import datetime
 import streamlit as st
 
 from src.obra.armazenamento import (
+    DIR_FOTOS,
+    adicionar_foto,
     adicionar_gasto,
     carregar_dados_obra,
+    carregar_fotos,
     carregar_gastos,
+    remover_foto,
     remover_gasto,
     salvar_dados_obra,
 )
@@ -251,13 +255,62 @@ else:
 
 st.divider()
 
+st.header("Fotos da evolução da obra")
+st.caption("Envie fotos ao longo da obra, com a data de quando foram tiradas — elas entram no relatório organizadas na ordem de execução.")
+
+with st.form("form_nova_foto", clear_on_submit=True):
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        foto_enviada = st.file_uploader("Foto", type=["png", "jpg", "jpeg", "webp"], key="upload_foto")
+    with col2:
+        data_foto = st.date_input("Data da foto", value=datetime.date.today(), format=FORMATO_DATA)
+    legenda_foto = st.text_input("Legenda (opcional)", placeholder="Ex: Demolição do banheiro concluída")
+
+    if st.form_submit_button("Adicionar foto", type="primary"):
+        if foto_enviada is None:
+            st.error("Selecione uma foto antes de adicionar.")
+        else:
+            adicionar_foto(foto_enviada.getvalue(), foto_enviada.name, data_foto.isoformat(), legenda_foto)
+            st.success("Foto adicionada!")
+            st.rerun()
+
+df_fotos = carregar_fotos()
+if not df_fotos.empty:
+    st.caption(f"{len(df_fotos)} foto(s) cadastrada(s), em ordem cronológica:")
+    colunas_galeria = st.columns(4)
+    for i, foto in enumerate(df_fotos.itertuples()):
+        caminho_foto = DIR_FOTOS / foto.nome_arquivo
+        with colunas_galeria[i % 4]:
+            if caminho_foto.exists():
+                st.image(str(caminho_foto), use_container_width=True)
+            legenda = fmt_data_br(foto.data) + (f" — {foto.legenda}" if foto.legenda else "")
+            st.caption(legenda)
+            if st.button("Remover", key=f"remover_foto_{foto.id}"):
+                remover_foto(foto.id)
+                st.rerun()
+
+st.divider()
+
 st.header("Relatório final")
-st.caption("Gera um PDF com o resumo, gráficos e todos os lançamentos — pronto para mostrar ao proprietário.")
+st.caption("Gera um PDF com o resumo, gráficos, todos os lançamentos e as fotos da evolução — pronto para mostrar ao proprietário.")
+
+tipo_relatorio_label = st.radio(
+    "Tipo de relatório",
+    ["Parcial (andamento da obra)", "Final (obra concluída)"],
+    horizontal=True,
+)
+tipo_relatorio = "final" if tipo_relatorio_label.startswith("Final") else "parcial"
+
+if tipo_relatorio == "final" and df_fotos.empty:
+    st.warning("O relatório final exige ao menos uma foto de evolução da obra. Adicione fotos acima ou gere um relatório parcial.")
+
 if st.button("Gerar relatório em PDF", type="primary"):
     if df_gastos.empty:
         st.warning("Lance ao menos um gasto antes de gerar o relatório.")
+    elif tipo_relatorio == "final" and df_fotos.empty:
+        st.error("Não é possível gerar o relatório final sem fotos de evolução da obra.")
     else:
-        pdf_bytes = gerar_pdf_obra(dados_obra, df_gastos)
+        pdf_bytes = gerar_pdf_obra(dados_obra, df_gastos, df_fotos, DIR_FOTOS, tipo_relatorio)
         st.download_button(
             "Baixar relatório em PDF",
             data=pdf_bytes,

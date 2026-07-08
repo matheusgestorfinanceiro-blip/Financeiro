@@ -1,7 +1,10 @@
 from src.obra.armazenamento import (
+    adicionar_foto,
     adicionar_gasto,
     carregar_dados_obra,
+    carregar_fotos,
     carregar_gastos,
+    remover_foto,
     remover_gasto,
     salvar_dados_obra,
 )
@@ -76,3 +79,41 @@ def test_dados_obra_ida_e_volta(tmp_path):
 
     carregado = carregar_dados_obra(caminho)
     assert carregado == dados
+
+
+def test_carregar_fotos_sem_arquivo_retorna_dataframe_vazio(tmp_path):
+    df = carregar_fotos(tmp_path / "fotos.csv")
+    assert df.empty
+    assert list(df.columns) == ["id", "data", "nome_arquivo", "legenda"]
+
+
+def test_adicionar_foto_salva_arquivo_e_registro(tmp_path):
+    caminho_csv = tmp_path / "fotos.csv"
+    dir_fotos = tmp_path / "fotos"
+
+    foto1 = adicionar_foto(b"conteudo-fake-1", "obra1.jpg", "2026-02-01", "Fundação pronta", caminho_csv, dir_fotos)
+    foto2 = adicionar_foto(b"conteudo-fake-2", "obra2.png", "2026-01-05", "Início da obra", caminho_csv, dir_fotos)
+
+    assert foto1.id == 1
+    assert foto2.id == 2
+    assert (dir_fotos / foto1.nome_arquivo).read_bytes() == b"conteudo-fake-1"
+    assert (dir_fotos / foto1.nome_arquivo).suffix == ".jpg"
+
+    df = carregar_fotos(caminho_csv)
+    assert len(df) == 2
+    # ordenadas por data (ordem de execução), não por ordem de inserção
+    assert df.iloc[0]["legenda"] == "Início da obra"
+    assert df.iloc[1]["legenda"] == "Fundação pronta"
+
+
+def test_remover_foto_apaga_arquivo_e_registro(tmp_path):
+    caminho_csv = tmp_path / "fotos.csv"
+    dir_fotos = tmp_path / "fotos"
+    foto = adicionar_foto(b"conteudo", "obra.jpg", "2026-02-01", "", caminho_csv, dir_fotos)
+    caminho_arquivo = dir_fotos / foto.nome_arquivo
+    assert caminho_arquivo.exists()
+
+    remover_foto(foto.id, caminho_csv, dir_fotos)
+
+    assert not caminho_arquivo.exists()
+    assert carregar_fotos(caminho_csv).empty
