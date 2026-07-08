@@ -13,6 +13,7 @@ from src.pessoal.modelos import (
     REPETICAO_UNICA,
     TIPO_DESPESA,
     TIPO_RECEITA,
+    USUARIOS_PADRAO,
     Lancamento,
 )
 from src.pessoal.ui.estilo import aplicar_estilo, fmt_moeda
@@ -47,7 +48,7 @@ with st.form("novo_lancamento", clear_on_submit=True):
         parcela_total = None
         if repeticao == REPETICAO_PARCELADA:
             parcela_total = st.number_input("Total de parcelas *", min_value=2, step=1, value=2)
-        usuario = st.selectbox("Lançado por", [usuario_atual, *[u for u in ["Matheus", "Esposa"] if u != usuario_atual]])
+        usuario = st.selectbox("Lançado por", [usuario_atual, *[u for u in USUARIOS_PADRAO if u != usuario_atual]])
         observacao = st.text_input("Observação (opcional)")
 
     enviado = st.form_submit_button("Salvar lançamento", type="primary")

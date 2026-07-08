@@ -13,7 +13,7 @@ def obter_conexao():
 
 
 def selecionar_usuario() -> str:
-    """Mostra na barra lateral quem está lançando (Matheus ou Esposa) e devolve o nome."""
+    """Mostra na barra lateral quem está lançando (Matheus ou Walkiria) e devolve o nome."""
     if "usuario_atual" not in st.session_state:
         st.session_state.usuario_atual = USUARIOS_PADRAO[0]
     st.session_state.usuario_atual = st.sidebar.selectbox(
