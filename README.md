@@ -1,6 +1,65 @@
 # Financeiro
 
-Página dedicada ao financeiro da Azul Administradora para automações dos processos.
+Página dedicada ao financeiro da Azul Administradora para automações dos processos,
+e também ao **sistema de finanças pessoais da família** (veja a seção dedicada
+mais abaixo).
+
+## Sistema de Finanças Pessoais (uso do casal)
+
+Sistema para organizar receitas e despesas do casal, com lançamentos únicos,
+fixos (recorrentes todo mês) e parcelados, dashboard do mês, histórico dos
+últimos meses e previsão dos próximos meses. Pensado para ser usado pelos dois
+(cada um escolhe o próprio nome na barra lateral antes de lançar).
+
+### Como rodar
+
+```
+pip install -r requirements.txt
+streamlit run app_financas_pessoais.py
+```
+
+Uma aba abre no navegador (normalmente `http://localhost:8501`) com 5 telas
+no menu lateral:
+
+- **Lançamentos** — cadastra receitas/despesas. Cada lançamento pode ser:
+  - *Única*: acontece só uma vez, no mês da data escolhida (ex: uma compra
+    avulsa no mercado).
+  - *Fixa*: repete todo mês a partir da data escolhida, indefinidamente (ex:
+    salário, aluguel, internet). Pode ser "encerrada" depois, sem apagar o
+    histórico já gerado.
+  - *Parcelada*: repete por N meses seguidos a partir da data escolhida (ex:
+    uma compra em 10x no cartão).
+- **Dashboard do mês** — receitas, despesas e saldo do mês escolhido, com
+  gráficos de pizza por categoria e o total lançado por cada pessoa.
+- **Histórico** — evolução dos últimos meses (receita, despesa e saldo),
+  configurável.
+- **Previsão futura** — projeta os próximos meses a partir dos lançamentos
+  fixos e das parcelas em andamento, mostrando quando cada parcela termina.
+- **Backup** — exporta todos os lançamentos em CSV (e permite reimportar).
+  **Importante:** se este app for publicado na Streamlit Community Cloud, o
+  banco de dados local (SQLite, em `data/pessoal/financeiro.db`) é apagado a
+  cada novo deploy — exporte o CSV com frequência para não perder o
+  histórico. Rodando localmente (`streamlit run`), os dados ficam salvos
+  normalmente no arquivo, sem esse risco.
+
+### Cores
+
+Por convenção do sistema: **receitas em azul**, **despesas em vermelho**, e o
+**saldo em verde quando positivo ou vermelho quando negativo** — tanto nos
+cartões de totais quanto nos gráficos (inclusive as categorias de despesa em
+tons de vermelho e as de receita em tons de azul).
+
+### Estrutura
+
+- `app_financas_pessoais.py` — tela principal.
+- `pages_financeiro/` — as 5 telas do Streamlit.
+- `src/pessoal/modelos.py` — estrutura de um lançamento e suas categorias.
+- `src/pessoal/armazenamento.py` — persistência em SQLite.
+- `src/pessoal/projecao.py` — calcula em que meses cada lançamento
+  (único/fixo/parcelado) efetivamente ocorre.
+- `src/pessoal/analise.py` — resumo do mês, histórico e previsão futura.
+- `src/pessoal/graficos.py` — gráficos matplotlib com a paleta semântica.
+- `src/pessoal/ui/` — estilo visual e estado compartilhado entre as páginas.
 
 ## Sistema de Previsão Orçamentária Condominial
 
