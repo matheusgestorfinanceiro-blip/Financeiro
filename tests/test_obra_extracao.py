@@ -45,6 +45,51 @@ def test_interpretar_comprovante_usa_maior_valor_sem_total():
     assert extraido.valor == 199.90
 
 
+def test_identificar_fornecedor_ignora_rotulo_generico_e_usa_nome_perto_do_cnpj():
+    texto = (
+        "NF-e\n"
+        "DANFE\n"
+        "MATERIAIS SILVA LTDA\n"
+        "CNPJ: 11.222.333/0001-44\n"
+        "DATA EMISSAO: 13/06/2026\n"
+        "TOTAL R$ 64,90\n"
+    )
+
+    extraido = interpretar_comprovante(texto)
+
+    assert extraido.fornecedor == "MATERIAIS SILVA LTDA"
+
+
+def test_identifica_todos_os_itens_de_uma_nota_fiscal():
+    texto = (
+        "NF-e\n"
+        "MATERIAIS SILVA LTDA\n"
+        "CNPJ: 11.222.333/0001-44\n"
+        "DATA EMISSAO: 13/06/2026\n"
+        "DESCRICAO DO PRODUTO/SERVICO                 QTD   VL UNIT   VL TOTAL\n"
+        "CIMENTO CP II 50KG                             2     32,50      65,00\n"
+        "AREIA MEDIA LAVADA M3                          1     89,90      89,90\n"
+        "TIJOLO CERAMICO 8 FUROS UN                   100      1,20     120,00\n"
+        "SUBTOTAL R$ 274,90\n"
+        "DESCONTO R$ 0,00\n"
+        "TOTAL R$ 274,90\n"
+        "FORMA DE PAGAMENTO: DINHEIRO\n"
+    )
+
+    extraido = interpretar_comprovante(texto)
+
+    assert extraido.fornecedor == "MATERIAIS SILVA LTDA"
+    assert len(extraido.itens) == 3
+    descricoes = [item.descricao for item in extraido.itens]
+    valores = [item.valor for item in extraido.itens]
+    assert "CIMENTO CP II 50KG" in descricoes
+    assert "AREIA MEDIA LAVADA M3" in descricoes
+    assert "TIJOLO CERAMICO 8 FUROS UN" in descricoes
+    assert valores == [65.00, 89.90, 120.00]
+    # mesmo com categoria unica, cada item da nota vira um lancamento proprio
+    assert "valor" not in extraido.campos_nao_encontrados
+
+
 def test_extrair_texto_pdf_com_camada_de_texto():
     pdf = FPDF()
     pdf.add_page()

@@ -15,10 +15,85 @@ EXTENSOES_IMAGEM = (".png", ".jpg", ".jpeg", ".webp", ".bmp")
 
 _PADRAO_DATA = re.compile(r"\b(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})\b")
 _PADRAO_VALOR = re.compile(r"(\d{1,3}(?:\.\d{3})*,\d{2})")
+_PADRAO_LINHA_ITEM = re.compile(r"^(.*?)[\s:]*R?\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2})\s*$")
+
+# Rótulos genéricos de documento/rodapé que não são o nome do fornecedor,
+# mesmo aparecendo como a "primeira linha com letras" do texto extraído.
+_ROTULOS_GENERICOS_FORNECEDOR = {
+    "nf-e",
+    "nfe",
+    "nota fiscal eletronica",
+    "nota fiscal eletrônica",
+    "nota fiscal",
+    "cupom fiscal",
+    "cupom fiscal eletronico",
+    "cupom fiscal eletrônico",
+    "danfe",
+    "documento auxiliar",
+    "documento auxiliar da nota fiscal eletronica",
+    "documento auxiliar da nota fiscal eletrônica",
+    "via do consumidor",
+    "consumidor",
+    "recibo",
+    "comprovante",
+    "comprovante de pagamento",
+}
+
+# Linhas que contêm alguma dessas palavras não são itens comprados, mesmo que
+# terminem em um valor monetário (são totais, tributos, dados do documento etc).
+_PALAVRAS_LINHA_NAO_ITEM = {
+    "total",
+    "subtotal",
+    "desconto",
+    "troco",
+    "acrescimo",
+    "acréscimo",
+    "valor pago",
+    "valor recebido",
+    "forma de pagamento",
+    "forma pagamento",
+    "dinheiro",
+    "cartao",
+    "cartão",
+    "pix",
+    "cnpj",
+    "cpf",
+    "ie:",
+    "inscricao estadual",
+    "inscrição estadual",
+    "endereco",
+    "endereço",
+    "chave de acesso",
+    "protocolo",
+    "autorizacao",
+    "autorização",
+    "tributos",
+    "icms",
+    "issqn",
+    "cofins",
+    "pis",
+    "caixa",
+    "operador",
+    "atendente",
+    "item",
+    "qtd",
+    "unit",
+    "cod.",
+    "codigo",
+    "código",
+}
 
 
 class TextoNaoReconhecido(Exception):
     """Levantada quando não foi possível ler nenhum texto do arquivo (ex: OCR indisponível)."""
+
+
+@dataclass
+class ItemComprovante:
+    """Um item (produto ou serviço) identificado na nota/comprovante."""
+
+    descricao: str
+    valor: float
 
 
 @dataclass
@@ -28,6 +103,7 @@ class ComprovanteExtraido:
     valor: float | None = None
     fornecedor: str | None = None
     descricao_sugerida: str = ""
+    itens: list[ItemComprovante] = field(default_factory=list)
     campos_nao_encontrados: list[str] = field(default_factory=list)
 
 
@@ -105,24 +181,80 @@ def _identificar_valor(texto: str) -> float | None:
     return None
 
 
+def _e_candidata_a_fornecedor(linha: str) -> bool:
+    linha_limpa = linha.strip()
+    if not linha_limpa or len(linha_limpa) > 60:
+        return False
+    letras = sum(1 for c in linha_limpa if c.isalpha())
+    if letras < 3:
+        return False
+    linha_lower = linha_limpa.lower().strip(" -:")
+    return linha_lower not in _ROTULOS_GENERICOS_FORNECEDOR
+
+
 def _identificar_fornecedor(texto: str) -> str | None:
+    linhas = [l.strip() for l in texto.splitlines()]
+
+    # Em notas fiscais e cupons, o nome do emitente costuma aparecer logo
+    # acima do CNPJ - preferimos essa pista quando disponível.
+    for i, linha in enumerate(linhas):
+        if "cnpj" in linha.lower():
+            for anterior in reversed(linhas[:i]):
+                if _e_candidata_a_fornecedor(anterior):
+                    return anterior[:60]
+            break
+
+    for linha in linhas:
+        if _e_candidata_a_fornecedor(linha):
+            return linha[:60]
+    return None
+
+
+def _identificar_itens(texto: str) -> list[ItemComprovante]:
+    """Identifica linhas de item (descrição + valor) na nota, ignorando
+    totais, tributos e dados do documento/estabelecimento."""
+    itens = []
     for linha in texto.splitlines():
         linha_limpa = linha.strip()
-        letras = sum(1 for c in linha_limpa if c.isalpha())
-        if letras >= 3 and len(linha_limpa) <= 60:
-            return linha_limpa[:60]
-    return None
+        if not linha_limpa:
+            continue
+
+        linha_lower = linha_limpa.lower()
+        if any(palavra in linha_lower for palavra in _PALAVRAS_LINHA_NAO_ITEM):
+            continue
+
+        correspondencia = _PADRAO_LINHA_ITEM.match(linha_limpa)
+        if not correspondencia:
+            continue
+
+        descricao = correspondencia.group(1).strip(" -:\t")
+        descricao = re.sub(r"^\d+[\s.xX*]+", "", descricao).strip()  # remove código/quantidade no início
+        # remove quantidade/valor unitario que sobraram entre a descricao e o
+        # valor total da linha (ex: "CIMENTO 50KG   2   32,50" -> "CIMENTO 50KG")
+        descricao = re.sub(r"(\s+[\d.,]+)+$", "", descricao).strip()
+        descricao = re.sub(r"\s{2,}", " ", descricao)
+        letras = sum(1 for c in descricao if c.isalpha())
+        if letras < 3:
+            continue
+
+        valor = float(correspondencia.group(2).replace(".", "").replace(",", "."))
+        if valor <= 0:
+            continue
+
+        itens.append(ItemComprovante(descricao=descricao[:80], valor=valor))
+    return itens
 
 
 def interpretar_comprovante(texto: str) -> ComprovanteExtraido:
     data = _identificar_data(texto)
     valor = _identificar_valor(texto)
     fornecedor = _identificar_fornecedor(texto)
+    itens = _identificar_itens(texto)
 
     campos_nao_encontrados = []
     if not data:
         campos_nao_encontrados.append("data")
-    if not valor:
+    if not valor and not itens:
         campos_nao_encontrados.append("valor")
     if not fornecedor:
         campos_nao_encontrados.append("fornecedor")
@@ -135,5 +267,6 @@ def interpretar_comprovante(texto: str) -> ComprovanteExtraido:
         valor=valor,
         fornecedor=fornecedor,
         descricao_sugerida=descricao_sugerida,
+        itens=itens,
         campos_nao_encontrados=campos_nao_encontrados,
     )

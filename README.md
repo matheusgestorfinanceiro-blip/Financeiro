@@ -24,11 +24,15 @@ Uma aba abre no navegador com uma única tela:
   orçamento previsto e status).
 - Para lançar um gasto, **envie o comprovante** (PDF, foto ou imagem da nota):
   o sistema lê o arquivo sozinho (texto do PDF ou OCR da foto) e tenta
-  identificar data, valor e fornecedor automaticamente, preenchendo o
-  formulário. Ele avisa exatamente quais campos não conseguiu identificar,
-  para você completar — e sempre pede a sua confirmação antes de lançar
-  qualquer coisa. Quando não há comprovante (ex: pagamento em dinheiro sem
-  nota), ainda é possível lançar manualmente em "Lançar sem comprovante".
+  identificar a data, o fornecedor e **cada item/produto da nota** (com sua
+  própria descrição e valor) automaticamente. Quando a nota tem vários itens,
+  aparece uma lista para conferir, desmarcar o que não quiser lançar e
+  ajustar antes de confirmar — todos os itens marcados são lançados de uma
+  vez, com a mesma data/categoria/fornecedor. O sistema avisa quais campos
+  não conseguiu identificar automaticamente, para você completar — e sempre
+  pede a sua confirmação antes de lançar qualquer coisa. Quando não há
+  comprovante (ex: pagamento em dinheiro sem nota), ainda é possível lançar
+  manualmente em "Lançar sem comprovante".
 - Envie **fotos da evolução da obra** (com a data em que foram tiradas e uma
   legenda opcional) — elas entram no relatório em PDF organizadas na ordem
   cronológica de execução.

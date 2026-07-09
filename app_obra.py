@@ -5,6 +5,7 @@ Para rodar: streamlit run app_obra.py
 """
 import datetime
 
+import pandas as pd
 import streamlit as st
 
 from src.obra.armazenamento import (
@@ -97,7 +98,11 @@ if arquivo is not None:
 
 if "rascunho_gasto" in st.session_state:
     extraido = st.session_state["rascunho_gasto"]
-    campos_faltando = extraido.campos_nao_encontrados if extraido else ["data", "valor", "fornecedor"]
+    itens_detectados = extraido.itens if extraido else []
+
+    campos_faltando = list(extraido.campos_nao_encontrados) if extraido else ["data", "valor", "fornecedor"]
+    if itens_detectados and "valor" in campos_faltando:
+        campos_faltando.remove("valor")
 
     if campos_faltando:
         st.warning(
@@ -112,64 +117,133 @@ if "rascunho_gasto" in st.session_state:
         with st.expander("Ver texto identificado no comprovante (conferência)"):
             st.text(extraido.texto_bruto)
 
-    with st.form("form_confirmar_gasto"):
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            descricao = st.text_input(
-                "O que foi gasto?",
-                value=(extraido.descricao_sugerida if extraido else ""),
-                placeholder="Ex: Cimento, Pedreiro, Torneira...",
+    def _limpar_rascunho():
+        del st.session_state["rascunho_gasto"]
+        st.session_state.pop("comprovante_processado_id", None)
+        st.session_state["versao_uploader"] = st.session_state.get("versao_uploader", 0) + 1
+
+    if itens_detectados:
+        st.caption(
+            f"Identifiquei {len(itens_detectados)} item(ns) nesta nota. Desmarque \"Lançar\" para os que não quiser "
+            "registrar, ou ajuste a descrição/valor antes de confirmar."
+        )
+        df_itens = pd.DataFrame(
+            [{"Lançar": True, "Descrição": item.descricao, "Valor (R$)": item.valor} for item in itens_detectados]
+        )
+
+        with st.form("form_confirmar_itens"):
+            itens_editados = st.data_editor(
+                df_itens,
+                hide_index=True,
+                use_container_width=True,
+                num_rows="fixed",
+                column_config={
+                    "Lançar": st.column_config.CheckboxColumn(),
+                    "Valor (R$)": st.column_config.NumberColumn(format="%.2f", min_value=0.0),
+                },
             )
-        with col2:
-            valor = st.number_input(
-                "Valor (R$)", min_value=0.0, step=10.0, value=(extraido.valor if extraido and extraido.valor else 0.0)
-            )
-        with col3:
-            data = st.date_input(
-                "Data",
-                value=(datetime.date.fromisoformat(extraido.data) if extraido and extraido.data else datetime.date.today()),
-                format=FORMATO_DATA,
-            )
 
-        col4, col5, col6 = st.columns(3)
-        with col4:
-            categoria = st.selectbox("Categoria", CATEGORIAS_GASTO)
-        with col5:
-            fornecedor = st.text_input("Fornecedor/prestador", value=(extraido.fornecedor if extraido and extraido.fornecedor else ""))
-        with col6:
-            pago = st.checkbox("Já foi pago", value=True)
-
-        observacoes = st.text_input("Observação (opcional)")
-
-        col_confirmar, col_cancelar = st.columns(2)
-        confirmado = col_confirmar.form_submit_button("Confirmar e lançar", type="primary")
-        cancelado = col_cancelar.form_submit_button("Cancelar")
-
-        if confirmado:
-            if not descricao or valor <= 0:
-                st.error("Preencha ao menos o que foi gasto e um valor maior que zero.")
-            else:
-                adicionar_gasto(
-                    GastoObra(
-                        data=data.isoformat(),
-                        categoria=categoria,
-                        descricao=descricao,
-                        valor=valor,
-                        fornecedor=fornecedor,
-                        pago=pago,
-                        observacoes=observacoes,
-                    )
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                data = st.date_input(
+                    "Data",
+                    value=(datetime.date.fromisoformat(extraido.data) if extraido.data else datetime.date.today()),
+                    format=FORMATO_DATA,
                 )
-                del st.session_state["rascunho_gasto"]
-                st.session_state.pop("comprovante_processado_id", None)
-                st.session_state["versao_uploader"] = st.session_state.get("versao_uploader", 0) + 1
-                st.success("Gasto lançado!")
+            with col2:
+                categoria = st.selectbox("Categoria (aplicada a todos os itens)", CATEGORIAS_GASTO)
+            with col3:
+                pago = st.checkbox("Já foi pago", value=True)
+            fornecedor = st.text_input("Fornecedor/prestador", value=(extraido.fornecedor or ""))
+            observacoes = st.text_input("Observação (opcional, aplicada a todos os itens)")
+
+            col_confirmar, col_cancelar = st.columns(2)
+            confirmado = col_confirmar.form_submit_button("Confirmar e lançar itens selecionados", type="primary")
+            cancelado = col_cancelar.form_submit_button("Cancelar")
+
+            if confirmado:
+                selecionados = itens_editados[itens_editados["Lançar"]]
+                selecionados = selecionados[
+                    (selecionados["Descrição"].str.strip() != "") & (selecionados["Valor (R$)"] > 0)
+                ]
+                if selecionados.empty:
+                    st.error("Selecione ao menos um item, com descrição e valor maior que zero.")
+                else:
+                    for _, linha in selecionados.iterrows():
+                        adicionar_gasto(
+                            GastoObra(
+                                data=data.isoformat(),
+                                categoria=categoria,
+                                descricao=linha["Descrição"],
+                                valor=float(linha["Valor (R$)"]),
+                                fornecedor=fornecedor,
+                                pago=pago,
+                                observacoes=observacoes,
+                            )
+                        )
+                    _limpar_rascunho()
+                    st.success(f"{len(selecionados)} gasto(s) lançado(s)!")
+                    st.rerun()
+            if cancelado:
+                _limpar_rascunho()
                 st.rerun()
-        if cancelado:
-            del st.session_state["rascunho_gasto"]
-            st.session_state.pop("comprovante_processado_id", None)
-            st.session_state["versao_uploader"] = st.session_state.get("versao_uploader", 0) + 1
-            st.rerun()
+    else:
+        with st.form("form_confirmar_gasto"):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                descricao = st.text_input(
+                    "O que foi gasto?",
+                    value=(extraido.descricao_sugerida if extraido else ""),
+                    placeholder="Ex: Cimento, Pedreiro, Torneira...",
+                )
+            with col2:
+                valor = st.number_input(
+                    "Valor (R$)", min_value=0.0, step=10.0, value=(extraido.valor if extraido and extraido.valor else 0.0)
+                )
+            with col3:
+                data = st.date_input(
+                    "Data",
+                    value=(datetime.date.fromisoformat(extraido.data) if extraido and extraido.data else datetime.date.today()),
+                    format=FORMATO_DATA,
+                )
+
+            col4, col5, col6 = st.columns(3)
+            with col4:
+                categoria = st.selectbox("Categoria", CATEGORIAS_GASTO)
+            with col5:
+                fornecedor = st.text_input(
+                    "Fornecedor/prestador", value=(extraido.fornecedor if extraido and extraido.fornecedor else "")
+                )
+            with col6:
+                pago = st.checkbox("Já foi pago", value=True)
+
+            observacoes = st.text_input("Observação (opcional)")
+
+            col_confirmar, col_cancelar = st.columns(2)
+            confirmado = col_confirmar.form_submit_button("Confirmar e lançar", type="primary")
+            cancelado = col_cancelar.form_submit_button("Cancelar")
+
+            if confirmado:
+                if not descricao or valor <= 0:
+                    st.error("Preencha ao menos o que foi gasto e um valor maior que zero.")
+                else:
+                    adicionar_gasto(
+                        GastoObra(
+                            data=data.isoformat(),
+                            categoria=categoria,
+                            descricao=descricao,
+                            valor=valor,
+                            fornecedor=fornecedor,
+                            pago=pago,
+                            observacoes=observacoes,
+                        )
+                    )
+                    _limpar_rascunho()
+                    st.success("Gasto lançado!")
+                    st.rerun()
+            if cancelado:
+                _limpar_rascunho()
+                st.rerun()
 
 with st.expander("Lançar sem comprovante (manual)"):
     with st.form("form_novo_gasto_manual", clear_on_submit=True):
