@@ -8,17 +8,8 @@ import datetime
 import pandas as pd
 import streamlit as st
 
-from src.obra.armazenamento import (
-    DIR_FOTOS,
-    adicionar_foto,
-    adicionar_gasto,
-    carregar_dados_obra,
-    carregar_fotos,
-    carregar_gastos,
-    remover_foto,
-    remover_gasto,
-    salvar_dados_obra,
-)
+from src.obra import repositorio
+from src.obra.armazenamento import DIR_FOTOS, adicionar_foto, carregar_fotos, remover_foto
 from src.obra.calculo import fmt_data_br, percentual_orcamento, resumo_pagamento, total_geral
 from src.obra.extracao import TextoNaoReconhecido, extrair_texto, interpretar_comprovante
 from src.obra.relatorio_pdf import gerar_pdf_obra
@@ -34,7 +25,11 @@ aplicar_estilo_azul()
 st.title("🏗️ Registro de Obra")
 st.caption("Anote os gastos da reforma no dia a dia e gere, quando quiser, um relatório para o proprietário.")
 
-dados_obra = carregar_dados_obra() or DadosObra()
+conexao = repositorio.obter_conexao()
+if repositorio.usando_planilha():
+    st.caption("💾 Dados salvos na Planilha do Google — permanentes, mesmo se o app reiniciar.")
+
+dados_obra = repositorio.carregar_dados_obra(conexao) or DadosObra()
 
 with st.expander("Dados da obra (preencha uma vez)", expanded=not dados_obra.nome_obra):
     with st.form("form_dados_obra"):
@@ -69,7 +64,7 @@ with st.expander("Dados da obra (preencha uma vez)", expanded=not dados_obra.nom
                 status_obra=status_obra,
                 observacoes_gerais=observacoes_gerais,
             )
-            salvar_dados_obra(dados_obra)
+            repositorio.salvar_dados_obra(conexao, dados_obra)
             st.success("Dados salvos.")
             st.rerun()
 
@@ -170,7 +165,8 @@ if "rascunho_gasto" in st.session_state:
                     st.error("Selecione ao menos um item, com descrição e valor maior que zero.")
                 else:
                     for _, linha in selecionados.iterrows():
-                        adicionar_gasto(
+                        repositorio.adicionar_gasto(
+                            conexao,
                             GastoObra(
                                 data=data.isoformat(),
                                 categoria=categoria,
@@ -227,7 +223,8 @@ if "rascunho_gasto" in st.session_state:
                 if not descricao or valor <= 0:
                     st.error("Preencha ao menos o que foi gasto e um valor maior que zero.")
                 else:
-                    adicionar_gasto(
+                    repositorio.adicionar_gasto(
+                        conexao,
                         GastoObra(
                             data=data.isoformat(),
                             categoria=categoria,
@@ -268,7 +265,8 @@ with st.expander("Lançar sem comprovante (manual)"):
             if not descricao_m or valor_m <= 0:
                 st.error("Preencha ao menos o que foi gasto e um valor maior que zero.")
             else:
-                adicionar_gasto(
+                repositorio.adicionar_gasto(
+                    conexao,
                     GastoObra(
                         data=data_m.isoformat(),
                         categoria=categoria_m,
@@ -285,7 +283,7 @@ with st.expander("Lançar sem comprovante (manual)"):
 st.divider()
 
 st.header("Gastos lançados")
-df_gastos = carregar_gastos()
+df_gastos = repositorio.carregar_gastos(conexao)
 
 if df_gastos.empty:
     st.info("Nenhum gasto lançado ainda.")
@@ -323,7 +321,7 @@ else:
         }
         escolha = st.selectbox("Selecione o lançamento", list(opcoes.keys()))
         if st.button("Remover"):
-            remover_gasto(opcoes[escolha])
+            repositorio.remover_gasto(conexao, opcoes[escolha])
             st.success("Lançamento removido.")
             st.rerun()
 

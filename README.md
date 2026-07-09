@@ -46,9 +46,39 @@ Uma aba abre no navegador com uma única tela:
   gastos no tempo, detalhamento de todos os lançamentos, fotos da evolução
   (quando houver) e considerações finais.
 
-Os dados ficam salvos localmente em `data/obra/` (CSV/JSON, fotos em
-`data/obra/fotos/`) e não são versionados no Git, por serem dados financeiros
-e imagens pessoais.
+### Onde os dados ficam salvos
+
+Por padrão, os gastos e os dados da obra ficam em arquivos locais (CSV/JSON,
+em `data/obra/`). Isso funciona bem rodando o app no seu computador, mas
+**não é permanente se o app estiver publicado na Streamlit Community Cloud**
+(plano gratuito): sempre que o app fica sem uso e "dorme", ou que o código é
+atualizado, sobe um servidor novo do zero e esses arquivos são apagados.
+
+Para os gastos e os dados da obra sobreviverem a isso, o sistema também sabe
+salvar direto numa **Planilha do Google** — o mesmo mecanismo já usado pelo
+app de Finanças Pessoais. Configurando uma vez, toda vez que você abrir o
+app ele já aparece atualizado com o último lançamento, mesmo que o servidor
+tenha reiniciado.
+
+**As fotos continuam sempre salvas localmente** (são arquivos de imagem, não
+cabem numa planilha) — elas ainda são apagadas se o app publicado reiniciar.
+Se isso for um problema para você, avise para avaliarmos uma solução (ex:
+Google Drive).
+
+#### Configurar a Planilha do Google (recomendado para o app publicado)
+
+Os passos são os mesmos do app de Finanças Pessoais (veja o passo a passo
+completo na seção abaixo) — a única diferença é que, no passo de colar as
+credenciais nos **Secrets** do app da Obra (que é publicado separadamente,
+com seu próprio endereço), você pode usar a **mesma planilha e as mesmas
+credenciais** já criadas para as Finanças Pessoais (o sistema cria
+automaticamente as abas `gastos_obra` e `dados_obra`, sem conflito com a
+aba `lancamentos` das Finanças), ou criar uma planilha nova só para a Obra
+— como preferir. Depois de colar os Secrets no app da Obra, salve e reinicie
+(**Manage app → Reboot**).
+
+Rodando localmente (`streamlit run`), sem configurar nada disso, o app
+continua funcionando normalmente com os arquivos locais.
 
 **Publicação (Streamlit Community Cloud):** além do `requirements.txt`, a
 leitura de comprovantes por foto/imagem depende do pacote de sistema
@@ -59,9 +89,14 @@ Streamlit Cloud instala isso automaticamente ao publicar, sem ação manual.
 
 - `app_obra.py` — tela principal.
 - `src/obra/schema.py` — estrutura de um gasto e categorias.
-- `src/obra/armazenamento.py` — persistência em CSV/JSON.
+- `src/obra/armazenamento.py` — persistência local em CSV/JSON (gastos,
+  dados da obra e fotos).
+- `src/obra/armazenamento_sheets.py` — persistência dos gastos e dos dados
+  da obra numa Planilha do Google.
+- `src/obra/repositorio.py` — escolhe automaticamente entre planilha e
+  arquivo local.
 - `src/obra/extracao.py` — leitura do comprovante (PDF/OCR) e identificação
-  automática de data, valor e fornecedor.
+  automática de data, valor, fornecedor e itens da nota.
 - `src/obra/calculo.py` — totais, agrupamentos e formatação de datas.
 - `src/obra/graficos.py` — gráficos matplotlib.
 - `src/obra/relatorio_pdf.py` — geração do relatório final em PDF.
