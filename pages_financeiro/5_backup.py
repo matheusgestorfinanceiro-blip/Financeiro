@@ -1,16 +1,12 @@
-"""Backup: exporta e importa todos os lançamentos em CSV.
-
-Importante: se o app estiver publicado na nuvem (Streamlit Community Cloud),
-o banco de dados local é apagado a cada novo deploy. Faça backup em CSV
-regularmente para não perder o histórico.
-"""
+"""Backup: exporta e importa todos os lançamentos em CSV."""
 from datetime import date
 
 import pandas as pd
 import streamlit as st
 
-from src.pessoal.armazenamento import inserir, listar_todos
+from src.pessoal import repositorio
 from src.pessoal.modelos import Lancamento
+from src.pessoal.repositorio import inserir, listar_todos
 from src.pessoal.ui.estilo import aplicar_estilo
 from src.pessoal.ui.sessao import obter_conexao, selecionar_usuario
 
@@ -19,11 +15,18 @@ conexao = obter_conexao()
 selecionar_usuario()
 
 st.title("💾 Backup")
-st.warning(
-    "Se este app estiver publicado na Streamlit Community Cloud, os dados ficam "
-    "apenas no servidor enquanto ele estiver ativo — um novo deploy apaga tudo. "
-    "Exporte o CSV com frequência e guarde uma cópia."
-)
+if repositorio.usando_planilha():
+    st.success(
+        "Os lançamentos estão sendo salvos numa Planilha do Google — eles não são "
+        "apagados quando o app dorme ou é atualizado. O CSV abaixo é só uma cópia extra."
+    )
+else:
+    st.warning(
+        "Os dados estão salvos apenas neste servidor. Se este app estiver publicado na "
+        "Streamlit Community Cloud, eles são apagados quando o app dorme ou é atualizado. "
+        "Exporte o CSV com frequência, ou configure a Planilha do Google (veja o README) "
+        "para os dados nunca mais serem apagados."
+    )
 
 todos = listar_todos(conexao)
 

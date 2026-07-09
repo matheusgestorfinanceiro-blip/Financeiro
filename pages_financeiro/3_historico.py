@@ -4,9 +4,9 @@ from datetime import date
 import streamlit as st
 
 from src.pessoal.analise import historico_mensal
-from src.pessoal.armazenamento import encerrar_fixa, excluir, listar_todos
 from src.pessoal.graficos import grafico_evolucao_mensal
 from src.pessoal.modelos import REPETICAO_FIXA, REPETICAO_PARCELADA, REPETICAO_UNICA, TIPO_DESPESA, TIPO_RECEITA
+from src.pessoal.repositorio import encerrar_fixa, excluir, listar_todos
 from src.pessoal.ui.estilo import aplicar_estilo, fmt_moeda
 from src.pessoal.ui.sessao import obter_conexao, selecionar_usuario
 

@@ -102,13 +102,72 @@ no menu lateral:
 - **Previsão futura** — projeta os próximos meses a partir dos lançamentos
   fixos e das parcelas em andamento, mostrando quando cada parcela termina.
 - **Backup** — exporta todos os lançamentos em CSV (e permite reimportar).
-  **Importante:** se este app for publicado na Streamlit Community Cloud, o
-  banco de dados local (SQLite, em `data/pessoal/financeiro.db`) é apagado a
-  cada novo deploy — exporte o CSV com frequência para não perder o
-  histórico. Rodando localmente (`streamlit run`), os dados ficam salvos
-  normalmente no arquivo, sem esse risco.
 
 Todas as datas exibidas na tela seguem o formato **dia/mês/ano**.
+
+### Onde os dados ficam salvos
+
+Por padrão, os lançamentos ficam num arquivo local (SQLite, em
+`data/pessoal/financeiro.db`). Isso funciona bem rodando o app no seu
+computador, mas **não é permanente se o app estiver publicado na Streamlit
+Community Cloud** (plano gratuito): o servidor não é fixo — toda vez que o
+app fica sem uso e "dorme", ou que o código é atualizado, ele sobe um
+servidor novo do zero e esse arquivo local é apagado.
+
+Para os dados sobreviverem a isso, o sistema também sabe salvar direto numa
+**Planilha do Google** — basta configurar as credenciais uma vez (veja
+abaixo). Com isso configurado, o app troca automaticamente de SQLite para a
+planilha, sem precisar mudar mais nada.
+
+#### Configurar a Planilha do Google (recomendado para o app publicado)
+
+1. **Crie a planilha**: acesse [sheets.google.com](https://sheets.google.com),
+   crie uma planilha em branco e dê um nome a ela (ex: "Finanças da
+   Família"). Copie o link dela (fica na barra de endereço do navegador).
+2. **Crie uma credencial de serviço no Google Cloud**:
+   - Acesse [console.cloud.google.com](https://console.cloud.google.com) e
+     entre com a mesma conta do Google.
+   - Crie um projeto novo (qualquer nome) se ainda não tiver um.
+   - No menu de busca do topo, procure por **"Google Sheets API"**, abra e
+     clique em **Enable/Ativar**.
+   - No menu de busca, procure por **"Credentials/Credenciais"**, clique em
+     **Create Credentials → Service Account**, dê um nome (ex:
+     `financas-app`) e conclua (pode pular as etapas opcionais de permissão).
+   - Na lista de contas de serviço, clique na que você acabou de criar, vá
+     na aba **Keys/Chaves → Add Key → Create new key**, escolha **JSON** e
+     baixe o arquivo. Guarde esse arquivo — ele é a chave de acesso.
+3. **Compartilhe a planilha com a conta de serviço**: abra o arquivo JSON
+   baixado, copie o valor do campo `"client_email"` (algo como
+   `financas-app@seu-projeto.iam.gserviceaccount.com`). Na planilha criada
+   no passo 1, clique em **Compartilhar**, cole esse e-mail e dê permissão
+   de **Editor**.
+4. **Cole as credenciais na Streamlit Cloud**: no painel do seu app em
+   [share.streamlit.io](https://share.streamlit.io), abra
+   **Settings → Secrets** e cole (ajustando com os valores do seu arquivo
+   JSON e o link da sua planilha):
+   ```toml
+   [connections.gsheets]
+   spreadsheet = "COLE_AQUI_O_LINK_DA_SUA_PLANILHA"
+   type = "service_account"
+   project_id = "..."
+   private_key_id = "..."
+   private_key = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+   client_email = "...@....iam.gserviceaccount.com"
+   client_id = "..."
+   auth_uri = "https://accounts.google.com/o/oauth2/auth"
+   token_uri = "https://oauth2.googleapis.com/token"
+   auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
+   client_x509_cert_url = "..."
+   ```
+   Todos os campos (menos `spreadsheet`) vêm exatamente do arquivo JSON
+   baixado no passo 2 — é só copiar cada valor para o campo de mesmo nome.
+5. Salve e reinicie o app (**Manage app → Reboot**). Pronto: a partir daí,
+   todo lançamento feito por você ou pela Walkiria é salvo direto na
+   planilha e nunca mais é apagado, mesmo que o app durma ou seja
+   atualizado.
+
+Rodando localmente (`streamlit run`), sem configurar nada disso, o app
+continua funcionando normalmente com o arquivo SQLite.
 
 ### Cores
 
