@@ -221,6 +221,14 @@ def _pagina_arrecadacoes(pdf: RelatorioPDF, resultado):
         colunas=3,
     )
 
+    if resultado.outras_arrecadacoes_detalhe:
+        pdf.ln(2)
+        _cartoes_estatisticas(
+            pdf,
+            [(nome, fmt_moeda(valor)) for nome, valor in resultado.outras_arrecadacoes_detalhe],
+            colunas=min(len(resultado.outras_arrecadacoes_detalhe), 3),
+        )
+
     pdf.ln(2)
     largura_grafico = 130
     pdf.imagem_temporaria(
@@ -241,6 +249,20 @@ def _pagina_arrecadacoes(pdf: RelatorioPDF, resultado):
     else:
         texto = "Nao ha dados de receita suficientes no historico para esta analise."
     _caixa_consideracoes(pdf, texto)
+
+    if resultado.valores_por_unidade is not None and not resultado.valores_por_unidade.empty:
+        media_unidade = float(resultado.valores_por_unidade["total"].sum() / len(resultado.valores_por_unidade))
+        pdf.set_font("Helvetica", size=9)
+        pdf.set_text_color(*_hex_para_rgb(GRAY))
+        pdf.cell(
+            0,
+            5,
+            f"Valor medio previsto por unidade (rateio + fundo de reserva + outras arrecadacoes, ja com "
+            f"ajuste de inadimplencia): {fmt_moeda(media_unidade)} - {resultado.numero_unidades} unidade(s).",
+            new_x="LMARGIN",
+            new_y="NEXT",
+        )
+        pdf.set_text_color(0, 0, 0)
 
 
 def _pagina_despesas(pdf: RelatorioPDF, resultado):

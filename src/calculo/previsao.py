@@ -12,14 +12,13 @@ from src.calculo.analise import (
 )
 from src.models.schema import (
     AjusteManual,
+    ConfiguracaoArrecadacao,
     DadosDemonstrativo,
     DadosFormulario,
     DadosInadimplencia,
     LinhaDespesaPrevista,
     ResultadoPrevisao,
 )
-
-TETO_PERCENTUAL_FUNDO_RESERVA = 0.95
 
 
 def _percentual_para_subcategoria(ajustes: list[AjusteManual], subcategoria: str, padrao: float) -> tuple[float, bool]:
@@ -103,21 +102,44 @@ def _calcular_outras_receitas_previstas(
     return float(outras) * (1 + percentual_reajuste)
 
 
-def _calcular_rateio_por_unidade(formulario: DadosFormulario, receita_necessaria: float) -> pd.DataFrame:
-    if formulario.rateio_tipo == "fracao_ideal" and formulario.fracoes_ideais is not None:
-        df = formulario.fracoes_ideais.copy()
-        soma_fracoes = df["fracao"].sum()
-        df["valor"] = df["fracao"] / soma_fracoes * receita_necessaria
-        return df[["unidade", "fracao", "valor"]]
+def _resolver_configuracao(
+    config: ConfiguracaoArrecadacao | None,
+    numero_unidades_padrao: int,
+    unidades_referencia: list[str] | None = None,
+) -> pd.DataFrame:
+    """Transforma uma ConfiguracaoArrecadacao num valor mensal por unidade
+    (colunas unidade/valor), qualquer que seja o modo escolhido:
+    - "tipos": uma linha por unidade de cada tipo, com o valor mensal daquele tipo.
+    - "fracao_ideal"/"indexador": valor de cada unidade = fração dela vezes o
+      valor total mensal a arrecadar.
+    - "igual" (ou configuração ausente): `numero_unidades_padrao` unidades
+      pagando o mesmo valor mensal - reaproveitando os nomes de unidade de
+      `unidades_referencia` quando fornecido (ex: os mesmos nomes já
+      definidos pelo rateio principal), para o fundo de reserva e as outras
+      arrecadações combinarem com a mesma unidade nas tabelas finais.
+    """
+    if config is None:
+        return pd.DataFrame(columns=["unidade", "valor"])
 
-    valor_igual = receita_necessaria / formulario.numero_unidades if formulario.numero_unidades else 0.0
-    return pd.DataFrame(
-        {
-            "unidade": [f"Unidade {i+1}" for i in range(formulario.numero_unidades)],
-            "fracao": [1 / formulario.numero_unidades] * formulario.numero_unidades if formulario.numero_unidades else [],
-            "valor": [valor_igual] * formulario.numero_unidades,
-        }
-    )
+    if config.modo == "tipos" and config.tipos:
+        linhas = [
+            {"unidade": f"{tipo.nome} {i + 1}", "valor": tipo.valor}
+            for tipo in config.tipos
+            for i in range(tipo.quantidade)
+        ]
+        return pd.DataFrame(linhas, columns=["unidade", "valor"])
+
+    if config.modo in ("fracao_ideal", "indexador") and config.fracoes is not None and not config.fracoes.empty:
+        df = config.fracoes.copy()
+        soma_fracoes = df["fracao"].sum()
+        df["valor"] = df["fracao"] / soma_fracoes * config.valor_total_mensal if soma_fracoes else 0.0
+        return df[["unidade", "valor"]]
+
+    if unidades_referencia is not None:
+        unidades = list(unidades_referencia)
+    else:
+        unidades = [f"Unidade {i + 1}" for i in range(numero_unidades_padrao or 0)]
+    return pd.DataFrame({"unidade": unidades, "valor": [config.valor_unico] * len(unidades)})
 
 
 def gerar_previsao(
@@ -132,16 +154,6 @@ def gerar_previsao(
     despesa_ordinaria = _despesa_ordinaria(despesas_classificadas)
     percentual_reajuste_automatico = _calcular_reajuste_automatico(receita_ordinaria, despesa_ordinaria)
 
-    numero_unidades = formulario.numero_unidades
-
-    fundo_reserva_percentual = 0.0
-    fundo_reserva_fixo_total = 0.0
-    if formulario.possui_fundo_reserva:
-        if formulario.fundo_reserva_modo == "valor_fixo":
-            fundo_reserva_fixo_total = formulario.fundo_reserva_valor_input * numero_unidades
-        else:
-            fundo_reserva_percentual = min(formulario.fundo_reserva_valor_input, TETO_PERCENTUAL_FUNDO_RESERVA)
-
     despesas_previstas = _calcular_despesas_previstas(demonstrativo, formulario, percentual_reajuste_automatico)
     total_despesas_historico = sum(l.valor_historico for l in despesas_previstas)
     total_despesas_previsto = sum(l.valor_previsto for l in despesas_previstas)
@@ -150,37 +162,44 @@ def gerar_previsao(
         receitas_classificadas, percentual_reajuste_automatico
     )
 
-    # receita_rateio = despesas + fundo_fixo + fundo_reserva(receita_rateio) - outras_receitas
-    # Se fundo_reserva = pct * receita_rateio, então:
-    #   receita_rateio * (1 - pct) = despesas + fundo_fixo - outras_receitas
-    numerador = total_despesas_previsto + fundo_reserva_fixo_total - total_outras_receitas_previsto
-    receita_rateio_calculada = numerador / (1 - fundo_reserva_percentual)
+    rateio_df = _resolver_configuracao(formulario.configuracao_rateio, formulario.numero_unidades)
+    rateio_df = rateio_df.rename(columns={"valor": "rateio"})
+    numero_unidades = len(rateio_df)
 
-    valor_por_unidade_sugerido = receita_rateio_calculada / numero_unidades if numero_unidades else 0.0
+    valores_por_unidade = rateio_df
 
-    usa_valor_unico = formulario.valor_unico_por_unidade is not None and formulario.rateio_tipo == "igualitario"
-    if usa_valor_unico:
-        valor_por_unidade_sem_ajuste = formulario.valor_unico_por_unidade
-        receita_rateio_necessaria = valor_por_unidade_sem_ajuste * numero_unidades if numero_unidades else 0.0
-        # O valor informado pelo usuário já é uma mensalidade (ex: R$ 150/mês).
-        arrecadacao_prevista_mensal = receita_rateio_necessaria
+    unidades_referencia = rateio_df["unidade"].tolist()
+
+    fundo_reserva_valor = 0.0
+    if formulario.possui_fundo_reserva and formulario.configuracao_fundo_reserva is not None:
+        fundo_df = _resolver_configuracao(formulario.configuracao_fundo_reserva, numero_unidades, unidades_referencia)
+        fundo_df = fundo_df.rename(columns={"valor": "fundo_reserva"})
+        fundo_reserva_valor = float(fundo_df["fundo_reserva"].sum())
+        valores_por_unidade = valores_por_unidade.merge(fundo_df, on="unidade", how="outer")
     else:
-        valor_por_unidade_sem_ajuste = valor_por_unidade_sugerido
-        receita_rateio_necessaria = receita_rateio_calculada
-        # receita_rateio_calculada é o total do período de 12 meses; a
-        # arrecadação mensal prevista é esse total dividido por 12.
-        arrecadacao_prevista_mensal = receita_rateio_calculada / 12
+        valores_por_unidade["fundo_reserva"] = 0.0
 
-    fundo_reserva_valor = receita_rateio_necessaria * fundo_reserva_percentual + fundo_reserva_fixo_total
+    total_outras_arrecadacoes_previsto = 0.0
+    outras_arrecadacoes_detalhe: list[tuple[str, float]] = []
+    for nome, config in formulario.outras_arrecadacoes:
+        outra_df = _resolver_configuracao(config, numero_unidades, unidades_referencia).rename(columns={"valor": nome})
+        total_outra = float(outra_df[nome].sum())
+        total_outras_arrecadacoes_previsto += total_outra
+        outras_arrecadacoes_detalhe.append((nome, total_outra))
+        valores_por_unidade = valores_por_unidade.merge(outra_df, on="unidade", how="outer")
+
+    colunas_valor = [c for c in valores_por_unidade.columns if c != "unidade"]
+    valores_por_unidade[colunas_valor] = valores_por_unidade[colunas_valor].fillna(0.0)
 
     percentual_inadimplencia = inadimplencia.percentual_inadimplencia if inadimplencia else 0.0
     fator_cobertura = 1 - percentual_inadimplencia
-    valor_por_unidade_com_inadimplencia = (
-        valor_por_unidade_sem_ajuste / fator_cobertura if fator_cobertura > 0 else valor_por_unidade_sem_ajuste
-    )
 
-    receita_rateio_ajustada = valor_por_unidade_com_inadimplencia * numero_unidades if numero_unidades else 0.0
-    rateio_por_unidade = _calcular_rateio_por_unidade(formulario, receita_rateio_ajustada)
+    valores_por_unidade["total"] = valores_por_unidade[colunas_valor].sum(axis=1)
+    if fator_cobertura > 0:
+        valores_por_unidade["total"] = valores_por_unidade["total"] / fator_cobertura
+
+    receita_rateio_necessaria = float(rateio_df["rateio"].sum())
+    arrecadacao_prevista_mensal = receita_rateio_necessaria
 
     total_despesas_historico_por_mes = {
         mes: float(demonstrativo.df_despesas[mes].sum()) for mes in demonstrativo.meses
@@ -209,17 +228,13 @@ def gerar_previsao(
         total_outras_receitas_previsto=total_outras_receitas_previsto,
         percentual_reajuste_automatico=percentual_reajuste_automatico,
         fundo_reserva_valor=fundo_reserva_valor,
-        fundo_reserva_percentual=fundo_reserva_percentual,
         possui_fundo_reserva=formulario.possui_fundo_reserva,
-        fundo_reserva_modo=formulario.fundo_reserva_modo,
         receita_rateio_necessaria=receita_rateio_necessaria,
         numero_unidades=numero_unidades,
-        valor_por_unidade_sem_ajuste=valor_por_unidade_sem_ajuste,
-        valor_por_unidade_com_inadimplencia=valor_por_unidade_com_inadimplencia,
         percentual_inadimplencia=percentual_inadimplencia,
-        valor_por_unidade_sugerido_pelo_sistema=valor_por_unidade_sugerido if usa_valor_unico else None,
-        rateio_tipo=formulario.rateio_tipo,
-        rateio_por_unidade=rateio_por_unidade,
+        total_outras_arrecadacoes_previsto=total_outras_arrecadacoes_previsto,
+        outras_arrecadacoes_detalhe=outras_arrecadacoes_detalhe,
+        valores_por_unidade=valores_por_unidade,
         total_despesas_historico_por_mes=total_despesas_historico_por_mes,
         total_receitas_historico_por_mes=total_receitas_historico_por_mes,
         receitas_classificadas=receitas_classificadas,

@@ -1,7 +1,7 @@
 import pandas as pd
 
 from src.calculo.previsao import gerar_previsao
-from src.models.schema import DadosFormulario, DadosInadimplencia
+from src.models.schema import ConfiguracaoArrecadacao, DadosFormulario, DadosInadimplencia
 from src.parsers.demonstrativo_parser import parse_demonstrativo
 from src.parsers.inadimplentes_parser import parse_inadimplentes
 from src.relatorio.pdf_export import gerar_pdf_previsao
@@ -12,10 +12,9 @@ def _formulario(**kwargs):
         nome_condominio="Condomínio Teste",
         periodo="Janeiro/2026 a Dezembro/2026",
         numero_unidades=10,
-        rateio_tipo="igualitario",
+        configuracao_rateio=ConfiguracaoArrecadacao(modo="igual", valor_unico=100.0),
         possui_fundo_reserva=True,
-        fundo_reserva_modo="percentual",
-        fundo_reserva_valor_input=0.05,
+        configuracao_fundo_reserva=ConfiguracaoArrecadacao(modo="igual", valor_unico=5.0),
     )
     base.update(kwargs)
     return DadosFormulario(**base)

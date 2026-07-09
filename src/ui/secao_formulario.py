@@ -8,7 +8,84 @@ import pandas as pd
 import streamlit as st
 
 from src.calculo.periodo import limpar_nome_condominio, sugerir_periodo
-from src.models.schema import AjusteManual, DadosFormulario
+from src.models.schema import AjusteManual, ConfiguracaoArrecadacao, DadosFormulario, TipoUnidade
+from src.parsers.fracoes_parser import parse_fracoes
+
+
+def _bloco_configuracao_arrecadacao(
+    titulo: str, key_prefix: str, numero_unidades_sugerido: int = 1, permitir_definir_numero_unidades: bool = True
+) -> tuple[ConfiguracaoArrecadacao, int]:
+    """Pergunta em cascata (igual -> tipos/fração ideal/indexador) reaproveitada
+    no rateio principal, no fundo de reserva e em cada "outra arrecadação".
+
+    Retorna a configuração escolhida e o número de unidades resultante dela
+    (para o rateio principal, esse número vira a referência para os blocos
+    seguintes).
+    """
+    st.markdown(f"**{titulo}**")
+    iguais = st.radio("As unidades são iguais?", ["Sim", "Não"], horizontal=True, key=f"{key_prefix}_iguais")
+
+    if iguais == "Sim":
+        col1, col2 = st.columns(2)
+        if permitir_definir_numero_unidades:
+            numero_unidades = int(
+                col1.number_input(
+                    "Número de unidades", min_value=1, value=numero_unidades_sugerido, step=1, key=f"{key_prefix}_num_unidades"
+                )
+            )
+        else:
+            numero_unidades = numero_unidades_sugerido
+            col1.caption(f"{numero_unidades} unidade(s), conforme definido no rateio principal.")
+        valor_unico = col2.number_input(
+            "Valor por unidade (R$/mês)", min_value=0.0, value=0.0, step=10.0, key=f"{key_prefix}_valor_unico"
+        )
+        return ConfiguracaoArrecadacao(modo="igual", valor_unico=valor_unico), numero_unidades
+
+    modo_label = st.radio(
+        "O rateio é por:", ["Valor fixo por tipo", "Fração ideal", "Indexador"], horizontal=True, key=f"{key_prefix}_modo"
+    )
+
+    if modo_label == "Valor fixo por tipo":
+        st.caption("Informe os tipos de unidade, a quantidade de cada tipo e o valor mensal por tipo.")
+        tabela_inicial = pd.DataFrame({"tipo": ["Tipo 1"], "quantidade": [1], "valor": [0.0]})
+        tabela = st.data_editor(
+            tabela_inicial, num_rows="dynamic", use_container_width=True, key=f"{key_prefix}_tabela_tipos"
+        )
+        tipos = [
+            TipoUnidade(nome=str(row["tipo"]), quantidade=int(row["quantidade"]), valor=float(row["valor"]))
+            for _, row in tabela.iterrows()
+            if pd.notna(row["tipo"]) and pd.notna(row["quantidade"]) and row["quantidade"] > 0
+        ]
+        numero_unidades = sum(t.quantidade for t in tipos)
+        return ConfiguracaoArrecadacao(modo="tipos", tipos=tipos), numero_unidades
+
+    # Fração ideal e indexador seguem exatamente a mesma lógica, só muda o rótulo.
+    modo = "fracao_ideal" if modo_label == "Fração ideal" else "indexador"
+    valor_total_mensal = st.number_input(
+        "Valor total mensal a arrecadar (R$)", min_value=0.0, value=0.0, step=100.0, key=f"{key_prefix}_valor_total"
+    )
+    st.caption(
+        f"Envie um arquivo (PDF ou Excel) com unidade/{modo_label.lower()}/proprietário, ou preencha a tabela abaixo manualmente."
+    )
+    arquivo = st.file_uploader(
+        "Arquivo de frações (opcional)", type=["pdf", "xlsx", "xls"], key=f"{key_prefix}_upload_fracoes"
+    )
+    tabela_key = f"{key_prefix}_tabela_fracoes"
+    if arquivo is not None and st.session_state.get(f"{key_prefix}_arquivo_processado") != arquivo.name:
+        try:
+            st.session_state[tabela_key] = parse_fracoes(arquivo)
+            st.session_state[f"{key_prefix}_arquivo_processado"] = arquivo.name
+        except Exception as erro:
+            st.warning(f"Não foi possível ler o arquivo automaticamente ({erro})")
+
+    n = max(numero_unidades_sugerido, 1)
+    tabela_padrao = pd.DataFrame(
+        {"unidade": [f"Unidade {i + 1}" for i in range(n)], "fracao": [1 / n] * n, "proprietario": [""] * n}
+    )
+    tabela_inicial = st.session_state.get(tabela_key, tabela_padrao)
+    tabela = st.data_editor(tabela_inicial, num_rows="dynamic", use_container_width=True, key=f"{key_prefix}_editor_fracoes")
+    numero_unidades = len(tabela)
+    return ConfiguracaoArrecadacao(modo=modo, valor_total_mensal=valor_total_mensal, fracoes=tabela), numero_unidades
 
 
 def renderizar_secao_formulario(dados_demonstrativo):
@@ -26,47 +103,43 @@ def renderizar_secao_formulario(dados_demonstrativo):
 
         st.caption("O reajuste das despesas é calculado automaticamente a partir do Demonstrativo de Receitas e Despesas.")
 
-        numero_unidades = st.number_input("Número de unidades", min_value=1, value=40, step=1)
-
-        st.markdown("**Rateio entre unidades**")
-        rateio_tipo_label = st.radio("Tipo de rateio", ["Taxa única por unidade", "Por fração ideal"], horizontal=True)
-        fracoes_ideais = None
-        valor_unico_por_unidade = None
-        if rateio_tipo_label == "Taxa única por unidade":
-            st.caption(
-                "Informe o valor que será cobrado de cada unidade. Esse valor substitui o "
-                "cálculo automático (que continua sendo mostrado como referência no resumo executivo)."
-            )
-            valor_informado = st.number_input("Valor por unidade (R$)", min_value=0.0, value=0.0, step=10.0)
-            valor_unico_por_unidade = valor_informado if valor_informado > 0 else None
-        else:
-            st.caption("Preencha a fração ideal de cada unidade (a soma não precisa ser exatamente 1,0).")
-            tabela_inicial = pd.DataFrame(
-                {"unidade": [f"Unidade {i+1}" for i in range(int(numero_unidades))], "fracao": [1 / numero_unidades] * int(numero_unidades)}
-            )
-            fracoes_ideais = st.data_editor(
-                tabela_inicial, num_rows="dynamic", use_container_width=True, key="tabela_fracoes_ideais"
-            )
+        configuracao_rateio, numero_unidades = _bloco_configuracao_arrecadacao(
+            "Rateio entre unidades", key_prefix="rateio", numero_unidades_sugerido=40
+        )
 
         st.markdown("**Fundo de reserva**")
         possui_fundo_reserva_label = st.radio("O condomínio possui fundo de reserva?", ["Não", "Sim"], horizontal=True)
         possui_fundo_reserva = possui_fundo_reserva_label == "Sim"
-        fundo_reserva_modo = "percentual"
-        fundo_reserva_valor_input = 0.0
+        configuracao_fundo_reserva = None
         if possui_fundo_reserva:
-            fundo_reserva_modo_label = st.radio(
-                "É um percentual ou um valor fixo?", ["Percentual", "Valor fixo"], horizontal=True
+            configuracao_fundo_reserva, _ = _bloco_configuracao_arrecadacao(
+                "Como o fundo de reserva é dividido entre as unidades",
+                key_prefix="fundo_reserva",
+                numero_unidades_sugerido=numero_unidades,
+                permitir_definir_numero_unidades=False,
             )
-            if fundo_reserva_modo_label == "Percentual":
-                fundo_reserva_modo = "percentual"
-                fundo_reserva_valor_input = st.number_input(
-                    "Percentual do fundo de reserva (%)", min_value=0.0, max_value=90.0, value=5.0, step=0.5
-                ) / 100
-            else:
-                fundo_reserva_modo = "valor_fixo"
-                fundo_reserva_valor_input = st.number_input(
-                    "Valor do fundo de reserva por unidade (R$)", min_value=0.0, value=0.0, step=10.0
-                )
+
+        st.markdown("**Outras arrecadações**")
+        quer_outras_arrecadacoes = st.radio(
+            "Haverá outras arrecadações (ex: rateio de água, rateio extra anual)?", ["Não", "Sim"], horizontal=True
+        )
+        outras_arrecadacoes = []
+        if quer_outras_arrecadacoes == "Sim":
+            quantidade_outras = st.number_input(
+                "Quantas outras arrecadações deseja configurar?", min_value=1, value=1, step=1, key="qtd_outras_arrecadacoes"
+            )
+            for i in range(int(quantidade_outras)):
+                with st.container(border=True):
+                    nome_arrecadacao = st.text_input(
+                        f"Nome da arrecadação #{i + 1}", value=f"Arrecadação {i + 1}", key=f"outra_arrecadacao_nome_{i}"
+                    )
+                    config_outra, _ = _bloco_configuracao_arrecadacao(
+                        f"Como '{nome_arrecadacao}' é dividida entre as unidades",
+                        key_prefix=f"outra_arrecadacao_{i}",
+                        numero_unidades_sugerido=numero_unidades,
+                        permitir_definir_numero_unidades=False,
+                    )
+                    outras_arrecadacoes.append((nome_arrecadacao, config_outra))
 
     with st.container(border=True):
         st.subheader("Ambiente de análise (opcional)")
@@ -113,12 +186,10 @@ def renderizar_secao_formulario(dados_demonstrativo):
             nome_condominio=nome_condominio,
             periodo=periodo,
             numero_unidades=int(numero_unidades),
-            rateio_tipo="fracao_ideal" if rateio_tipo_label == "Por fração ideal" else "igualitario",
-            valor_unico_por_unidade=valor_unico_por_unidade,
-            fracoes_ideais=fracoes_ideais,
+            configuracao_rateio=configuracao_rateio,
             possui_fundo_reserva=possui_fundo_reserva,
-            fundo_reserva_modo=fundo_reserva_modo,
-            fundo_reserva_valor_input=fundo_reserva_valor_input,
+            configuracao_fundo_reserva=configuracao_fundo_reserva,
+            outras_arrecadacoes=outras_arrecadacoes,
             observacoes=observacoes,
             ajustes_manuais=ajustes_manuais,
         )
