@@ -3,7 +3,6 @@ from datetime import date, timedelta
 
 import streamlit as st
 
-from src.pessoal.armazenamento import inserir
 from src.pessoal.modelos import (
     CATEGORIAS_DESPESA,
     CATEGORIAS_RECEITA,
@@ -15,6 +14,7 @@ from src.pessoal.modelos import (
     USUARIOS_PADRAO,
     Lancamento,
 )
+from src.pessoal.repositorio import inserir
 from src.pessoal.ui.estilo import aplicar_estilo
 from src.pessoal.ui.sessao import obter_conexao, selecionar_usuario
 

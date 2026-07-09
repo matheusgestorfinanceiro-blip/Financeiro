@@ -4,9 +4,9 @@ from datetime import date
 import streamlit as st
 
 from src.pessoal.analise import previsao_futura
-from src.pessoal.armazenamento import listar_todos
 from src.pessoal.graficos import grafico_evolucao_mensal
 from src.pessoal.modelos import REPETICAO_PARCELADA
+from src.pessoal.repositorio import listar_todos
 from src.pessoal.ui.estilo import aplicar_estilo, fmt_moeda
 from src.pessoal.ui.sessao import obter_conexao, selecionar_usuario
 

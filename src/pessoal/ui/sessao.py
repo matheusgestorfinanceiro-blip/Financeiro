@@ -1,15 +1,17 @@
 """Estado compartilhado entre as páginas do app de Finanças Pessoais."""
 import streamlit as st
 
-from src.pessoal.armazenamento import conectar
+from src.pessoal import repositorio
 from src.pessoal.modelos import USUARIOS_PADRAO
 
 
 def obter_conexao():
-    """Abre uma conexão nova a cada execução da página (SQLite é local e a
-    abertura é barata; evita problemas de conexão compartilhada entre threads
-    quando o Streamlit executa páginas diferentes em threads diferentes)."""
-    return conectar()
+    """Abre uma conexão nova a cada execução da página (é barata; evita
+    problemas de conexão compartilhada entre threads quando o Streamlit
+    executa páginas diferentes em threads diferentes). Usa a planilha do
+    Google se configurada, senão um arquivo SQLite local — veja
+    `src/pessoal/repositorio.py`."""
+    return repositorio.obter_conexao()
 
 
 def selecionar_usuario() -> str:

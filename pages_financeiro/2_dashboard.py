@@ -4,10 +4,10 @@ from datetime import date
 import streamlit as st
 
 from src.pessoal.analise import resumir_mes
-from src.pessoal.armazenamento import listar_todos
 from src.pessoal.calendario import NOMES_MESES
 from src.pessoal.graficos import grafico_pizza_categoria
 from src.pessoal.modelos import TIPO_DESPESA, TIPO_RECEITA
+from src.pessoal.repositorio import listar_todos
 from src.pessoal.ui.estilo import aplicar_estilo, cartao, fmt_moeda
 from src.pessoal.ui.sessao import obter_conexao, selecionar_usuario
 
