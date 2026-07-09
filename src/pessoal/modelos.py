@@ -58,4 +58,4 @@ class Lancamento:
     ativa: bool = True
     data_fim: date | None = None
     observacao: str = ""
-    id: int | None = None
+    id: int | str | None = None

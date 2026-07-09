@@ -3,10 +3,10 @@ from datetime import date
 
 import streamlit as st
 
-from src.pessoal.armazenamento import listar_todos
 from src.pessoal.calendario import DIAS_SEMANA, NOMES_MESES, mes_anterior, mes_seguinte, semanas_do_mes
 from src.pessoal.modelos import TIPO_RECEITA
 from src.pessoal.projecao import lancamentos_do_mes, proximos_meses
+from src.pessoal.repositorio import listar_todos
 from src.pessoal.ui.estilo import aplicar_estilo, fmt_moeda
 from src.pessoal.ui.sessao import obter_conexao, selecionar_usuario
 
