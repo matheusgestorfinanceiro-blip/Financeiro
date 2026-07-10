@@ -87,3 +87,32 @@ def grafico_evolucao_mensal(resumos: list):
     ax.legend(loc="upper left", fontsize=8)
     fig.tight_layout()
     return fig
+
+
+def grafico_por_pessoa(por_usuario: dict):
+    """Barras comparando receita (azul) e despesa (vermelho) de cada pessoa."""
+    from src.pessoal.modelos import TIPO_DESPESA, TIPO_RECEITA
+
+    fig, ax = plt.subplots(figsize=(6.5, 4))
+    _estilo_figura(fig, ax)
+    if not por_usuario:
+        ax.text(0.5, 0.5, "Sem lançamentos", ha="center", va="center", color=CINZA)
+        ax.axis("off")
+        return fig
+
+    pessoas = list(por_usuario.keys())
+    receitas = [por_usuario[p].get(TIPO_RECEITA, 0.0) for p in pessoas]
+    despesas = [por_usuario[p].get(TIPO_DESPESA, 0.0) for p in pessoas]
+
+    x = range(len(pessoas))
+    largura = 0.35
+    ax.bar([i - largura / 2 for i in x], receitas, largura, label="Receitas", color=AZUL)
+    ax.bar([i + largura / 2 for i in x], despesas, largura, label="Despesas", color=VERMELHO)
+    ax.set_xticks(list(x))
+    ax.set_xticklabels(pessoas, color="#1F2937")
+    ax.tick_params(colors="#1F2937")
+    ax.set_ylabel("R$", color="#1F2937")
+    ax.set_title("Receitas e despesas por pessoa", color="#1F2937")
+    ax.legend(loc="upper right", fontsize=8)
+    fig.tight_layout()
+    return fig

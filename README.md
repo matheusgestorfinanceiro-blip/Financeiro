@@ -115,7 +115,7 @@ pip install -r requirements.txt
 streamlit run app_financas_pessoais.py
 ```
 
-Uma aba abre no navegador (normalmente `http://localhost:8501`) com 6 telas
+Uma aba abre no navegador (normalmente `http://localhost:8501`) com 7 telas
 no menu lateral:
 
 - **Lançamentos** — cadastra receitas/despesas quase todo por clique (tipo,
@@ -140,6 +140,11 @@ no menu lateral:
   encerrar (lançamentos fixos) ou excluir.
 - **Previsão futura** — projeta os próximos meses a partir dos lançamentos
   fixos e das parcelas em andamento, mostrando quando cada parcela termina.
+- **Relatório** — escolha o período (este mês, mês passado, este ano, tudo
+  ou um intervalo personalizado) e, se quiser, filtre por pessoa, categoria
+  e/ou tipo (receita/despesa). Mostra os totais, os gráficos (despesas e
+  receitas por categoria, comparação por pessoa, evolução no período) e
+  permite baixar tudo isso em um relatório PDF pronto para compartilhar.
 - **Backup** — exporta todos os lançamentos em CSV (e permite reimportar).
 
 Todas as datas exibidas na tela seguem o formato **dia/mês/ano**.
@@ -218,13 +223,17 @@ tons de vermelho e as de receita em tons de azul).
 ### Estrutura
 
 - `app_financas_pessoais.py` — tela principal.
-- `pages_financeiro/` — as 6 telas do Streamlit.
+- `pages_financeiro/` — as 7 telas do Streamlit.
 - `src/pessoal/calendario.py` — monta a grade do calendário mensal.
 - `src/pessoal/modelos.py` — estrutura de um lançamento e suas categorias.
-- `src/pessoal/armazenamento.py` — persistência em SQLite.
+- `src/pessoal/armazenamento.py` / `armazenamento_sheets.py` /
+  `repositorio.py` — persistência (SQLite local ou Planilha do Google).
 - `src/pessoal/projecao.py` — calcula em que meses cada lançamento
   (único/fixo/parcelado) efetivamente ocorre.
 - `src/pessoal/analise.py` — resumo do mês, histórico e previsão futura.
+- `src/pessoal/relatorio.py` — filtra e agrega lançamentos por
+  período/pessoa/categoria/tipo para a tela e o PDF de Relatório.
+- `src/pessoal/relatorio_pdf.py` — geração do relatório em PDF.
 - `src/pessoal/graficos.py` — gráficos matplotlib com a paleta semântica.
 - `src/pessoal/ui/` — estilo visual e estado compartilhado entre as páginas.
 
