@@ -1,4 +1,7 @@
+import io
+
 import pandas as pd
+import pdfplumber
 
 from src.calculo.previsao import gerar_previsao
 from src.models.schema import ConfiguracaoArrecadacao, DadosFormulario, DadosInadimplencia
@@ -61,3 +64,21 @@ def test_gerar_pdf_sem_dados_de_inadimplencia_nenhum(caminho_demonstrativo):
     pdf_bytes = gerar_pdf_previsao(resultado)
     assert isinstance(pdf_bytes, bytes)
     assert len(pdf_bytes) > 0
+
+
+def test_gerar_pdf_com_outras_arrecadacoes_continua_em_5_paginas(caminho_demonstrativo, caminho_inadimplentes):
+    # Regressão: a linha extra de "valor médio previsto por unidade" (mostrada
+    # abaixo dos cartões de arrecadação) podia empurrar o conteúdo da página 2
+    # para uma 6a página quando havia "outras arrecadações" configuradas
+    # (cartões extras ocupam espaço) - o relatório deve continuar fixo em 5
+    # páginas mesmo nesse cenário.
+    demonstrativo = parse_demonstrativo(caminho_demonstrativo)
+    inadimplencia = parse_inadimplentes(caminho_inadimplentes)
+    formulario = _formulario(
+        outras_arrecadacoes=[("Rateio de agua", ConfiguracaoArrecadacao(modo="igual", valor_unico=15.0))],
+    )
+    resultado = gerar_previsao(demonstrativo, inadimplencia, formulario)
+
+    pdf_bytes = gerar_pdf_previsao(resultado)
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        assert len(pdf.pages) == 5

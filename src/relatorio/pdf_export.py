@@ -252,17 +252,21 @@ def _pagina_arrecadacoes(pdf: RelatorioPDF, resultado):
 
     if resultado.valores_por_unidade is not None and not resultado.valores_por_unidade.empty:
         media_unidade = float(resultado.valores_por_unidade["total"].sum() / len(resultado.valores_por_unidade))
-        pdf.set_font("Helvetica", size=9)
-        pdf.set_text_color(*_hex_para_rgb(GRAY))
-        pdf.cell(
-            0,
-            5,
-            f"Valor medio previsto por unidade (rateio + fundo de reserva + outras arrecadacoes, ja com "
-            f"ajuste de inadimplencia): {fmt_moeda(media_unidade)} - {resultado.numero_unidades} unidade(s).",
-            new_x="LMARGIN",
-            new_y="NEXT",
-        )
-        pdf.set_text_color(0, 0, 0)
+        # So desenha esta linha extra se ainda houver espaco na pagina - e uma
+        # informacao complementar (ja repetida na tabela "Valores por unidade"
+        # da tela), nao vale a pena forcar uma 6a pagina so por causa dela.
+        if pdf.get_y() + 5 <= pdf.h - pdf.b_margin:
+            pdf.set_font("Helvetica", size=9)
+            pdf.set_text_color(*_hex_para_rgb(GRAY))
+            pdf.cell(
+                0,
+                5,
+                f"Valor medio previsto por unidade (rateio + fundo de reserva + outras arrecadacoes, ja com "
+                f"ajuste de inadimplencia): {fmt_moeda(media_unidade)} - {resultado.numero_unidades} unidade(s).",
+                new_x="LMARGIN",
+                new_y="NEXT",
+            )
+            pdf.set_text_color(0, 0, 0)
 
 
 def _pagina_despesas(pdf: RelatorioPDF, resultado):
