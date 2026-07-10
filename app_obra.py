@@ -9,6 +9,7 @@ import pandas as pd
 import streamlit as st
 
 from src.obra import repositorio
+from src.obra.backup import gerar_backup_zip
 from src.obra.calculo import fmt_data_br, percentual_orcamento, resumo_pagamento, total_geral
 from src.obra.extracao import TextoNaoReconhecido, extrair_texto, interpretar_comprovante
 from src.obra.relatorio_pdf import gerar_pdf_obra
@@ -372,6 +373,25 @@ if not df_fotos.empty:
                 st.rerun()
 
 st.divider()
+
+if not repositorio.usando_drive():
+    st.header("Backup de fotos e anexos")
+    st.caption(
+        "As fotos e os comprovantes anexados ficam salvos neste servidor e podem ser apagados quando "
+        "o app reinicia. Baixe este backup de vez em quando para garantir uma cópia própria."
+    )
+    if df_fotos.empty and (df_gastos.empty or (df_gastos["anexo"].astype(str).str.strip() == "").all()):
+        st.caption("Nenhuma foto ou anexo cadastrado ainda.")
+    elif st.button("Gerar backup em ZIP"):
+        zip_bytes = gerar_backup_zip(df_gastos, df_fotos)
+        st.download_button(
+            "Baixar backup (ZIP)",
+            data=zip_bytes,
+            file_name=f"backup_obra_fotos_anexos_{datetime.date.today().isoformat()}.zip",
+            mime="application/zip",
+        )
+
+    st.divider()
 
 st.header("Relatório final")
 st.caption("Gera um PDF com o resumo, gráficos, todos os lançamentos, as fotos da evolução e os anexos dos comprovantes — pronto para mostrar ao proprietário.")

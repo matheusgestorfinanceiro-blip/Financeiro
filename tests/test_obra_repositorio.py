@@ -83,6 +83,19 @@ def test_armazenar_arquivo_usa_drive_quando_configurado(monkeypatch, tmp_path):
     assert fake_drive.arquivos == {}
 
 
+def test_armazenar_arquivo_cai_para_local_se_drive_falhar(monkeypatch, tmp_path):
+    def _falha(*args, **kwargs):
+        raise Exception("403 Forbidden: storageQuotaExceeded")
+
+    monkeypatch.setattr("src.obra.armazenamento_drive.disponivel", lambda: True)
+    monkeypatch.setattr("src.obra.armazenamento_drive.enviar_arquivo", _falha)
+
+    referencia = repositorio.armazenar_arquivo(b"conteudo", "foto.jpg", tmp_path)
+
+    assert (tmp_path / referencia).exists()
+    assert (tmp_path / referencia).read_bytes() == b"conteudo"
+
+
 def test_fotos_e_anexos_com_planilha_e_drive_configurados(monkeypatch, tmp_path):
     fake_drive = FakeDrive()
     monkeypatch.setattr("src.obra.armazenamento_drive.disponivel", fake_drive.disponivel)

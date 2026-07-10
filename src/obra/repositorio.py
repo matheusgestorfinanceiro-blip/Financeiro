@@ -104,14 +104,21 @@ def _id_e_extensao_drive(referencia: str) -> tuple[str, str]:
 def armazenar_arquivo(conteudo: bytes, nome_original: str, diretorio_local: Path) -> str:
     """Salva um arquivo binário de forma permanente (Drive) se configurado,
     senão localmente. Retorna uma referência (ID do Drive + extensão, ou nome
-    do arquivo local) para poder ler ou remover depois."""
+    do arquivo local) para poder ler ou remover depois.
+
+    Se o envio ao Drive falhar (ex: conta do Google sem cota de armazenamento
+    para contas de serviço), o arquivo é salvo localmente em vez de travar o
+    app - mais vale salvar localmente do que perder o lançamento inteiro."""
     extensao = Path(nome_original).suffix or ""
     if usando_drive():
         from src.obra import armazenamento_drive as _drive
 
-        nome_unico = f"{uuid.uuid4().hex}{extensao}"
-        id_arquivo = _drive.enviar_arquivo(conteudo, nome_unico)
-        return f"{id_arquivo}{extensao}"
+        try:
+            nome_unico = f"{uuid.uuid4().hex}{extensao}"
+            id_arquivo = _drive.enviar_arquivo(conteudo, nome_unico)
+            return f"{id_arquivo}{extensao}"
+        except Exception:
+            pass
     return _local.salvar_arquivo_local(conteudo, nome_original, diretorio_local)
 
 
