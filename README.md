@@ -44,10 +44,11 @@ Uma aba abre no navegador com uma única tela:
     cadastrada.
   
   O relatório traz capa, resumo executivo, gastos por categoria, evolução dos
-  gastos no tempo, detalhamento de todos os lançamentos, fotos da evolução
-  (quando houver), os anexos dos comprovantes (quando houver — cada nota
-  aparece uma única vez, mesmo que tenha gerado vários lançamentos) e
-  considerações finais.
+  gastos no tempo, o detalhamento de todos os itens comprados (com os
+  identificados automaticamente em cada comprovante anexado), fotos da
+  evolução (quando houver, em grade de até 6 por página), os anexos dos
+  comprovantes (quando houver, em grade de até 4 por página, sem repetir a
+  mesma nota mesmo que tenha gerado vários itens) e considerações finais.
 
 ### Onde os dados ficam salvos
 
