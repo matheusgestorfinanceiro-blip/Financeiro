@@ -32,7 +32,8 @@ Uma aba abre no navegador com uma única tela:
   não conseguiu identificar automaticamente, para você completar — e sempre
   pede a sua confirmação antes de lançar qualquer coisa. Quando não há
   comprovante (ex: pagamento em dinheiro sem nota), ainda é possível lançar
-  manualmente em "Lançar sem comprovante".
+  manualmente em "Lançar sem comprovante". O comprovante enviado (a nota, o
+  recibo, a foto) fica anexado ao(s) lançamento(s) gerados por ele.
 - Envie **fotos da evolução da obra** (com a data em que foram tiradas e uma
   legenda opcional) — elas entram no relatório em PDF organizadas na ordem
   cronológica de execução.
@@ -44,7 +45,9 @@ Uma aba abre no navegador com uma única tela:
   
   O relatório traz capa, resumo executivo, gastos por categoria, evolução dos
   gastos no tempo, detalhamento de todos os lançamentos, fotos da evolução
-  (quando houver) e considerações finais.
+  (quando houver), os anexos dos comprovantes (quando houver — cada nota
+  aparece uma única vez, mesmo que tenha gerado vários lançamentos) e
+  considerações finais.
 
 ### Onde os dados ficam salvos
 
@@ -60,10 +63,9 @@ app de Finanças Pessoais. Configurando uma vez, toda vez que você abrir o
 app ele já aparece atualizado com o último lançamento, mesmo que o servidor
 tenha reiniciado.
 
-**As fotos continuam sempre salvas localmente** (são arquivos de imagem, não
-cabem numa planilha) — elas ainda são apagadas se o app publicado reiniciar.
-Se isso for um problema para você, avise para avaliarmos uma solução (ex:
-Google Drive).
+**Fotos e anexos (comprovantes) também podem ser permanentes**, guardados
+num **Google Drive** — sem essa configuração extra, eles continuam sendo
+salvos localmente e são apagados quando o app publicado reinicia.
 
 #### Configurar a Planilha do Google (recomendado para o app publicado)
 
@@ -72,10 +74,38 @@ completo na seção abaixo) — a única diferença é que, no passo de colar as
 credenciais nos **Secrets** do app da Obra (que é publicado separadamente,
 com seu próprio endereço), você pode usar a **mesma planilha e as mesmas
 credenciais** já criadas para as Finanças Pessoais (o sistema cria
-automaticamente as abas `gastos_obra` e `dados_obra`, sem conflito com a
-aba `lancamentos` das Finanças), ou criar uma planilha nova só para a Obra
-— como preferir. Depois de colar os Secrets no app da Obra, salve e reinicie
-(**Manage app → Reboot**).
+automaticamente as abas `gastos_obra`, `dados_obra` e `fotos_obra`, sem
+conflito com a aba `lancamentos` das Finanças), ou criar uma planilha nova
+só para a Obra — como preferir. Depois de colar os Secrets no app da Obra,
+salve e reinicie (**Manage app → Reboot**).
+
+#### Configurar o Google Drive para fotos e anexos (opcional, mas recomendado)
+
+Reaproveita a mesma credencial de conta de serviço já criada acima — só
+precisa de mais 2 passos:
+
+1. **Ative a API do Drive**: no [console.cloud.google.com](https://console.cloud.google.com),
+   no mesmo projeto usado para a Planilha, procure por **"Google Drive API"**
+   e clique em **Enable/Ativar**.
+2. **Crie e compartilhe uma pasta**: acesse [drive.google.com](https://drive.google.com),
+   crie uma pasta (ex: "Fotos da Obra") e abra ela — o ID da pasta é o
+   trecho final do link, depois de `folders/`
+   (`https://drive.google.com/drive/folders/`**`ESSE_TRECHO_AQUI`**). Clique
+   em **Compartilhar**, cole o mesmo e-mail `client_email` do arquivo JSON
+   (o mesmo usado na Planilha) e dê permissão de **Editor**.
+3. Volte nos **Secrets** do app da Obra e adicione uma linha `drive_folder_id`
+   dentro do mesmo bloco `[connections.gsheets]`:
+   ```toml
+   [connections.gsheets]
+   spreadsheet = "..."
+   drive_folder_id = "COLE_AQUI_O_ID_DA_PASTA"
+   type = "service_account"
+   ...
+   ```
+4. Salve e reinicie (**Manage app → Reboot**). A partir daí, toda foto e todo
+   comprovante anexado a um lançamento ficam salvos na pasta do Drive e
+   nunca mais somem — e continuam aparecendo no relatório em PDF
+   normalmente.
 
 Rodando localmente (`streamlit run`), sem configurar nada disso, o app
 continua funcionando normalmente com os arquivos locais.
@@ -88,13 +118,16 @@ Streamlit Cloud instala isso automaticamente ao publicar, sem ação manual.
 ### Estrutura
 
 - `app_obra.py` — tela principal.
-- `src/obra/schema.py` — estrutura de um gasto e categorias.
+- `src/obra/schema.py` — estrutura de um gasto, foto e categorias.
 - `src/obra/armazenamento.py` — persistência local em CSV/JSON (gastos,
-  dados da obra e fotos).
-- `src/obra/armazenamento_sheets.py` — persistência dos gastos e dos dados
-  da obra numa Planilha do Google.
-- `src/obra/repositorio.py` — escolhe automaticamente entre planilha e
-  arquivo local.
+  dados da obra e metadados de fotos), e leitura/escrita de arquivos locais
+  (fotos e anexos).
+- `src/obra/armazenamento_sheets.py` — persistência dos gastos, dos dados
+  da obra e dos metadados das fotos numa Planilha do Google.
+- `src/obra/armazenamento_drive.py` — envio/leitura/remoção de fotos e
+  anexos (comprovantes) num Google Drive.
+- `src/obra/repositorio.py` — escolhe automaticamente entre planilha/local
+  (dados) e Drive/local (arquivos binários).
 - `src/obra/extracao.py` — leitura do comprovante (PDF/OCR) e identificação
   automática de data, valor, fornecedor e itens da nota.
 - `src/obra/calculo.py` — totais, agrupamentos e formatação de datas.

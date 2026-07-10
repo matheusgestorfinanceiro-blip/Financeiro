@@ -1,12 +1,14 @@
 """Monta o relatório final em PDF da obra: capa, resumo executivo, gastos por
 categoria, evolução no tempo, detalhamento de todos os lançamentos, fotos da
-evolução da obra (quando houver) e considerações finais sobre o
-andamento/finalização da obra."""
+evolução da obra, anexos dos comprovantes (quando houver) e considerações
+finais sobre o andamento/finalização da obra."""
 import datetime
+import io
 import os
 import tempfile
 from pathlib import Path
 
+import fitz  # PyMuPDF
 from fpdf import FPDF
 from PIL import Image
 
@@ -303,8 +305,17 @@ def _pagina_detalhamento(pdf: RelatorioObraPDF, df_gastos, numero: int):
     _tabela_gastos(pdf, df_gastos.sort_values("data"))
 
 
-def _pagina_fotos(pdf: RelatorioObraPDF, fotos_df, dir_fotos: Path, numero: int):
-    dir_fotos = Path(dir_fotos)
+def _preparar_imagem_para_exibir(referencia: str, dados: bytes) -> bytes:
+    """Se o arquivo for um PDF (comprovante anexado em PDF), converte a
+    primeira página numa imagem para servir de pré-visualização no relatório."""
+    if Path(referencia).suffix.lower() == ".pdf":
+        with fitz.open(stream=dados, filetype="pdf") as documento:
+            pixmap = documento[0].get_pixmap(dpi=150)
+            return pixmap.tobytes("png")
+    return dados
+
+
+def _pagina_fotos(pdf: RelatorioObraPDF, fotos_df, obter_bytes_foto, numero: int):
     largura_util = _largura_util(pdf)
 
     pdf.add_page()
@@ -316,12 +327,13 @@ def _pagina_fotos(pdf: RelatorioObraPDF, fotos_df, dir_fotos: Path, numero: int)
     pdf.ln(2)
 
     for foto in fotos_df.itertuples():
-        caminho_arquivo = dir_fotos / foto.nome_arquivo
-        if not caminho_arquivo.exists():
+        try:
+            dados_imagem = _preparar_imagem_para_exibir(foto.nome_arquivo, obter_bytes_foto(foto.nome_arquivo))
+            with Image.open(io.BytesIO(dados_imagem)) as imagem:
+                largura_px, altura_px = imagem.size
+        except Exception:
             continue
 
-        with Image.open(caminho_arquivo) as imagem:
-            largura_px, altura_px = imagem.size
         altura_imagem = largura_util * (altura_px / largura_px)
         altura_legenda = 8
         altura_bloco = altura_imagem + altura_legenda + 6
@@ -329,7 +341,7 @@ def _pagina_fotos(pdf: RelatorioObraPDF, fotos_df, dir_fotos: Path, numero: int)
         if pdf.get_y() + altura_bloco > pdf.h - pdf.b_margin:
             pdf.add_page()
 
-        pdf.image(str(caminho_arquivo), x=pdf.l_margin, w=largura_util)
+        pdf.image(io.BytesIO(dados_imagem), x=pdf.l_margin, w=largura_util)
         pdf.ln(1)
 
         legenda = f"{fmt_data_br(foto.data)}" + (f" - {foto.legenda}" if foto.legenda else "")
@@ -337,6 +349,54 @@ def _pagina_fotos(pdf: RelatorioObraPDF, fotos_df, dir_fotos: Path, numero: int)
         pdf.set_text_color(*_hex_para_rgb(NAVY))
         pdf.cell(largura_util, 6, legenda, new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(0, 0, 0)
+        pdf.ln(4)
+
+
+def _pagina_anexos(pdf: RelatorioObraPDF, df_gastos, obter_bytes_anexo, numero: int):
+    largura_util = _largura_util(pdf)
+
+    pdf.add_page()
+    pdf.titulo_pagina(f"{numero}. Anexos dos comprovantes")
+    pdf.set_font("Helvetica", size=9)
+    pdf.set_text_color(*_hex_para_rgb(GRAY))
+    pdf.multi_cell(largura_util, 5, "Comprovantes anexados aos lancamentos desta obra.")
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(2)
+
+    com_anexo = df_gastos[df_gastos["anexo"].astype(str).str.strip() != ""]
+    for referencia, grupo in com_anexo.groupby("anexo"):
+        descricoes = ", ".join(grupo["descricao"].astype(str).tolist())
+        total_grupo = float(grupo["valor"].sum())
+        legenda = f"{descricoes} - {fmt_moeda(total_grupo)}"
+
+        dados_imagem = None
+        largura_imagem = altura_imagem = 0.0
+        try:
+            dados_imagem = _preparar_imagem_para_exibir(referencia, obter_bytes_anexo(referencia))
+            with Image.open(io.BytesIO(dados_imagem)) as imagem:
+                largura_px, altura_px = imagem.size
+            altura_imagem = min(largura_util * (altura_px / largura_px), 130)
+            largura_imagem = altura_imagem * (largura_px / altura_px)
+        except Exception:
+            dados_imagem = None
+
+        linhas_legenda = pdf.multi_cell(largura_util, 5, legenda, dry_run=True, output="LINES")
+        altura_bloco = altura_imagem + len(linhas_legenda) * 5 + 8
+
+        if pdf.get_y() + altura_bloco > pdf.h - pdf.b_margin:
+            pdf.add_page()
+
+        if dados_imagem:
+            pdf.image(io.BytesIO(dados_imagem), x=pdf.l_margin, w=largura_imagem)
+            pdf.ln(1)
+        else:
+            pdf.set_font("Helvetica", "I", 9)
+            pdf.set_text_color(*_hex_para_rgb(GRAY))
+            pdf.cell(largura_util, 6, "(nao foi possivel carregar o anexo)", new_x="LMARGIN", new_y="NEXT")
+            pdf.set_text_color(0, 0, 0)
+
+        pdf.set_font("Helvetica", size=9)
+        pdf.multi_cell(largura_util, 5, legenda)
         pdf.ln(4)
 
 
@@ -361,16 +421,26 @@ def gerar_pdf_obra(
     dados_obra,
     df_gastos,
     fotos_df=None,
-    dir_fotos: Path | None = None,
+    obter_bytes_foto=None,
     tipo_relatorio: str = "parcial",
+    obter_bytes_anexo=None,
 ) -> bytes:
     """Gera o relatorio em PDF (capa, resumo, gastos por categoria, evolucao no
-    tempo, detalhamento completo, fotos da evolucao da obra quando houver, e
-    consideracoes finais) e retorna os bytes prontos para download.
+    tempo, detalhamento completo, fotos da evolucao da obra, anexos dos
+    comprovantes quando houver, e consideracoes finais) e retorna os bytes
+    prontos para download.
 
-    tipo_relatorio "parcial" pode ser gerado com ou sem fotos. Ja o "final"
-    exige ao menos uma foto de evolucao cadastrada."""
+    `obter_bytes_foto`/`obter_bytes_anexo` são funções que recebem a
+    referência salva (nome de arquivo local ou ID do Drive) e devolvem os
+    bytes do arquivo - o relatório não precisa saber onde cada arquivo está
+    guardado. tipo_relatorio "parcial" pode ser gerado com ou sem fotos. Ja o
+    "final" exige ao menos uma foto de evolucao cadastrada."""
     tem_fotos = fotos_df is not None and not fotos_df.empty
+    tem_anexos = (
+        obter_bytes_anexo is not None
+        and "anexo" in df_gastos.columns
+        and (df_gastos["anexo"].astype(str).str.strip() != "").any()
+    )
 
     if tipo_relatorio == "final" and not tem_fotos:
         raise ValueError("Inclua ao menos uma foto de evolucao da obra para gerar o relatorio final.")
@@ -389,7 +459,10 @@ def gerar_pdf_obra(
         _pagina_detalhamento(pdf, df_gastos, numero)
         numero += 1
         if tem_fotos:
-            _pagina_fotos(pdf, fotos_df, dir_fotos, numero)
+            _pagina_fotos(pdf, fotos_df, obter_bytes_foto, numero)
+            numero += 1
+        if tem_anexos:
+            _pagina_anexos(pdf, df_gastos, obter_bytes_anexo, numero)
             numero += 1
         _pagina_consideracoes_finais(pdf, dados_obra, df_gastos, numero)
         return bytes(pdf.output())

@@ -1,12 +1,15 @@
 from src.obra.armazenamento_sheets import (
+    adicionar_foto_registro,
     adicionar_gasto,
     carregar_dados_obra,
+    carregar_fotos,
     carregar_gastos,
     disponivel,
+    remover_foto_registro,
     remover_gasto,
     salvar_dados_obra,
 )
-from src.obra.schema import DadosObra, GastoObra
+from src.obra.schema import DadosObra, FotoObra, GastoObra
 
 
 class FakeConexao:
@@ -45,7 +48,14 @@ def test_adicionar_e_remover_gasto():
     )
     gasto2 = adicionar_gasto(
         conexao,
-        GastoObra(data="2026-01-15", categoria="Mão de obra", descricao="Pedreiro", valor=800.0, pago=False),
+        GastoObra(
+            data="2026-01-15",
+            categoria="Mão de obra",
+            descricao="Pedreiro",
+            valor=800.0,
+            pago=False,
+            anexo="drivefile123.jpg",
+        ),
     )
 
     assert gasto1.id == 1
@@ -55,11 +65,40 @@ def test_adicionar_e_remover_gasto():
     assert len(df) == 2
     assert df["valor"].sum() == 1050.0
     assert df["pago"].tolist() == [True, False]
+    assert df.iloc[1]["anexo"] == "drivefile123.jpg"
+    assert df.iloc[0]["anexo"] == ""
 
     remover_gasto(conexao, gasto1.id)
     df = carregar_gastos(conexao)
     assert len(df) == 1
     assert df.iloc[0]["descricao"] == "Pedreiro"
+
+
+def test_carregar_fotos_aba_inexistente_cria_vazia_automaticamente():
+    conexao = FakeConexao()
+    df = carregar_fotos(conexao)
+    assert df.empty
+    assert "fotos_obra" in conexao.abas
+
+
+def test_adicionar_e_remover_registro_de_foto():
+    conexao = FakeConexao()
+    foto1 = adicionar_foto_registro(conexao, FotoObra(data="2026-02-01", nome_arquivo="ref1.jpg", legenda="Fundação"))
+    foto2 = adicionar_foto_registro(conexao, FotoObra(data="2026-01-05", nome_arquivo="ref2.jpg", legenda="Início"))
+
+    assert foto1.id == 1
+    assert foto2.id == 2
+
+    df = carregar_fotos(conexao)
+    assert len(df) == 2
+    # ordenadas por data (ordem de execução), não por ordem de inserção
+    assert df.iloc[0]["legenda"] == "Início"
+    assert df.iloc[1]["legenda"] == "Fundação"
+
+    remover_foto_registro(conexao, foto2.id)
+    df = carregar_fotos(conexao)
+    assert len(df) == 1
+    assert df.iloc[0]["legenda"] == "Fundação"
 
 
 def test_dados_obra_ida_e_volta():
