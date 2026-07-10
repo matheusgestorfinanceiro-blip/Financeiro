@@ -1,17 +1,10 @@
 """Tela 1: upload dos 2 PDFs e preview dos dados extraídos."""
-import tempfile
-
 import streamlit as st
 
 from src.parsers.demonstrativo_parser import parse_demonstrativo
 from src.parsers.inadimplentes_parser import parse_inadimplentes
+from src.ui.arquivos_temp import salvar_temp
 from src.ui.formatacao import escapar_markdown, fmt_moeda, fmt_pct
-
-
-def _salvar_temp(arquivo_enviado) -> str:
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-        tmp.write(arquivo_enviado.getvalue())
-        return tmp.name
 
 
 def renderizar_secao_upload():
@@ -31,7 +24,7 @@ def renderizar_secao_upload():
 
     if arquivo_inadimplentes is not None:
         try:
-            caminho = _salvar_temp(arquivo_inadimplentes)
+            caminho = salvar_temp(arquivo_inadimplentes)
             st.session_state["dados_inadimplencia"] = parse_inadimplentes(caminho)
             dados = st.session_state["dados_inadimplencia"]
             st.success(
@@ -49,7 +42,7 @@ def renderizar_secao_upload():
 
     if arquivo_demonstrativo is not None:
         try:
-            caminho = _salvar_temp(arquivo_demonstrativo)
+            caminho = salvar_temp(arquivo_demonstrativo)
             st.session_state["dados_demonstrativo"] = parse_demonstrativo(caminho)
             dados = st.session_state["dados_demonstrativo"]
             st.success(

@@ -10,6 +10,7 @@ import streamlit as st
 from src.calculo.periodo import limpar_nome_condominio, sugerir_periodo
 from src.models.schema import AjusteManual, ConfiguracaoArrecadacao, DadosFormulario, TipoUnidade
 from src.parsers.fracoes_parser import parse_fracoes
+from src.ui.arquivos_temp import salvar_temp
 
 
 def _bloco_configuracao_arrecadacao(
@@ -73,7 +74,8 @@ def _bloco_configuracao_arrecadacao(
     tabela_key = f"{key_prefix}_tabela_fracoes"
     if arquivo is not None and st.session_state.get(f"{key_prefix}_arquivo_processado") != arquivo.name:
         try:
-            st.session_state[tabela_key] = parse_fracoes(arquivo)
+            caminho = salvar_temp(arquivo)
+            st.session_state[tabela_key] = parse_fracoes(caminho)
             st.session_state[f"{key_prefix}_arquivo_processado"] = arquivo.name
         except Exception as erro:
             st.warning(f"Não foi possível ler o arquivo automaticamente ({erro})")

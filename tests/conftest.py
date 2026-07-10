@@ -13,3 +13,13 @@ def caminho_inadimplentes():
 @pytest.fixture
 def caminho_demonstrativo():
     return os.path.join(FIXTURES_DIR, "exemplo_demonstrativo.pdf")
+
+
+@pytest.fixture
+def caminho_fracoes_pdf():
+    return os.path.join(FIXTURES_DIR, "exemplo_fracoes.pdf")
+
+
+@pytest.fixture
+def caminho_fracoes_excel():
+    return os.path.join(FIXTURES_DIR, "exemplo_fracoes.xlsx")
