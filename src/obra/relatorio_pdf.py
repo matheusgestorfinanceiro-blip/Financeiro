@@ -302,6 +302,15 @@ def _pagina_evolucao(pdf: RelatorioObraPDF, df_gastos, numero: int):
 def _pagina_detalhamento(pdf: RelatorioObraPDF, df_gastos, numero: int):
     pdf.add_page()
     pdf.titulo_pagina(f"{numero}. Detalhamento de todos os lancamentos")
+    pdf.set_font("Helvetica", size=9)
+    pdf.set_text_color(*_hex_para_rgb(GRAY))
+    pdf.multi_cell(
+        _largura_util(pdf),
+        5,
+        "Lista de todos os itens comprados, incluindo os identificados automaticamente nos comprovantes anexados.",
+    )
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(2)
     _tabela_gastos(pdf, df_gastos.sort_values("data"))
 
 
@@ -315,8 +324,21 @@ def _preparar_imagem_para_exibir(referencia: str, dados: bytes) -> bytes:
     return dados
 
 
+def _dimensionar_para_celula(largura_px: int, altura_px: int, largura_max: float, altura_max: float) -> tuple[float, float]:
+    """Calcula w/h (em mm) para a imagem caber dentro de uma célula
+    largura_max x altura_max, preservando a proporção original."""
+    escala = min(largura_max / largura_px, altura_max / altura_px)
+    return largura_px * escala, altura_px * escala
+
+
 def _pagina_fotos(pdf: RelatorioObraPDF, fotos_df, obter_bytes_foto, numero: int):
     largura_util = _largura_util(pdf)
+    colunas = 2  # ate 3 linhas x 2 colunas = 6 fotos por pagina
+    gap_col, gap_linha = 6, 6
+    altura_max_img = 62
+    altura_legenda = 9
+    largura_celula = (largura_util - gap_col * (colunas - 1)) / colunas
+    altura_linha = altura_max_img + altura_legenda + gap_linha
 
     pdf.add_page()
     pdf.titulo_pagina(f"{numero}. Fotos da evolucao da obra")
@@ -326,78 +348,82 @@ def _pagina_fotos(pdf: RelatorioObraPDF, fotos_df, obter_bytes_foto, numero: int
     pdf.set_text_color(0, 0, 0)
     pdf.ln(2)
 
-    for foto in fotos_df.itertuples():
-        try:
-            dados_imagem = _preparar_imagem_para_exibir(foto.nome_arquivo, obter_bytes_foto(foto.nome_arquivo))
-            with Image.open(io.BytesIO(dados_imagem)) as imagem:
-                largura_px, altura_px = imagem.size
-        except Exception:
-            continue
+    fotos = list(fotos_df.itertuples())
+    for i in range(0, len(fotos), colunas):
+        linha_fotos = fotos[i : i + colunas]
 
-        altura_imagem = largura_util * (altura_px / largura_px)
-        altura_legenda = 8
-        altura_bloco = altura_imagem + altura_legenda + 6
-
-        if pdf.get_y() + altura_bloco > pdf.h - pdf.b_margin:
+        if pdf.get_y() + altura_linha > pdf.h - pdf.b_margin:
             pdf.add_page()
+        y_linha = pdf.get_y()
 
-        pdf.image(io.BytesIO(dados_imagem), x=pdf.l_margin, w=largura_util)
-        pdf.ln(1)
+        for col, foto in enumerate(linha_fotos):
+            x_celula = pdf.l_margin + col * (largura_celula + gap_col)
+            try:
+                dados_imagem = _preparar_imagem_para_exibir(foto.nome_arquivo, obter_bytes_foto(foto.nome_arquivo))
+                with Image.open(io.BytesIO(dados_imagem)) as imagem:
+                    largura_px, altura_px = imagem.size
+                w, h = _dimensionar_para_celula(largura_px, altura_px, largura_celula, altura_max_img)
+            except Exception:
+                continue
 
-        legenda = f"{fmt_data_br(foto.data)}" + (f" - {foto.legenda}" if foto.legenda else "")
-        pdf.set_font("Helvetica", "B", 9)
-        pdf.set_text_color(*_hex_para_rgb(NAVY))
-        pdf.cell(largura_util, 6, legenda, new_x="LMARGIN", new_y="NEXT")
-        pdf.set_text_color(0, 0, 0)
-        pdf.ln(4)
+            x_img = x_celula + (largura_celula - w) / 2
+            y_img = y_linha + (altura_max_img - h) / 2
+            pdf.image(io.BytesIO(dados_imagem), x=x_img, y=y_img, w=w, h=h)
+
+            legenda = f"{fmt_data_br(foto.data)}" + (f" - {foto.legenda}" if foto.legenda else "")
+            pdf.set_xy(x_celula, y_linha + altura_max_img + 1)
+            pdf.set_font("Helvetica", "B", 8)
+            pdf.set_text_color(*_hex_para_rgb(NAVY))
+            pdf.multi_cell(largura_celula, 4, legenda, align="C")
+            pdf.set_text_color(0, 0, 0)
+
+        pdf.set_xy(pdf.l_margin, y_linha + altura_linha)
 
 
 def _pagina_anexos(pdf: RelatorioObraPDF, df_gastos, obter_bytes_anexo, numero: int):
     largura_util = _largura_util(pdf)
+    colunas = 2  # ate 2 linhas x 2 colunas = 4 comprovantes por pagina
+    gap_col, gap_linha = 8, 8
+    altura_max_img = 105
+    largura_celula = (largura_util - gap_col * (colunas - 1)) / colunas
+    altura_linha = altura_max_img + gap_linha
 
     pdf.add_page()
     pdf.titulo_pagina(f"{numero}. Anexos dos comprovantes")
     pdf.set_font("Helvetica", size=9)
     pdf.set_text_color(*_hex_para_rgb(GRAY))
-    pdf.multi_cell(largura_util, 5, "Comprovantes anexados aos lancamentos desta obra.")
+    pdf.multi_cell(largura_util, 5, "Comprovantes anexados aos lancamentos desta obra (o detalhamento dos itens de cada nota esta na pagina de lancamentos).")
     pdf.set_text_color(0, 0, 0)
     pdf.ln(2)
 
-    com_anexo = df_gastos[df_gastos["anexo"].astype(str).str.strip() != ""]
-    for referencia, grupo in com_anexo.groupby("anexo"):
-        descricoes = ", ".join(grupo["descricao"].astype(str).tolist())
-        total_grupo = float(grupo["valor"].sum())
-        legenda = f"{descricoes} - {fmt_moeda(total_grupo)}"
+    referencias = list(df_gastos[df_gastos["anexo"].astype(str).str.strip() != ""]["anexo"].drop_duplicates())
+    for i in range(0, len(referencias), colunas):
+        linha_referencias = referencias[i : i + colunas]
 
-        dados_imagem = None
-        largura_imagem = altura_imagem = 0.0
-        try:
-            dados_imagem = _preparar_imagem_para_exibir(referencia, obter_bytes_anexo(referencia))
-            with Image.open(io.BytesIO(dados_imagem)) as imagem:
-                largura_px, altura_px = imagem.size
-            altura_imagem = min(largura_util * (altura_px / largura_px), 130)
-            largura_imagem = altura_imagem * (largura_px / altura_px)
-        except Exception:
-            dados_imagem = None
-
-        linhas_legenda = pdf.multi_cell(largura_util, 5, legenda, dry_run=True, output="LINES")
-        altura_bloco = altura_imagem + len(linhas_legenda) * 5 + 8
-
-        if pdf.get_y() + altura_bloco > pdf.h - pdf.b_margin:
+        if pdf.get_y() + altura_linha > pdf.h - pdf.b_margin:
             pdf.add_page()
+        y_linha = pdf.get_y()
 
-        if dados_imagem:
-            pdf.image(io.BytesIO(dados_imagem), x=pdf.l_margin, w=largura_imagem)
-            pdf.ln(1)
-        else:
-            pdf.set_font("Helvetica", "I", 9)
-            pdf.set_text_color(*_hex_para_rgb(GRAY))
-            pdf.cell(largura_util, 6, "(nao foi possivel carregar o anexo)", new_x="LMARGIN", new_y="NEXT")
-            pdf.set_text_color(0, 0, 0)
+        for col, referencia in enumerate(linha_referencias):
+            x_celula = pdf.l_margin + col * (largura_celula + gap_col)
+            try:
+                dados_imagem = _preparar_imagem_para_exibir(referencia, obter_bytes_anexo(referencia))
+                with Image.open(io.BytesIO(dados_imagem)) as imagem:
+                    largura_px, altura_px = imagem.size
+                w, h = _dimensionar_para_celula(largura_px, altura_px, largura_celula, altura_max_img)
+            except Exception:
+                pdf.set_xy(x_celula, y_linha + altura_max_img / 2 - 4)
+                pdf.set_font("Helvetica", "I", 9)
+                pdf.set_text_color(*_hex_para_rgb(GRAY))
+                pdf.multi_cell(largura_celula, 5, "(nao foi possivel carregar o anexo)", align="C")
+                pdf.set_text_color(0, 0, 0)
+                continue
 
-        pdf.set_font("Helvetica", size=9)
-        pdf.multi_cell(largura_util, 5, legenda)
-        pdf.ln(4)
+            x_img = x_celula + (largura_celula - w) / 2
+            y_img = y_linha + (altura_max_img - h) / 2
+            pdf.image(io.BytesIO(dados_imagem), x=x_img, y=y_img, w=w, h=h)
+
+        pdf.set_xy(pdf.l_margin, y_linha + altura_linha)
 
 
 def _pagina_consideracoes_finais(pdf: RelatorioObraPDF, dados_obra, df_gastos, numero: int):
