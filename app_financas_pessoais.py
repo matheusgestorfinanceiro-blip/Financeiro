@@ -12,6 +12,7 @@ paginas = [
     st.Page("pages_financeiro/2_dashboard.py", title="Dashboard do mês", icon="📊"),
     st.Page("pages_financeiro/3_historico.py", title="Histórico", icon="📅"),
     st.Page("pages_financeiro/4_previsao.py", title="Previsão futura", icon="🔮"),
+    st.Page("pages_financeiro/7_relatorio.py", title="Relatório", icon="🧾"),
     st.Page("pages_financeiro/5_backup.py", title="Backup (exportar/importar)", icon="💾"),
 ]
 navegacao = st.navigation(paginas)
