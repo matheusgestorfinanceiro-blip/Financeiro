@@ -102,6 +102,16 @@ def remover_gasto(conexao, id_gasto: int) -> None:
     _escrever_gastos(conexao, df)
 
 
+def atualizar_gasto(conexao, gasto: GastoObra) -> None:
+    """Substitui um lançamento existente (identificado por `gasto.id`) pelos
+    novos valores."""
+    df = _ler_gastos(conexao)
+    df = df[df["id"] != int(gasto.id)]
+    nova_linha = pd.DataFrame([asdict(gasto)])
+    df = pd.concat([df, nova_linha], ignore_index=True)
+    _escrever_gastos(conexao, df)
+
+
 def carregar_dados_obra(conexao) -> DadosObra | None:
     try:
         df = conexao.read(worksheet=NOME_ABA_DADOS_OBRA, ttl=0)

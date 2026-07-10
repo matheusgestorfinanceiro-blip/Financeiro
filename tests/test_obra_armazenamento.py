@@ -1,6 +1,7 @@
 from src.obra.armazenamento import (
     adicionar_foto,
     adicionar_gasto,
+    atualizar_gasto,
     carregar_dados_obra,
     carregar_fotos,
     carregar_gastos,
@@ -75,6 +76,37 @@ def test_remover_gasto(tmp_path):
     df = carregar_gastos(caminho)
     assert len(df) == 1
     assert df.iloc[0]["descricao"] == "Cimento"
+
+
+def test_atualizar_gasto_substitui_valores_mantendo_id(tmp_path):
+    caminho = tmp_path / "gastos.csv"
+    gasto1 = adicionar_gasto(
+        GastoObra(data="2026-01-10", categoria="Material", descricao="Cimento", valor=250.0, pago=False),
+        caminho,
+    )
+    adicionar_gasto(GastoObra(data="2026-01-15", categoria="Mão de obra", descricao="Pedreiro", valor=800.0), caminho)
+
+    atualizar_gasto(
+        GastoObra(
+            id=gasto1.id,
+            data="2026-01-11",
+            categoria="Material",
+            descricao="Cimento CP II",
+            valor=300.0,
+            fornecedor="Loja ABC",
+            pago=True,
+            observacoes="Comprado à vista",
+        ),
+        caminho,
+    )
+
+    df = carregar_gastos(caminho)
+    assert len(df) == 2
+    linha = df[df["id"] == gasto1.id].iloc[0]
+    assert linha["descricao"] == "Cimento CP II"
+    assert linha["valor"] == 300.0
+    assert linha["fornecedor"] == "Loja ABC"
+    assert bool(linha["pago"]) is True
 
 
 def test_dados_obra_ida_e_volta(tmp_path):

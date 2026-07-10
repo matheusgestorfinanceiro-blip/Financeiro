@@ -60,6 +60,37 @@ def test_identificar_fornecedor_ignora_rotulo_generico_e_usa_nome_perto_do_cnpj(
     assert extraido.fornecedor == "MATERIAIS SILVA LTDA"
 
 
+def test_identificar_fornecedor_junta_nome_quebrado_em_duas_linhas():
+    texto = (
+        "NF-e\n"
+        "MATERIAIS SILVA\n"
+        "LTDA\n"
+        "CNPJ: 11.222.333/0001-44\n"
+        "DATA EMISSAO: 13/06/2026\n"
+        "TOTAL R$ 64,90\n"
+    )
+
+    extraido = interpretar_comprovante(texto)
+
+    assert extraido.fornecedor == "MATERIAIS SILVA LTDA"
+
+
+def test_identificar_itens_ignora_linha_de_valor_a_pagar():
+    texto = (
+        "MATERIAIS SILVA LTDA\n"
+        "CNPJ: 11.222.333/0001-44\n"
+        "CIMENTO CP II 50KG                             65,00\n"
+        "Valor a Pagar                                 394,79\n"
+        "TOTAL R$ 394,79\n"
+    )
+
+    extraido = interpretar_comprovante(texto)
+
+    descricoes = [item.descricao for item in extraido.itens]
+    assert "CIMENTO CP II 50KG" in descricoes
+    assert not any("pagar" in d.lower() for d in descricoes)
+
+
 def test_identifica_todos_os_itens_de_uma_nota_fiscal():
     texto = (
         "NF-e\n"

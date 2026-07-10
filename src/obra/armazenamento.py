@@ -68,6 +68,16 @@ def remover_gasto(id_gasto: int, caminho: Path = CAMINHO_GASTOS) -> None:
     salvar_gastos(df, caminho)
 
 
+def atualizar_gasto(gasto: GastoObra, caminho: Path = CAMINHO_GASTOS) -> None:
+    """Substitui um lançamento existente (identificado por `gasto.id`) pelos
+    novos valores."""
+    df = carregar_gastos(caminho)
+    df = df[df["id"] != gasto.id]
+    nova_linha = pd.DataFrame([asdict(gasto)])
+    df = pd.concat([df, nova_linha], ignore_index=True)
+    salvar_gastos(df, caminho)
+
+
 def carregar_dados_obra(caminho: Path = CAMINHO_DADOS_OBRA) -> DadosObra | None:
     caminho = Path(caminho)
     if not caminho.exists():

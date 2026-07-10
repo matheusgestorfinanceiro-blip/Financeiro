@@ -146,13 +146,20 @@ if "rascunho_gasto" in st.session_state:
                     "Data",
                     value=(datetime.date.fromisoformat(extraido.data) if extraido.data else datetime.date.today()),
                     format=FORMATO_DATA,
+                    key="itens_data",
                 )
             with col2:
-                categoria = st.selectbox("Categoria (aplicada a todos os itens)", CATEGORIAS_GASTO)
+                categoria = st.selectbox(
+                    "Categoria (aplicada a todos os itens)", CATEGORIAS_GASTO, key="itens_categoria"
+                )
             with col3:
-                pago = st.checkbox("Já foi pago", value=True)
-            fornecedor = st.text_input("Fornecedor/prestador", value=(extraido.fornecedor or ""))
-            observacoes = st.text_input("Observação (opcional, aplicada a todos os itens)")
+                pago = st.checkbox("Já foi pago", value=True, key="itens_pago")
+            fornecedor = st.text_input(
+                "Fornecedor/prestador", value=(extraido.fornecedor or ""), key="itens_fornecedor"
+            )
+            observacoes = st.text_input(
+                "Observação (opcional, aplicada a todos os itens)", key="itens_observacoes"
+            )
 
             col_confirmar, col_cancelar = st.columns(2)
             confirmado = col_confirmar.form_submit_button("Confirmar e lançar itens selecionados", type="primary")
@@ -197,29 +204,37 @@ if "rascunho_gasto" in st.session_state:
                     "O que foi gasto?",
                     value=(extraido.descricao_sugerida if extraido else ""),
                     placeholder="Ex: Cimento, Pedreiro, Torneira...",
+                    key="unico_descricao",
                 )
             with col2:
                 valor = st.number_input(
-                    "Valor (R$)", min_value=0.0, step=10.0, value=(extraido.valor if extraido and extraido.valor else 0.0)
+                    "Valor (R$)",
+                    min_value=0.0,
+                    step=10.0,
+                    value=(extraido.valor if extraido and extraido.valor else 0.0),
+                    key="unico_valor",
                 )
             with col3:
                 data = st.date_input(
                     "Data",
                     value=(datetime.date.fromisoformat(extraido.data) if extraido and extraido.data else datetime.date.today()),
                     format=FORMATO_DATA,
+                    key="unico_data",
                 )
 
             col4, col5, col6 = st.columns(3)
             with col4:
-                categoria = st.selectbox("Categoria", CATEGORIAS_GASTO)
+                categoria = st.selectbox("Categoria", CATEGORIAS_GASTO, key="unico_categoria")
             with col5:
                 fornecedor = st.text_input(
-                    "Fornecedor/prestador", value=(extraido.fornecedor if extraido and extraido.fornecedor else "")
+                    "Fornecedor/prestador",
+                    value=(extraido.fornecedor if extraido and extraido.fornecedor else ""),
+                    key="unico_fornecedor",
                 )
             with col6:
-                pago = st.checkbox("Já foi pago", value=True)
+                pago = st.checkbox("Já foi pago", value=True, key="unico_pago")
 
-            observacoes = st.text_input("Observação (opcional)")
+            observacoes = st.text_input("Observação (opcional)", key="unico_observacoes")
 
             col_confirmar, col_cancelar = st.columns(2)
             confirmado = col_confirmar.form_submit_button("Confirmar e lançar", type="primary")
@@ -324,14 +339,71 @@ else:
         hide_index=True,
     )
 
+    opcoes_lancamentos = {
+        f"{fmt_data_br(row.data)} — {row.descricao} — {fmt_moeda(row.valor)}": row.id
+        for row in df_gastos.itertuples()
+    }
+
+    with st.expander("Editar um lançamento"):
+        escolha_editar = st.selectbox("Selecione o lançamento", list(opcoes_lancamentos.keys()), key="escolha_editar")
+        id_editar = opcoes_lancamentos[escolha_editar]
+        gasto_atual = df_gastos[df_gastos["id"] == id_editar].iloc[0]
+
+        with st.form("form_editar_gasto"):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                descricao_e = st.text_input("O que foi gasto?", value=gasto_atual["descricao"], key="editar_descricao")
+            with col2:
+                valor_e = st.number_input(
+                    "Valor (R$)", min_value=0.0, step=10.0, value=float(gasto_atual["valor"]), key="editar_valor"
+                )
+            with col3:
+                data_e = st.date_input(
+                    "Data", value=datetime.date.fromisoformat(gasto_atual["data"]), format=FORMATO_DATA, key="editar_data"
+                )
+
+            col4, col5, col6 = st.columns(3)
+            with col4:
+                categoria_e = st.selectbox(
+                    "Categoria",
+                    CATEGORIAS_GASTO,
+                    index=CATEGORIAS_GASTO.index(gasto_atual["categoria"]) if gasto_atual["categoria"] in CATEGORIAS_GASTO else 0,
+                    key="editar_categoria",
+                )
+            with col5:
+                fornecedor_e = st.text_input(
+                    "Fornecedor/prestador", value=gasto_atual["fornecedor"], key="editar_fornecedor"
+                )
+            with col6:
+                pago_e = st.checkbox("Já foi pago", value=bool(gasto_atual["pago"]), key="editar_pago")
+
+            observacoes_e = st.text_input("Observação (opcional)", value=gasto_atual["observacoes"], key="editar_observacoes")
+
+            if st.form_submit_button("Salvar alterações", type="primary"):
+                if not descricao_e or valor_e <= 0:
+                    st.error("Preencha ao menos o que foi gasto e um valor maior que zero.")
+                else:
+                    repositorio.atualizar_gasto(
+                        conexao,
+                        GastoObra(
+                            id=id_editar,
+                            data=data_e.isoformat(),
+                            categoria=categoria_e,
+                            descricao=descricao_e,
+                            valor=valor_e,
+                            fornecedor=fornecedor_e,
+                            pago=pago_e,
+                            observacoes=observacoes_e,
+                            anexo=gasto_atual["anexo"],
+                        ),
+                    )
+                    st.success("Lançamento atualizado.")
+                    st.rerun()
+
     with st.expander("Remover um lançamento"):
-        opcoes = {
-            f"{fmt_data_br(row.data)} — {row.descricao} — {fmt_moeda(row.valor)}": row.id
-            for row in df_gastos.itertuples()
-        }
-        escolha = st.selectbox("Selecione o lançamento", list(opcoes.keys()))
+        escolha_remover = st.selectbox("Selecione o lançamento", list(opcoes_lancamentos.keys()), key="escolha_remover")
         if st.button("Remover"):
-            repositorio.remover_gasto(conexao, opcoes[escolha])
+            repositorio.remover_gasto(conexao, opcoes_lancamentos[escolha_remover])
             st.success("Lançamento removido.")
             st.rerun()
 

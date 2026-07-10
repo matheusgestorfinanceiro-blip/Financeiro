@@ -72,6 +72,13 @@ def remover_gasto(conexao, id_gasto) -> None:
         _local.remover_gasto(id_gasto)
 
 
+def atualizar_gasto(conexao, gasto: GastoObra) -> None:
+    if usando_planilha():
+        _backend().atualizar_gasto(conexao, gasto)
+    else:
+        _local.atualizar_gasto(gasto)
+
+
 # --- Dados da obra ---------------------------------------------------------
 
 

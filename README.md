@@ -34,6 +34,8 @@ Uma aba abre no navegador com uma única tela:
   comprovante (ex: pagamento em dinheiro sem nota), ainda é possível lançar
   manualmente em "Lançar sem comprovante". O comprovante enviado (a nota, o
   recibo, a foto) fica anexado ao(s) lançamento(s) gerados por ele.
+- Na lista de **gastos lançados**, é possível **editar** ou remover qualquer
+  lançamento já feito (basta selecioná-lo e ajustar os campos).
 - Envie **fotos da evolução da obra** (com a data em que foram tiradas e uma
   legenda opcional) — elas entram no relatório em PDF organizadas na ordem
   cronológica de execução.
