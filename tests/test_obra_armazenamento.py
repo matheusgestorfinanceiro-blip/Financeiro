@@ -4,11 +4,16 @@ from src.obra.armazenamento import (
     carregar_dados_obra,
     carregar_fotos,
     carregar_gastos,
+    desregistrar_foto,
+    ler_arquivo_local,
+    registrar_foto,
+    remover_arquivo_local,
     remover_foto,
     remover_gasto,
+    salvar_arquivo_local,
     salvar_dados_obra,
 )
-from src.obra.schema import DadosObra, GastoObra
+from src.obra.schema import DadosObra, FotoObra, GastoObra
 
 
 def test_carregar_gastos_sem_arquivo_retorna_dataframe_vazio(tmp_path):
@@ -24,7 +29,18 @@ def test_carregar_gastos_sem_arquivo_retorna_dataframe_vazio(tmp_path):
         "valor",
         "pago",
         "observacoes",
+        "anexo",
     ]
+
+
+def test_carregar_gastos_csv_antigo_sem_coluna_anexo(tmp_path):
+    caminho = tmp_path / "gastos.csv"
+    caminho.write_text(
+        "id,data,categoria,descricao,fornecedor,valor,pago,observacoes\n"
+        "1,2026-01-10,Material,Cimento,,250.0,True,\n"
+    )
+    df = carregar_gastos(caminho)
+    assert df.iloc[0]["anexo"] == ""
 
 
 def test_adicionar_gasto_atribui_ids_sequenciais(tmp_path):
@@ -116,4 +132,39 @@ def test_remover_foto_apaga_arquivo_e_registro(tmp_path):
     remover_foto(foto.id, caminho_csv, dir_fotos)
 
     assert not caminho_arquivo.exists()
+    assert carregar_fotos(caminho_csv).empty
+
+
+def test_gasto_com_anexo_ida_e_volta(tmp_path):
+    caminho = tmp_path / "gastos.csv"
+    gasto = adicionar_gasto(
+        GastoObra(data="2026-01-10", categoria="Material", descricao="Cimento", valor=250.0, anexo="abc123.pdf"),
+        caminho,
+    )
+    assert gasto.anexo == "abc123.pdf"
+
+    df = carregar_gastos(caminho)
+    assert df.iloc[0]["anexo"] == "abc123.pdf"
+
+
+def test_salvar_ler_remover_arquivo_local(tmp_path):
+    nome_arquivo = salvar_arquivo_local(b"conteudo-binario", "comprovante.pdf", tmp_path)
+
+    assert nome_arquivo.endswith(".pdf")
+    assert ler_arquivo_local(nome_arquivo, tmp_path) == b"conteudo-binario"
+
+    remover_arquivo_local(nome_arquivo, tmp_path)
+    assert not (tmp_path / nome_arquivo).exists()
+
+
+def test_registrar_e_desregistrar_foto_sem_mexer_no_arquivo(tmp_path):
+    caminho_csv = tmp_path / "fotos.csv"
+    foto = registrar_foto(FotoObra(data="2026-01-05", nome_arquivo="referencia-externa", legenda="Início"), caminho_csv)
+
+    assert foto.id == 1
+    df = carregar_fotos(caminho_csv)
+    assert len(df) == 1
+    assert df.iloc[0]["nome_arquivo"] == "referencia-externa"
+
+    desregistrar_foto(foto.id, caminho_csv)
     assert carregar_fotos(caminho_csv).empty

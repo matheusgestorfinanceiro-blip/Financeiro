@@ -23,6 +23,7 @@ class GastoObra:
     fornecedor: str = ""
     pago: bool = True
     observacoes: str = ""
+    anexo: str = ""  # referência do comprovante salvo (nome local ou ID do Drive), se houver
     id: int = 0
 
 
@@ -45,6 +46,6 @@ class FotoObra:
     """Uma foto de evolução da obra, usada no relatório final."""
 
     data: str  # "AAAA-MM-DD"
-    nome_arquivo: str  # nome do arquivo salvo em data/obra/fotos/
+    nome_arquivo: str  # referência do arquivo salvo (nome local em data/obra/fotos/ ou ID do Drive)
     legenda: str = ""
     id: int = 0

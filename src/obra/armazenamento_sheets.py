@@ -1,20 +1,27 @@
-"""Persistência dos gastos e dos dados da obra numa Google Sheets — os dados
-sobrevivem a reinícios do servidor gratuito da Streamlit Cloud (diferente dos
-arquivos locais, que são apagados sempre que o app "dorme" ou é atualizado).
+"""Persistência dos gastos, dos dados da obra e dos metadados das
+fotos/anexos numa Google Sheets — os dados sobrevivem a reinícios do
+servidor gratuito da Streamlit Cloud (diferente dos arquivos locais, que
+são apagados sempre que o app "dorme" ou é atualizado).
 
-As fotos continuam sempre salvas localmente (são arquivos de imagem, não
-cabem numa planilha) — veja `src/obra/armazenamento.py`."""
+Os arquivos binários (fotos e comprovantes) não cabem numa planilha - essa
+parte é sempre feita pelo Drive (`armazenamento_drive.py`) ou, se o Drive
+não estiver configurado, localmente. Só os metadados (data, legenda etc.)
+ficam aqui."""
 from dataclasses import asdict
 
 import pandas as pd
 import streamlit as st
 
-from src.obra.schema import DadosObra, GastoObra
+from src.obra.schema import DadosObra, FotoObra, GastoObra
 
 NOME_ABA_GASTOS = "gastos_obra"
 NOME_ABA_DADOS_OBRA = "dados_obra"
+NOME_ABA_FOTOS = "fotos_obra"
 
-COLUNAS_GASTOS = ["id", "data", "categoria", "descricao", "fornecedor", "valor", "pago", "observacoes"]
+COLUNAS_GASTOS = [
+    "id", "data", "categoria", "descricao", "fornecedor", "valor", "pago", "observacoes", "anexo",
+]
+COLUNAS_FOTOS = ["id", "data", "nome_arquivo", "legenda"]
 CAMPOS_DADOS_OBRA = [
     "nome_obra",
     "proprietario",
@@ -65,7 +72,9 @@ def _ler_gastos(conexao) -> pd.DataFrame:
     df["pago"] = df["pago"].astype(str).str.strip().str.lower().isin(["true", "1"])
     df["id"] = df["id"].astype(float).astype(int)
     df["valor"] = df["valor"].astype(float)
-    for coluna in ("fornecedor", "observacoes"):
+    if "anexo" not in df.columns:
+        df["anexo"] = ""
+    for coluna in ("fornecedor", "observacoes", "anexo"):
         df[coluna] = df[coluna].fillna("")
     return df.sort_values("data").reset_index(drop=True)
 
@@ -132,3 +141,53 @@ def salvar_dados_obra(conexao, dados: DadosObra) -> None:
     dados_dict = asdict(dados)
     df = pd.DataFrame([{"campo": campo, "valor": dados_dict[campo]} for campo in CAMPOS_DADOS_OBRA])
     conexao.update(worksheet=NOME_ABA_DADOS_OBRA, data=df)
+
+
+def _fotos_vazio() -> pd.DataFrame:
+    return pd.DataFrame(columns=COLUNAS_FOTOS)
+
+
+def _ler_fotos(conexao) -> pd.DataFrame:
+    try:
+        df = conexao.read(worksheet=NOME_ABA_FOTOS, ttl=0)
+    except Exception:
+        vazio = _fotos_vazio()
+        try:
+            conexao.create(worksheet=NOME_ABA_FOTOS, data=vazio)
+        except Exception:
+            pass
+        return vazio
+
+    df = df.dropna(how="all")
+    if df.empty:
+        return _fotos_vazio()
+
+    df["data"] = pd.to_datetime(df["data"]).dt.date.astype(str)
+    df["id"] = df["id"].astype(float).astype(int)
+    df["legenda"] = df["legenda"].fillna("")
+    return df.sort_values(["data", "id"]).reset_index(drop=True)
+
+
+def _escrever_fotos(conexao, df: pd.DataFrame) -> None:
+    conexao.update(worksheet=NOME_ABA_FOTOS, data=df[COLUNAS_FOTOS])
+
+
+def carregar_fotos(conexao) -> pd.DataFrame:
+    return _ler_fotos(conexao)
+
+
+def adicionar_foto_registro(conexao, foto: FotoObra) -> FotoObra:
+    """Registra os metadados de uma foto cujo arquivo já foi salvo em algum
+    lugar permanente (Drive) - veja `src/obra/repositorio.py`."""
+    df = _ler_fotos(conexao)
+    foto.id = int(df["id"].max()) + 1 if not df.empty else 1
+    nova_linha = pd.DataFrame([asdict(foto)])
+    df = pd.concat([df, nova_linha], ignore_index=True)
+    _escrever_fotos(conexao, df)
+    return foto
+
+
+def remover_foto_registro(conexao, id_foto: int) -> None:
+    df = _ler_fotos(conexao)
+    df = df[df["id"] != int(id_foto)]
+    _escrever_fotos(conexao, df)

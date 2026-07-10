@@ -1,4 +1,7 @@
-"""Persistência dos gastos, fotos e dados gerais da obra em arquivos locais (CSV/JSON)."""
+"""Persistência dos gastos, fotos, anexos e dados gerais da obra em arquivos
+locais (CSV/JSON). Usado sempre para as fotos/anexos no modo local, e também
+para tudo quando nem a Planilha nem o Drive estão configurados - veja
+`src/obra/repositorio.py`."""
 import json
 import uuid
 from dataclasses import asdict
@@ -13,6 +16,7 @@ CAMINHO_GASTOS = DIR_OBRA / "gastos.csv"
 CAMINHO_DADOS_OBRA = DIR_OBRA / "dados_obra.json"
 CAMINHO_FOTOS = DIR_OBRA / "fotos.csv"
 DIR_FOTOS = DIR_OBRA / "fotos"
+DIR_ANEXOS = DIR_OBRA / "anexos"
 
 COLUNAS_FOTOS = ["id", "data", "nome_arquivo", "legenda"]
 
@@ -25,6 +29,7 @@ COLUNAS_GASTOS = [
     "valor",
     "pago",
     "observacoes",
+    "anexo",
 ]
 
 
@@ -35,7 +40,9 @@ def carregar_gastos(caminho: Path = CAMINHO_GASTOS) -> pd.DataFrame:
     df = pd.read_csv(caminho, dtype={"observacoes": str, "fornecedor": str})
     df["data"] = pd.to_datetime(df["data"]).dt.date.astype(str)
     df["pago"] = df["pago"].astype(str).str.strip().str.lower().isin(["true", "1"])
-    for coluna in ("fornecedor", "observacoes"):
+    if "anexo" not in df.columns:
+        df["anexo"] = ""  # compatibilidade com gastos.csv salvos antes desse campo existir
+    for coluna in ("fornecedor", "observacoes", "anexo"):
         df[coluna] = df[coluna].fillna("")
     return df.sort_values("data").reset_index(drop=True)
 
@@ -93,6 +100,45 @@ def salvar_fotos(df: pd.DataFrame, caminho: Path = CAMINHO_FOTOS) -> None:
     df.to_csv(caminho, index=False, columns=COLUNAS_FOTOS)
 
 
+def salvar_arquivo_local(conteudo: bytes, nome_original: str, diretorio: Path) -> str:
+    """Salva um arquivo binário (foto ou anexo) num diretório local com um
+    nome único, e retorna esse nome (usado depois para ler/remover)."""
+    diretorio = Path(diretorio)
+    diretorio.mkdir(parents=True, exist_ok=True)
+    extensao = Path(nome_original).suffix or ""
+    nome_arquivo = f"{uuid.uuid4().hex}{extensao}"
+    (diretorio / nome_arquivo).write_bytes(conteudo)
+    return nome_arquivo
+
+
+def ler_arquivo_local(nome_arquivo: str, diretorio: Path) -> bytes:
+    return (Path(diretorio) / nome_arquivo).read_bytes()
+
+
+def remover_arquivo_local(nome_arquivo: str, diretorio: Path) -> None:
+    caminho_arquivo = Path(diretorio) / nome_arquivo
+    if caminho_arquivo.exists():
+        caminho_arquivo.unlink()
+
+
+def registrar_foto(foto: FotoObra, caminho_csv: Path = CAMINHO_FOTOS) -> FotoObra:
+    """Grava os metadados de uma foto cujo arquivo já foi salvo em algum
+    lugar (local ou Drive) - não mexe em nenhum arquivo."""
+    df = carregar_fotos(caminho_csv)
+    foto.id = int(df["id"].max()) + 1 if not df.empty else 1
+    nova_linha = pd.DataFrame([asdict(foto)])
+    df = pd.concat([df, nova_linha], ignore_index=True)
+    salvar_fotos(df, caminho_csv)
+    return foto
+
+
+def desregistrar_foto(id_foto: int, caminho_csv: Path = CAMINHO_FOTOS) -> None:
+    """Remove os metadados de uma foto - não mexe em nenhum arquivo."""
+    df = carregar_fotos(caminho_csv)
+    df = df[df["id"] != id_foto]
+    salvar_fotos(df, caminho_csv)
+
+
 def adicionar_foto(
     conteudo: bytes,
     nome_original: str,
@@ -102,29 +148,13 @@ def adicionar_foto(
     dir_fotos: Path = DIR_FOTOS,
 ) -> FotoObra:
     """Salva o arquivo da foto em disco e registra seus metadados."""
-    dir_fotos = Path(dir_fotos)
-    dir_fotos.mkdir(parents=True, exist_ok=True)
-
-    extensao = Path(nome_original).suffix or ".jpg"
-    nome_arquivo = f"{uuid.uuid4().hex}{extensao}"
-    (dir_fotos / nome_arquivo).write_bytes(conteudo)
-
-    df = carregar_fotos(caminho_csv)
-    novo_id = int(df["id"].max()) + 1 if not df.empty else 1
-    foto = FotoObra(data=data, nome_arquivo=nome_arquivo, legenda=legenda, id=novo_id)
-
-    nova_linha = pd.DataFrame([asdict(foto)])
-    df = pd.concat([df, nova_linha], ignore_index=True)
-    salvar_fotos(df, caminho_csv)
-    return foto
+    nome_arquivo = salvar_arquivo_local(conteudo, nome_original, dir_fotos)
+    return registrar_foto(FotoObra(data=data, nome_arquivo=nome_arquivo, legenda=legenda), caminho_csv)
 
 
 def remover_foto(id_foto: int, caminho_csv: Path = CAMINHO_FOTOS, dir_fotos: Path = DIR_FOTOS) -> None:
     df = carregar_fotos(caminho_csv)
     linha = df[df["id"] == id_foto]
     if not linha.empty:
-        caminho_arquivo = Path(dir_fotos) / linha.iloc[0]["nome_arquivo"]
-        if caminho_arquivo.exists():
-            caminho_arquivo.unlink()
-    df = df[df["id"] != id_foto]
-    salvar_fotos(df, caminho_csv)
+        remover_arquivo_local(linha.iloc[0]["nome_arquivo"], dir_fotos)
+    desregistrar_foto(id_foto, caminho_csv)
