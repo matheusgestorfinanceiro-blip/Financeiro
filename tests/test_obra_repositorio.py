@@ -1,6 +1,7 @@
 import pytest
 
 from src.obra import repositorio
+from src.obra.schema import GastoObra
 
 
 class FakeConexao:
@@ -54,6 +55,27 @@ def test_usa_local_quando_drive_nao_configurado():
 
 def test_obter_conexao_retorna_none_para_backend_local():
     assert repositorio.obter_conexao() is None
+
+
+def test_atualizar_gasto_despacha_para_backend_local(monkeypatch):
+    chamadas = []
+    monkeypatch.setattr("src.obra.armazenamento.atualizar_gasto", lambda gasto: chamadas.append(gasto))
+
+    gasto = GastoObra(id=1, data="2026-01-11", categoria="Material", descricao="Cimento CP II", valor=300.0, fornecedor="Loja ABC", pago=True)
+    repositorio.atualizar_gasto(None, gasto)
+
+    assert chamadas == [gasto]
+
+
+def test_atualizar_gasto_despacha_para_planilha_quando_configurada(monkeypatch):
+    monkeypatch.setattr("src.obra.armazenamento_sheets.disponivel", lambda: True)
+    chamadas = []
+    monkeypatch.setattr("src.obra.armazenamento_sheets.atualizar_gasto", lambda conexao, gasto: chamadas.append((conexao, gasto)))
+
+    gasto = GastoObra(id=1, data="2026-01-11", categoria="Material", descricao="Cimento CP II", valor=300.0)
+    repositorio.atualizar_gasto("conexao-fake", gasto)
+
+    assert chamadas == [("conexao-fake", gasto)]
 
 
 def test_armazenar_obter_remover_arquivo_local(tmp_path):

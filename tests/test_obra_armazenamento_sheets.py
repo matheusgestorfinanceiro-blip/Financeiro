@@ -1,6 +1,7 @@
 from src.obra.armazenamento_sheets import (
     adicionar_foto_registro,
     adicionar_gasto,
+    atualizar_gasto,
     carregar_dados_obra,
     carregar_fotos,
     carregar_gastos,
@@ -72,6 +73,36 @@ def test_adicionar_e_remover_gasto():
     df = carregar_gastos(conexao)
     assert len(df) == 1
     assert df.iloc[0]["descricao"] == "Pedreiro"
+
+
+def test_atualizar_gasto_substitui_valores_mantendo_id():
+    conexao = FakeConexao()
+    gasto1 = adicionar_gasto(
+        conexao, GastoObra(data="2026-01-10", categoria="Material", descricao="Cimento", valor=250.0, pago=False)
+    )
+    adicionar_gasto(conexao, GastoObra(data="2026-01-15", categoria="Mão de obra", descricao="Pedreiro", valor=800.0))
+
+    atualizar_gasto(
+        conexao,
+        GastoObra(
+            id=gasto1.id,
+            data="2026-01-11",
+            categoria="Material",
+            descricao="Cimento CP II",
+            valor=300.0,
+            fornecedor="Loja ABC",
+            pago=True,
+            observacoes="Comprado à vista",
+        ),
+    )
+
+    df = carregar_gastos(conexao)
+    assert len(df) == 2
+    linha = df[df["id"] == gasto1.id].iloc[0]
+    assert linha["descricao"] == "Cimento CP II"
+    assert linha["valor"] == 300.0
+    assert linha["fornecedor"] == "Loja ABC"
+    assert bool(linha["pago"]) is True
 
 
 def test_carregar_fotos_aba_inexistente_cria_vazia_automaticamente():

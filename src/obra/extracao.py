@@ -50,6 +50,12 @@ _PALAVRAS_LINHA_NAO_ITEM = {
     "acréscimo",
     "valor pago",
     "valor recebido",
+    "valor a pagar",
+    "valor a receber",
+    "a pagar",
+    "a receber",
+    "saldo devedor",
+    "vencimento",
     "forma de pagamento",
     "forma pagamento",
     "dinheiro",
@@ -81,6 +87,14 @@ _PALAVRAS_LINHA_NAO_ITEM = {
     "cod.",
     "codigo",
     "código",
+}
+
+# Sufixos de razão social que, sozinhos numa linha (por quebra de linha no
+# documento original), não formam um nome de fornecedor completo - nesse
+# caso juntamos com a linha anterior.
+_SUFIXOS_EMPRESARIAIS = {
+    "ltda", "ltda.", "ltda-me", "ltda me", "me", "me.", "eireli", "epp",
+    "s.a.", "s/a", "sa", "mei", "s.a", "cia", "cia.",
 }
 
 
@@ -192,6 +206,10 @@ def _e_candidata_a_fornecedor(linha: str) -> bool:
     return linha_lower not in _ROTULOS_GENERICOS_FORNECEDOR
 
 
+def _e_apenas_sufixo_empresarial(linha: str) -> bool:
+    return linha.strip().lower().rstrip(".") in _SUFIXOS_EMPRESARIAIS
+
+
 def _identificar_fornecedor(texto: str) -> str | None:
     linhas = [l.strip() for l in texto.splitlines()]
 
@@ -199,9 +217,13 @@ def _identificar_fornecedor(texto: str) -> str | None:
     # acima do CNPJ - preferimos essa pista quando disponível.
     for i, linha in enumerate(linhas):
         if "cnpj" in linha.lower():
-            for anterior in reversed(linhas[:i]):
-                if _e_candidata_a_fornecedor(anterior):
-                    return anterior[:60]
+            candidatas = [l for l in reversed(linhas[:i]) if _e_candidata_a_fornecedor(l)]
+            if candidatas:
+                primeira = candidatas[0]
+                # nome quebrado em duas linhas (ex: "MATERIAIS SILVA" + "LTDA")
+                if _e_apenas_sufixo_empresarial(primeira) and len(candidatas) > 1:
+                    return f"{candidatas[1]} {primeira}"[:60]
+                return primeira[:60]
             break
 
     for linha in linhas:
