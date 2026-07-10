@@ -68,6 +68,15 @@ tenha reiniciado.
 num **Google Drive** — sem essa configuração extra, eles continuam sendo
 salvos localmente e são apagados quando o app publicado reinicia.
 
+⚠️ **Atenção se sua conta do Google for gratuita/pessoal (Gmail comum, não
+Google Workspace)**: o Google não permite que uma conta de serviço envie
+arquivos para o Drive nessas contas (erro `403 Forbidden` / sem cota de
+armazenamento). Isso só funciona em contas Google Workspace (com "Unidades
+Compartilhadas"). Se você não tiver Workspace, **não configure o Drive** —
+deixe só a Planilha configurada. Nesse caso, fotos e anexos continuam
+salvos localmente, e o app mostra um botão de **"Backup de fotos e anexos"**
+para você baixar tudo periodicamente num arquivo .zip.
+
 #### Configurar a Planilha do Google (recomendado para o app publicado)
 
 Os passos são os mesmos do app de Finanças Pessoais (veja o passo a passo
@@ -108,6 +117,10 @@ precisa de mais 2 passos:
    nunca mais somem — e continuam aparecendo no relatório em PDF
    normalmente.
 
+Se o envio para o Drive falhar por qualquer motivo (ex: conta sem Workspace),
+o app não trava: o arquivo é salvo localmente automaticamente, como se o
+Drive não estivesse configurado.
+
 Rodando localmente (`streamlit run`), sem configurar nada disso, o app
 continua funcionando normalmente com os arquivos locais.
 
@@ -134,6 +147,8 @@ Streamlit Cloud instala isso automaticamente ao publicar, sem ação manual.
 - `src/obra/calculo.py` — totais, agrupamentos e formatação de datas.
 - `src/obra/graficos.py` — gráficos matplotlib.
 - `src/obra/relatorio_pdf.py` — geração do relatório final em PDF.
+- `src/obra/backup.py` — gera um .zip com todas as fotos e anexos (usado
+  quando eles não estão no Drive, como cópia de segurança manual).
 
 ## Sistema de Finanças Pessoais (uso do casal)
 
