@@ -39,28 +39,57 @@ class AjusteManual:
 
 
 @dataclass
+class TipoUnidade:
+    """Uma categoria de unidade que paga um valor mensal próprio (ex: 'Apartamento
+    2 quartos', 'Cobertura'), usada no modo "tipos" de uma ConfiguracaoArrecadacao."""
+
+    nome: str
+    quantidade: int
+    valor: float  # valor mensal por unidade desse tipo
+
+
+@dataclass
+class ConfiguracaoArrecadacao:
+    """Como uma arrecadação (rateio principal, fundo de reserva, ou uma "outra
+    arrecadação") é dividida entre as unidades. A mesma estrutura é reaproveitada
+    nos 3 contextos do formulário.
+
+    Modos:
+    - "igual": todas as unidades pagam o mesmo valor (`valor_unico`).
+    - "tipos": unidades agrupadas por tipo, cada tipo com seu próprio valor (`tipos`).
+    - "fracao_ideal" / "indexador": valor de cada unidade = fração dela (`fracoes`)
+      vezes o valor total mensal a arrecadar (`valor_total_mensal`); os dois modos
+      usam exatamente a mesma lógica, só o nome exibido ao usuário muda.
+    """
+
+    modo: str = "igual"
+    valor_unico: float = 0.0
+    tipos: list[TipoUnidade] = field(default_factory=list)
+    valor_total_mensal: float = 0.0
+    fracoes: pd.DataFrame | None = None  # colunas: unidade, fracao, proprietario
+
+
+@dataclass
 class DadosFormulario:
     """Dados obrigatórios e opcionais preenchidos pelo usuário.
 
     O percentual de reajuste é calculado automaticamente pelo motor de
     cálculo a partir do próprio Demonstrativo de Receitas e Despesas (veja
-    `src/calculo/previsao.py`). O fundo de reserva é controlado manualmente
-    pelo usuário (sem fundo, percentual sobre o rateio, ou valor fixo por
-    unidade)."""
+    `src/calculo/previsao.py`). O rateio principal, o fundo de reserva e
+    qualquer "outra arrecadação" são configurados com a mesma estrutura
+    (ConfiguracaoArrecadacao), permitindo dividir cada um de forma diferente
+    entre as unidades (igual, por tipo, ou por fração ideal/indexador)."""
 
     nome_condominio: str
     periodo: str
-    numero_unidades: int
+    numero_unidades: int  # deduzido a partir da configuração de rateio no formulário
 
-    # Rateio
-    rateio_tipo: str = "igualitario"  # "igualitario" ou "fracao_ideal"
-    valor_unico_por_unidade: float | None = None  # quando informado, substitui o cálculo automático
-    fracoes_ideais: pd.DataFrame | None = None  # colunas: unidade, fracao (soma = 1.0)
+    configuracao_rateio: ConfiguracaoArrecadacao = field(default_factory=ConfiguracaoArrecadacao)
 
-    # Fundo de reserva
     possui_fundo_reserva: bool = False
-    fundo_reserva_modo: str = "percentual"  # "percentual" ou "valor_fixo"
-    fundo_reserva_valor_input: float = 0.0  # percentual (ex 0.05) ou R$ por unidade, conforme o modo
+    configuracao_fundo_reserva: ConfiguracaoArrecadacao | None = None
+
+    outras_arrecadacoes: list[tuple[str, ConfiguracaoArrecadacao]] = field(default_factory=list)
 
     observacoes: str = ""
     ajustes_manuais: list[AjusteManual] = field(default_factory=list)
@@ -92,19 +121,16 @@ class ResultadoPrevisao:
 
     percentual_reajuste_automatico: float
     fundo_reserva_valor: float
-    fundo_reserva_percentual: float
     possui_fundo_reserva: bool
-    fundo_reserva_modo: str
 
     receita_rateio_necessaria: float
     numero_unidades: int
-    valor_por_unidade_sem_ajuste: float
-    valor_por_unidade_com_inadimplencia: float
     percentual_inadimplencia: float
-    valor_por_unidade_sugerido_pelo_sistema: float | None = None
 
-    rateio_tipo: str = "igualitario"
-    rateio_por_unidade: pd.DataFrame = None  # colunas: unidade, fracao_ou_igual, valor
+    total_outras_arrecadacoes_previsto: float = 0.0
+    outras_arrecadacoes_detalhe: list[tuple[str, float]] = field(default_factory=list)
+
+    valores_por_unidade: pd.DataFrame = None  # colunas: unidade, rateio, fundo_reserva, <outras...>, total
 
     total_despesas_historico_por_mes: dict = field(default_factory=dict)  # {mes: valor}
     total_receitas_historico_por_mes: dict = field(default_factory=dict)

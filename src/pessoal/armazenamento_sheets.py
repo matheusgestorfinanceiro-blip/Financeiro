@@ -35,7 +35,15 @@ def _df_vazio() -> pd.DataFrame:
 
 
 def _ler(conexao) -> pd.DataFrame:
-    df = conexao.read(worksheet=NOME_ABA, ttl=0)
+    from gspread.exceptions import WorksheetNotFound
+
+    try:
+        df = conexao.read(worksheet=NOME_ABA, ttl=0)
+    except WorksheetNotFound:
+        # Primeira vez usando a planilha: cria a aba "lancamentos" com o
+        # cabeçalho certo, já que ela não existe ainda.
+        conexao.create(worksheet=NOME_ABA, data=_df_vazio())
+        return _df_vazio()
     df = df.dropna(how="all")
     if df.empty:
         return _df_vazio()

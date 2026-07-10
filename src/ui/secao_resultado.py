@@ -41,6 +41,16 @@ def renderizar_secao_resultado(resultado):
             "receitas concentradas em poucos meses, como extraordinárias/eventuais."
         )
 
+        if resultado.outras_arrecadacoes_detalhe:
+            st.markdown("**Outras arrecadações configuradas**")
+            cols = st.columns(len(resultado.outras_arrecadacoes_detalhe))
+            for col, (nome, valor) in zip(cols, resultado.outras_arrecadacoes_detalhe):
+                col.metric(nome, fmt_moeda(valor))
+
+        if resultado.valores_por_unidade is not None and not resultado.valores_por_unidade.empty:
+            st.markdown("**Valores por unidade**")
+            st.dataframe(resultado.valores_por_unidade, use_container_width=True)
+
     with abas[1]:
         totais = _total_por_classificacao(resultado.despesas_classificadas)
         col1, col2 = st.columns(2)
@@ -87,12 +97,6 @@ def renderizar_secao_resultado(resultado):
 
     with abas[3]:
         st.metric("Percentual de reajuste apurado", fmt_pct(resultado.percentual_reajuste_automatico))
-        if resultado.valor_por_unidade_sugerido_pelo_sistema is not None:
-            st.info(
-                "Você definiu um valor único por unidade. Para comparação, o sistema calcularia "
-                f"automaticamente **{fmt_moeda(resultado.valor_por_unidade_sugerido_pelo_sistema)}** por unidade "
-                "com base nas despesas, fundo de reserva e outras receitas."
-            )
         if resultado.observacoes:
             st.markdown("**Observações**")
             st.write(escapar_markdown(resultado.observacoes))

@@ -2,7 +2,14 @@ import pandas as pd
 import pytest
 
 from src.calculo.previsao import gerar_previsao
-from src.models.schema import AjusteManual, DadosDemonstrativo, DadosFormulario, DadosInadimplencia
+from src.models.schema import (
+    AjusteManual,
+    ConfiguracaoArrecadacao,
+    DadosDemonstrativo,
+    DadosFormulario,
+    DadosInadimplencia,
+    TipoUnidade,
+)
 
 
 def _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0, outras_receitas=0.0):
@@ -34,12 +41,16 @@ def _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0, outras_rec
     )
 
 
+def _config_igual(valor_unico):
+    return ConfiguracaoArrecadacao(modo="igual", valor_unico=valor_unico)
+
+
 def _formulario(**kwargs):
     base = dict(
         nome_condominio="Condomínio Teste",
         periodo="Janeiro/2026 a Dezembro/2026",
         numero_unidades=10,
-        rateio_tipo="igualitario",
+        configuracao_rateio=_config_igual(100.0),
     )
     base.update(kwargs)
     return DadosFormulario(**base)
@@ -51,7 +62,6 @@ def test_sem_reajuste_quando_receita_cobre_a_despesa():
     resultado = gerar_previsao(demonstrativo, None, formulario)
     assert resultado.percentual_reajuste_automatico == pytest.approx(0.0)
     assert resultado.receita_rateio_necessaria == pytest.approx(1000.0)
-    assert resultado.valor_por_unidade_sem_ajuste == pytest.approx(100.0)
 
 
 def test_reajuste_automatico_quando_despesa_maior_que_receita():
@@ -61,7 +71,6 @@ def test_reajuste_automatico_quando_despesa_maior_que_receita():
     # (1000 - 800) / 800 = 0.25
     assert resultado.percentual_reajuste_automatico == pytest.approx(0.25)
     assert resultado.total_despesas_previsto == pytest.approx(1250.0)
-    assert resultado.receita_rateio_necessaria == pytest.approx(1250.0)
 
 
 def test_reajuste_correto_mesmo_sem_a_palavra_rateio_na_receita():
@@ -90,7 +99,6 @@ def test_reajuste_correto_mesmo_sem_a_palavra_rateio_na_receita():
     resultado = gerar_previsao(demonstrativo, None, formulario)
     # (1000 - 800) / 800 = 0.25 - não pode explodir só porque o nome não contém "rateio"
     assert resultado.percentual_reajuste_automatico == pytest.approx(0.25)
-    assert resultado.valor_por_unidade_sugerido_pelo_sistema is None or resultado.valor_por_unidade_sugerido_pelo_sistema >= 0
 
 
 def test_despesa_ordinaria_do_reajuste_ignora_despesas_extraordinarias():
@@ -129,54 +137,33 @@ def test_sem_fundo_de_reserva():
     formulario = _formulario(possui_fundo_reserva=False)
     resultado = gerar_previsao(demonstrativo, None, formulario)
     assert resultado.fundo_reserva_valor == pytest.approx(0.0)
-    assert resultado.fundo_reserva_percentual == pytest.approx(0.0)
     assert resultado.receita_rateio_necessaria == pytest.approx(1000.0)
 
 
-def test_fundo_de_reserva_percentual_resolve_equacao():
+def test_fundo_de_reserva_modo_igual():
     demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
     formulario = _formulario(
-        possui_fundo_reserva=True, fundo_reserva_modo="percentual", fundo_reserva_valor_input=0.10
+        numero_unidades=10,
+        possui_fundo_reserva=True,
+        configuracao_fundo_reserva=_config_igual(20.0),
     )
     resultado = gerar_previsao(demonstrativo, None, formulario)
-    # R = despesas + 0.10 * R  =>  0.90 * R = 1000  =>  R = 1111.11...
-    assert resultado.receita_rateio_necessaria == pytest.approx(1000 / 0.9)
-    assert resultado.fundo_reserva_valor == pytest.approx(resultado.receita_rateio_necessaria * 0.10)
-
-
-def test_fundo_de_reserva_percentual_e_limitado_a_teto_defensivo():
-    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
-    formulario = _formulario(
-        possui_fundo_reserva=True, fundo_reserva_modo="percentual", fundo_reserva_valor_input=1.5
-    )
-    # não deve levantar exceção, mesmo com um percentual absurdo digitado
-    resultado = gerar_previsao(demonstrativo, None, formulario)
-    assert resultado.fundo_reserva_percentual < 1.0
-    assert resultado.receita_rateio_necessaria > 0
-
-
-def test_fundo_de_reserva_valor_fixo_por_unidade():
-    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
-    formulario = _formulario(
-        numero_unidades=10, possui_fundo_reserva=True, fundo_reserva_modo="valor_fixo", fundo_reserva_valor_input=20.0
-    )
-    resultado = gerar_previsao(demonstrativo, None, formulario)
-    # 20 por unidade x 10 unidades = 200, somado direto (sem equação)
+    # 20 por unidade x 10 unidades = 200
     assert resultado.fundo_reserva_valor == pytest.approx(200.0)
-    assert resultado.receita_rateio_necessaria == pytest.approx(1200.0)
 
 
-def test_outras_receitas_abatem_a_receita_de_rateio_necessaria():
+def test_outras_receitas_nao_afetam_a_receita_de_rateio_configurada():
     demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0, outras_receitas=200.0)
     formulario = _formulario()
     resultado = gerar_previsao(demonstrativo, None, formulario)
     assert resultado.total_outras_receitas_previsto == pytest.approx(200.0)
-    assert resultado.receita_rateio_necessaria == pytest.approx(800.0)
+    # a receita de rateio agora vem diretamente da configuração do usuário (100 x 10 unidades)
+    assert resultado.receita_rateio_necessaria == pytest.approx(1000.0)
 
 
-def test_ajuste_por_inadimplencia_infla_o_valor_por_unidade():
+def test_ajuste_por_inadimplencia_infla_o_total_por_unidade():
     demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
-    formulario = _formulario(numero_unidades=10)
+    formulario = _formulario(numero_unidades=10, configuracao_rateio=_config_igual(100.0))
     inadimplencia = DadosInadimplencia(
         condominio="Condomínio Teste",
         unidades=pd.DataFrame(),
@@ -186,27 +173,41 @@ def test_ajuste_por_inadimplencia_infla_o_valor_por_unidade():
         total_geral=0.0,
     )
     resultado = gerar_previsao(demonstrativo, inadimplencia, formulario)
-    assert resultado.valor_por_unidade_sem_ajuste == pytest.approx(100.0)
     # 100 / (1 - 0.20) = 125
-    assert resultado.valor_por_unidade_com_inadimplencia == pytest.approx(125.0)
+    assert resultado.valores_por_unidade["total"].iloc[0] == pytest.approx(125.0)
 
 
 def test_rateio_igualitario_divide_entre_as_unidades():
     demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
-    formulario = _formulario(numero_unidades=4)
+    formulario = _formulario(numero_unidades=4, configuracao_rateio=_config_igual(250.0))
     resultado = gerar_previsao(demonstrativo, None, formulario)
-    assert len(resultado.rateio_por_unidade) == 4
-    assert resultado.rateio_por_unidade["valor"].sum() == pytest.approx(resultado.receita_rateio_necessaria)
+    assert len(resultado.valores_por_unidade) == 4
+    assert resultado.valores_por_unidade["rateio"].sum() == pytest.approx(resultado.receita_rateio_necessaria)
 
 
 def test_rateio_por_fracao_ideal():
     demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
     fracoes = pd.DataFrame({"unidade": ["AP 01", "AP 02"], "fracao": [0.6, 0.4]})
-    formulario = _formulario(numero_unidades=2, rateio_tipo="fracao_ideal", fracoes_ideais=fracoes)
+    config = ConfiguracaoArrecadacao(modo="fracao_ideal", valor_total_mensal=1000.0, fracoes=fracoes)
+    formulario = _formulario(numero_unidades=2, configuracao_rateio=config)
     resultado = gerar_previsao(demonstrativo, None, formulario)
-    valores = dict(zip(resultado.rateio_por_unidade["unidade"], resultado.rateio_por_unidade["valor"]))
+    valores = dict(zip(resultado.valores_por_unidade["unidade"], resultado.valores_por_unidade["rateio"]))
     assert valores["AP 01"] == pytest.approx(600.0)
     assert valores["AP 02"] == pytest.approx(400.0)
+
+
+def test_rateio_por_tipos_de_unidade():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    tipos = [
+        TipoUnidade(nome="Apartamento", quantidade=8, valor=100.0),
+        TipoUnidade(nome="Cobertura", quantidade=2, valor=180.0),
+    ]
+    config = ConfiguracaoArrecadacao(modo="tipos", tipos=tipos)
+    formulario = _formulario(numero_unidades=10, configuracao_rateio=config)
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    assert len(resultado.valores_por_unidade) == 10
+    # 8 x 100 + 2 x 180 = 1160
+    assert resultado.receita_rateio_necessaria == pytest.approx(1160.0)
 
 
 def test_ajuste_manual_sobrescreve_reajuste_automatico():
@@ -218,23 +219,6 @@ def test_ajuste_manual_sobrescreve_reajuste_automatico():
     linha = resultado.despesas_previstas[0]
     assert linha.ajuste_manual is True
     assert linha.valor_previsto == pytest.approx(1500.0)
-
-
-def test_valor_unico_por_unidade_substitui_calculo_automatico():
-    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
-    formulario = _formulario(numero_unidades=10, valor_unico_por_unidade=150.0)
-    resultado = gerar_previsao(demonstrativo, None, formulario)
-    assert resultado.valor_por_unidade_sem_ajuste == pytest.approx(150.0)
-    assert resultado.receita_rateio_necessaria == pytest.approx(1500.0)
-    # o sistema calcularia 100 (despesa=receita, sem reajuste/fundo) - mostrado como referência
-    assert resultado.valor_por_unidade_sugerido_pelo_sistema == pytest.approx(100.0)
-
-
-def test_sem_valor_unico_nao_ha_sugestao_de_referencia():
-    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
-    formulario = _formulario(numero_unidades=10)
-    resultado = gerar_previsao(demonstrativo, None, formulario)
-    assert resultado.valor_por_unidade_sugerido_pelo_sistema is None
 
 
 def test_gerar_previsao_preenche_campos_do_relatorio_final():
@@ -272,21 +256,48 @@ def test_gerar_previsao_identifica_pico_de_inadimplencia():
     assert resultado.mes_pico_inadimplencia == "02/2026"
 
 
-def test_arrecadacao_prevista_mensal_com_valor_unico_por_unidade():
+def test_arrecadacao_prevista_mensal_e_a_soma_do_rateio_configurado():
     demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
-    formulario = _formulario(numero_unidades=10, valor_unico_por_unidade=150.0)
+    formulario = _formulario(numero_unidades=10, configuracao_rateio=_config_igual(150.0))
     resultado = gerar_previsao(demonstrativo, None, formulario)
-    # Valor informado já é mensal: 150 x 10 unidades = 1500/mês.
+    # Todo modo de ConfiguracaoArrecadacao já representa um valor mensal: 150 x 10 = 1500/mês.
     assert resultado.arrecadacao_prevista_mensal == pytest.approx(1500.0)
 
 
-def test_arrecadacao_prevista_mensal_automatica_e_o_total_anual_dividido_por_12():
-    demonstrativo = _demonstrativo_simples(total_despesa=1200.0, total_rateio=1200.0)
-    formulario = _formulario(numero_unidades=10)
+def test_outras_arrecadacoes_somam_no_total_por_unidade():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    config_agua = ConfiguracaoArrecadacao(modo="igual", valor_unico=10.0)
+    formulario = _formulario(
+        numero_unidades=10,
+        configuracao_rateio=_config_igual(100.0),
+        outras_arrecadacoes=[("Rateio de agua", config_agua)],
+    )
     resultado = gerar_previsao(demonstrativo, None, formulario)
-    # receita_rateio_necessaria é o total de 12 meses (1200); dividido por 12 = 100/mês.
-    assert resultado.receita_rateio_necessaria == pytest.approx(1200.0)
-    assert resultado.arrecadacao_prevista_mensal == pytest.approx(100.0)
+    assert resultado.total_outras_arrecadacoes_previsto == pytest.approx(100.0)
+    assert resultado.outras_arrecadacoes_detalhe == [("Rateio de agua", pytest.approx(100.0))]
+    assert resultado.valores_por_unidade["Rateio de agua"].sum() == pytest.approx(100.0)
+    # total por unidade = rateio (100) + fundo (0) + agua (10)
+    assert resultado.valores_por_unidade["total"].iloc[0] == pytest.approx(110.0)
+
+
+def test_fundo_de_reserva_igual_reaproveita_nomes_de_unidade_do_rateio_por_fracao():
+    # Quando o rateio principal é por fração ideal (nomes de unidade vindos do
+    # arquivo do usuário, ex: "AP01"), o fundo de reserva no modo "igual" deve
+    # reaproveitar esses mesmos nomes, e não gerar "Unidade 1"/"Unidade 2"
+    # genéricos - senão o merge por unidade duplica linhas em vez de somar.
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    fracoes = pd.DataFrame({"unidade": ["AP01", "AP02"], "fracao": [0.6, 0.4]})
+    config_rateio = ConfiguracaoArrecadacao(modo="fracao_ideal", valor_total_mensal=1000.0, fracoes=fracoes)
+    formulario = _formulario(
+        numero_unidades=2,
+        configuracao_rateio=config_rateio,
+        possui_fundo_reserva=True,
+        configuracao_fundo_reserva=_config_igual(10.0),
+    )
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    assert len(resultado.valores_por_unidade) == 2
+    assert set(resultado.valores_por_unidade["unidade"]) == {"AP01", "AP02"}
+    assert resultado.fundo_reserva_valor == pytest.approx(20.0)
 
 
 def test_inadimplencia_valor_total_e_unidades_preenchidos_a_partir_dos_dados():
