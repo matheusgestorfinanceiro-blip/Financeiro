@@ -1,6 +1,7 @@
-"""Monta o relatório final em PDF: 5 páginas fixas (capa, arrecadações, despesas,
-inadimplência, reajuste), com a marca da Azul Administradora no canto superior
-direito de todas as páginas (exceto a capa, que já tem identidade visual própria)."""
+"""Monta o relatório final em PDF: 6 páginas fixas (capa, arrecadações, despesas,
+inadimplência, balanço orçamentário consolidado, reajuste), com a marca da Azul
+Administradora no canto superior direito de todas as páginas (exceto a capa,
+que já tem identidade visual própria)."""
 import tempfile
 from pathlib import Path
 
@@ -409,9 +410,90 @@ def _pagina_inadimplencia(pdf: RelatorioPDF, resultado):
     _caixa_consideracoes(pdf, texto)
 
 
+def _calcular_balanco(resultado) -> dict:
+    """Resumo consolidado (mesmo espirito da planilha manual "ANALISE" ja usada
+    pela Azul): receita total, despesas totais, inadimplencia e reajuste como
+    valores (nao so percentuais), e o saldo final - a unica informacao de
+    "fecha ou nao fecha a conta" que nao aparece em nenhuma outra pagina.
+
+    Tudo aqui e anual, para bater com total_despesas_previsto (que ja e um
+    total de 12 meses): receita_rateio_necessaria, fundo_reserva_valor e
+    total_outras_arrecadacoes_previsto sao valores MENSAIS (mesma convencao
+    de ConfiguracaoArrecadacao, usada tambem em arrecadacao_prevista_mensal),
+    entao precisam ser multiplicados por 12 antes de somar com
+    total_outras_receitas_previsto, que ja vem anual do historico."""
+    receita_total = (
+        resultado.receita_rateio_necessaria
+        + resultado.fundo_reserva_valor
+        + resultado.total_outras_arrecadacoes_previsto
+    ) * 12 + resultado.total_outras_receitas_previsto
+    inadimplencia_valor = resultado.percentual_inadimplencia * receita_total
+    reajuste_valor = resultado.percentual_reajuste_automatico * receita_total
+    total_geral = resultado.total_despesas_previsto + inadimplencia_valor
+    saldo_final = receita_total - total_geral + reajuste_valor
+    return {
+        "receita_total": receita_total,
+        "inadimplencia_valor": inadimplencia_valor,
+        "reajuste_valor": reajuste_valor,
+        "total_geral": total_geral,
+        "saldo_final": saldo_final,
+    }
+
+
+def _pagina_balanco(pdf: RelatorioPDF, resultado):
+    pdf.add_page()
+    pdf.titulo_pagina("5. Balanco Orcamentario Consolidado")
+
+    balanco = _calcular_balanco(resultado)
+
+    _cartoes_estatisticas(
+        pdf,
+        [
+            ("Receita total prevista (12 meses)", fmt_moeda(balanco["receita_total"])),
+            ("Despesas totais previstas (12 meses)", fmt_moeda(resultado.total_despesas_previsto)),
+            ("Saldo final previsto (12 meses)", fmt_moeda(balanco["saldo_final"])),
+        ],
+        colunas=3,
+    )
+
+    pdf.ln(2)
+    _cartoes_estatisticas(
+        pdf,
+        [
+            ("Inadimplencia (valor absorvido)", fmt_moeda(balanco["inadimplencia_valor"])),
+            ("Reajuste sugerido (valor)", fmt_moeda(balanco["reajuste_valor"])),
+            ("Total geral (despesas + inadimplencia)", fmt_moeda(balanco["total_geral"])),
+        ],
+        colunas=3,
+    )
+
+    pdf.ln(2)
+    if balanco["saldo_final"] >= 0:
+        texto = (
+            f"Somando receita total ({fmt_moeda(balanco['receita_total'])}), despesas totais "
+            f"({fmt_moeda(resultado.total_despesas_previsto)}), inadimplencia esperada "
+            f"({fmt_pct(resultado.percentual_inadimplencia)}, ou {fmt_moeda(balanco['inadimplencia_valor'])}) "
+            f"e reajuste sugerido ({fmt_pct(resultado.percentual_reajuste_automatico)}, ou "
+            f"{fmt_moeda(balanco['reajuste_valor'])}), a previsao fecha em superavit de "
+            f"{fmt_moeda(balanco['saldo_final'])}. Esse valor pode reforcar o fundo de reserva ou reduzir o "
+            "reajuste dos proximos periodos."
+        )
+    else:
+        texto = (
+            f"Somando receita total ({fmt_moeda(balanco['receita_total'])}), despesas totais "
+            f"({fmt_moeda(resultado.total_despesas_previsto)}), inadimplencia esperada "
+            f"({fmt_pct(resultado.percentual_inadimplencia)}, ou {fmt_moeda(balanco['inadimplencia_valor'])}) "
+            f"e reajuste sugerido ({fmt_pct(resultado.percentual_reajuste_automatico)}, ou "
+            f"{fmt_moeda(balanco['reajuste_valor'])}), a previsao fecha em deficit de "
+            f"{fmt_moeda(abs(balanco['saldo_final']))}. Vale revisar as despesas extraordinarias (pagina "
+            "anterior) ou considerar um reajuste maior para equilibrar as contas."
+        )
+    _caixa_consideracoes(pdf, texto, titulo="Leitura do saldo final")
+
+
 def _pagina_reajuste(pdf: RelatorioPDF, resultado):
     pdf.add_page()
-    pdf.titulo_pagina("5. Reajuste")
+    pdf.titulo_pagina("6. Reajuste")
 
     largura_util = _largura_util(pdf)
     pdf.set_fill_color(*_hex_para_rgb(NAVY))
@@ -487,8 +569,8 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado):
 
 
 def gerar_pdf_previsao(resultado) -> bytes:
-    """Gera o PDF final de 5 paginas (capa, arrecadacoes, despesas, inadimplencia,
-    reajuste) e retorna os bytes prontos para download."""
+    """Gera o PDF final de 6 paginas (capa, arrecadacoes, despesas, inadimplencia,
+    balanco consolidado, reajuste) e retorna os bytes prontos para download."""
     pdf = RelatorioPDF()
     pdf.arquivos_temp = []
     try:
@@ -496,6 +578,7 @@ def gerar_pdf_previsao(resultado) -> bytes:
         _pagina_arrecadacoes(pdf, resultado)
         _pagina_despesas(pdf, resultado)
         _pagina_inadimplencia(pdf, resultado)
+        _pagina_balanco(pdf, resultado)
         _pagina_reajuste(pdf, resultado)
         return bytes(pdf.output())
     finally:
