@@ -50,7 +50,14 @@ def renderizar_secao_resultado(resultado):
 
         if resultado.valores_por_unidade is not None and not resultado.valores_por_unidade.empty:
             st.markdown("**Valores por unidade**")
-            st.dataframe(resultado.valores_por_unidade, use_container_width=True)
+            colunas_valor = [c for c in resultado.valores_por_unidade.columns if c != "unidade"]
+            st.dataframe(
+                resultado.valores_por_unidade,
+                use_container_width=True,
+                column_config={
+                    coluna: st.column_config.NumberColumn(coluna, format="R$ %.2f") for coluna in colunas_valor
+                },
+            )
 
     with abas[1]:
         totais = _total_por_classificacao(resultado.despesas_classificadas)
@@ -76,7 +83,14 @@ def renderizar_secao_resultado(resultado):
                 for l in resultado.despesas_previstas
             ]
         )
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(
+            df,
+            use_container_width=True,
+            column_config={
+                "Histórico": st.column_config.NumberColumn("Histórico", format="R$ %.2f"),
+                "Previsto": st.column_config.NumberColumn("Previsto", format="R$ %.2f"),
+            },
+        )
 
     with abas[2]:
         tem_grafico = resultado.concentracao_inadimplencia is not None and not resultado.concentracao_inadimplencia.empty
@@ -97,13 +111,57 @@ def renderizar_secao_resultado(resultado):
             st.caption("Não há dados suficientes no relatório de inadimplentes para montar um gráfico de concentração por mês de competência.")
 
     with abas[3]:
+        import pandas as pd
+
         balanco = _calcular_balanco(resultado)
+
+        st.markdown("**Receita (anual)**")
+        df_receita = pd.DataFrame(
+            [
+                {"Item": nome, "Anual": valor, "Mensal": valor / 12, "% do total": valor / balanco["receita_total"] if balanco["receita_total"] else 0.0}
+                for nome, valor in balanco["receita_itens"]
+            ]
+        )
+        st.dataframe(
+            df_receita,
+            use_container_width=True,
+            column_config={
+                "Anual": st.column_config.NumberColumn("Anual", format="R$ %.2f"),
+                "Mensal": st.column_config.NumberColumn("Mensal", format="R$ %.2f"),
+                "% do total": st.column_config.NumberColumn("% do total", format="percent"),
+            },
+        )
+        st.metric("Total da receita (12 meses)", fmt_moeda(balanco["receita_total"]))
+
+        st.markdown("**Despesas por categoria (anual)**")
+        despesas_total = resultado.total_despesas_previsto
+        df_despesas = pd.DataFrame(
+            [
+                {
+                    "Categoria": l.categoria_pai,
+                    "Subcategoria": l.subcategoria,
+                    "Anual": l.valor_previsto,
+                    "Mensal": l.valor_previsto / 12,
+                    "% do total": l.valor_previsto / despesas_total if despesas_total else 0.0,
+                }
+                for l in resultado.despesas_previstas
+            ]
+        )
+        st.dataframe(
+            df_despesas,
+            use_container_width=True,
+            column_config={
+                "Anual": st.column_config.NumberColumn("Anual", format="R$ %.2f"),
+                "Mensal": st.column_config.NumberColumn("Mensal", format="R$ %.2f"),
+                "% do total": st.column_config.NumberColumn("% do total", format="percent"),
+            },
+        )
+        st.metric("Total das despesas (12 meses)", fmt_moeda(despesas_total))
+
+        st.markdown("**Inadimplência, reajuste e saldo final**")
         col1, col2, col3 = st.columns(3)
-        col1.metric("Receita total prevista (12 meses)", fmt_moeda(balanco["receita_total"]))
-        col2.metric("Despesas totais previstas (12 meses)", fmt_moeda(resultado.total_despesas_previsto))
-        col3.metric("Saldo final previsto (12 meses)", fmt_moeda(balanco["saldo_final"]))
-        col1.metric("Inadimplência (valor absorvido)", fmt_moeda(balanco["inadimplencia_valor"]))
-        col2.metric("Reajuste sugerido (valor)", fmt_moeda(balanco["reajuste_valor"]))
+        col1.metric(f"Inadimplência ({fmt_pct(resultado.percentual_inadimplencia)})", fmt_moeda(balanco["inadimplencia_valor"]))
+        col2.metric(f"Reajuste sugerido ({fmt_pct(resultado.percentual_reajuste_automatico)})", fmt_moeda(balanco["reajuste_valor"]))
         col3.metric("Total geral (despesas + inadimplência)", fmt_moeda(balanco["total_geral"]))
         if balanco["saldo_final"] >= 0:
             st.success(f"A previsão fecha em superávit de {fmt_moeda(balanco['saldo_final'])}.")
