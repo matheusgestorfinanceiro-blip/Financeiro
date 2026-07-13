@@ -118,7 +118,7 @@ def test_armazenar_arquivo_cai_para_local_se_drive_falhar(monkeypatch, tmp_path)
     assert (tmp_path / referencia).read_bytes() == b"conteudo"
 
 
-def test_fotos_e_anexos_com_planilha_e_drive_configurados(monkeypatch, tmp_path):
+def test_fotos_e_notas_fiscais_com_planilha_e_drive_configurados(monkeypatch, tmp_path):
     fake_drive = FakeDrive()
     monkeypatch.setattr("src.obra.armazenamento_drive.disponivel", fake_drive.disponivel)
     monkeypatch.setattr("src.obra.armazenamento_drive.enviar_arquivo", fake_drive.enviar_arquivo)
@@ -135,10 +135,17 @@ def test_fotos_e_anexos_com_planilha_e_drive_configurados(monkeypatch, tmp_path)
     df_fotos = repositorio.carregar_fotos(conexao)
     assert len(df_fotos) == 1
 
-    referencia_anexo = repositorio.armazenar_anexo(b"comprovante-bytes", "nota.pdf")
-    assert repositorio.obter_bytes_anexo(referencia_anexo) == b"comprovante-bytes"
+    nota = repositorio.adicionar_nota_fiscal(conexao, b"comprovante-bytes", "nota.pdf", "2026-01-06")
+    assert repositorio.obter_bytes_nota_fiscal(nota.nome_arquivo) == b"comprovante-bytes"
+
+    df_notas = repositorio.carregar_notas_fiscais(conexao)
+    assert len(df_notas) == 1
 
     repositorio.remover_foto(conexao, foto.id)
     assert repositorio.carregar_fotos(conexao).empty
-    # o arquivo da foto foi removido do Drive, mas o do anexo (independente) continua
-    assert referencia_anexo.split(".")[0] in fake_drive.arquivos
+    # o arquivo da foto foi removido do Drive, mas o da nota fiscal (independente) continua
+    assert nota.nome_arquivo.split(".")[0] in fake_drive.arquivos
+
+    repositorio.remover_nota_fiscal(conexao, nota.id)
+    assert repositorio.carregar_notas_fiscais(conexao).empty
+    assert nota.nome_arquivo.split(".")[0] not in fake_drive.arquivos

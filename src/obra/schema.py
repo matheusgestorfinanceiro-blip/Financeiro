@@ -49,3 +49,14 @@ class FotoObra:
     nome_arquivo: str  # referência do arquivo salvo (nome local em data/obra/fotos/ ou ID do Drive)
     legenda: str = ""
     id: int = 0
+
+
+@dataclass
+class NotaFiscalObra:
+    """Uma nota fiscal ou comprovante anexado à obra (arquivo avulso, não
+    ligado a um lançamento específico), usada no relatório final."""
+
+    data: str  # "AAAA-MM-DD"
+    nome_arquivo: str  # referência do arquivo salvo (nome local em data/obra/anexos/ ou ID do Drive)
+    legenda: str = ""
+    id: int = 0
