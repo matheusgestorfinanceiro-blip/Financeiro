@@ -50,7 +50,13 @@ Uma aba abre no navegador com uma única tela:
   identificados automaticamente em cada comprovante anexado), fotos da
   evolução (quando houver, em grade de até 6 por página), os anexos dos
   comprovantes (quando houver, em grade de até 4 por página, sem repetir a
-  mesma nota mesmo que tenha gerado vários itens) e considerações finais.
+  mesma nota mesmo que tenha gerado vários itens) e considerações finais —
+  incluindo, quando há orçamento previsto, a divisão de quanto do total gasto
+  é de responsabilidade do proprietário (até o valor previsto) e quanto,
+  além disso, é de responsabilidade do inquilino.
+
+Todo gasto lançado já é considerado pago e é descontado do orçamento
+previsto — não há mais controle de "pendente".
 
 ### Onde os dados ficam salvos
 

@@ -16,7 +16,7 @@ from src.obra.calculo import (
     fmt_data_br,
     percentual_orcamento,
     periodo_coberto,
-    resumo_pagamento,
+    resumo_proprietario_inquilino,
     total_geral,
 )
 from src.obra.graficos import (
@@ -33,11 +33,10 @@ DESTAQUE_BG = "#E4F5FA"
 
 COLUNAS_TABELA = [
     ("Data", 20),
-    ("Categoria", 34),
-    ("Descrição", 52),
-    ("Fornecedor", 30),
-    ("Valor", 22),
-    ("Status", 18),
+    ("Categoria", 36),
+    ("Descrição", 58),
+    ("Fornecedor", 34),
+    ("Valor", 28),
 ]
 
 
@@ -182,7 +181,6 @@ def _tabela_gastos(pdf: RelatorioObraPDF, df):
             str(gasto.descricao)[:36],
             str(gasto.fornecedor)[:22],
             fmt_moeda(float(gasto.valor)),
-            "Pago" if gasto.pago else "Pendente",
         ]
         for (_, largura), valor in zip(colunas, valores):
             pdf.cell(largura, 6, valor, fill=True, align="L")
@@ -234,14 +232,11 @@ def _pagina_resumo(pdf: RelatorioObraPDF, dados_obra, df_gastos, numero: int):
     pdf.titulo_pagina(f"{numero}. Resumo executivo")
 
     total = total_geral(df_gastos)
-    pagamento = resumo_pagamento(df_gastos)
     pct_orcamento = percentual_orcamento(total, dados_obra.orcamento_previsto)
 
     itens = [
         ("Total gasto ate o momento", fmt_moeda(total)),
         ("Numero de lancamentos", str(len(df_gastos))),
-        ("Ja pago", fmt_moeda(pagamento["pago"])),
-        ("Pendente de pagamento", fmt_moeda(pagamento["pendente"])),
     ]
     if dados_obra.orcamento_previsto:
         itens.insert(1, ("Orcamento previsto", fmt_moeda(dados_obra.orcamento_previsto)))
@@ -269,9 +264,6 @@ def _pagina_resumo(pdf: RelatorioObraPDF, dados_obra, df_gastos, numero: int):
                 f" Ainda ha {fmt_moeda(dados_obra.orcamento_previsto - total)} de saldo dentro do "
                 "orcamento previsto."
             )
-
-    if pagamento["pendente"] > 0:
-        texto += f" Ha {fmt_moeda(pagamento['pendente'])} em pagamentos ainda pendentes."
 
     _caixa_consideracoes(pdf, texto, titulo="Situacao geral")
 
@@ -438,6 +430,21 @@ def _pagina_consideracoes_finais(pdf: RelatorioObraPDF, dados_obra, df_gastos, n
     if dados_obra.status_obra == "Concluída":
         texto += " A obra foi concluida e este relatorio reflete o total definitivo investido na reforma."
     _caixa_consideracoes(pdf, texto, titulo="Andamento e finalizacao")
+
+    if dados_obra.orcamento_previsto:
+        divisao = resumo_proprietario_inquilino(total, dados_obra.orcamento_previsto)
+        texto_divisao = (
+            f"Do total gasto de {fmt_moeda(total)}, {fmt_moeda(divisao['proprietario'])} correspondem ao "
+            f"valor previsto e sao de responsabilidade do proprietario."
+        )
+        if divisao["inquilino"] > 0:
+            texto_divisao += (
+                f" A diferenca de {fmt_moeda(divisao['inquilino'])}, que ultrapassa o valor previsto, "
+                "corresponde ao gasto de responsabilidade do inquilino."
+            )
+        else:
+            texto_divisao += " O total gasto nao ultrapassou o valor previsto, nao havendo gasto adicional do inquilino."
+        _caixa_consideracoes(pdf, texto_divisao, titulo="Divisao entre proprietario e inquilino")
 
     if dados_obra.observacoes_gerais:
         _caixa_consideracoes(pdf, dados_obra.observacoes_gerais, titulo="Observacoes do responsavel pela obra")

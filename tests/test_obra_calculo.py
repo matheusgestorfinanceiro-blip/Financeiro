@@ -6,6 +6,7 @@ from src.obra.calculo import (
     percentual_orcamento,
     periodo_coberto,
     resumo_pagamento,
+    resumo_proprietario_inquilino,
     total_geral,
     total_por_categoria,
     total_por_mes,
@@ -53,6 +54,21 @@ def test_total_por_mes_acumulado(df_gastos):
 def test_resumo_pagamento(df_gastos):
     resumo = resumo_pagamento(df_gastos)
     assert resumo == {"pago": 1500.0, "pendente": 2000.0}
+
+
+def test_resumo_proprietario_inquilino_dentro_do_orcamento():
+    resumo = resumo_proprietario_inquilino(3500.0, 5000.0)
+    assert resumo == {"proprietario": 3500.0, "inquilino": 0.0}
+
+
+def test_resumo_proprietario_inquilino_acima_do_orcamento():
+    resumo = resumo_proprietario_inquilino(6000.0, 5000.0)
+    assert resumo == {"proprietario": 5000.0, "inquilino": 1000.0}
+
+
+def test_resumo_proprietario_inquilino_sem_orcamento_previsto():
+    resumo = resumo_proprietario_inquilino(3500.0, 0.0)
+    assert resumo == {"proprietario": 3500.0, "inquilino": 0.0}
 
 
 def test_percentual_orcamento():

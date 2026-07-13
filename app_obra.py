@@ -10,7 +10,7 @@ import streamlit as st
 
 from src.obra import repositorio
 from src.obra.backup import gerar_backup_zip
-from src.obra.calculo import fmt_data_br, percentual_orcamento, resumo_pagamento, total_geral
+from src.obra.calculo import fmt_data_br, percentual_orcamento, total_geral
 from src.obra.extracao import TextoNaoReconhecido, extrair_texto, interpretar_comprovante
 from src.obra.relatorio_pdf import gerar_pdf_obra
 from src.obra.schema import CATEGORIAS_GASTO, STATUS_OBRA, DadosObra, GastoObra
@@ -140,7 +140,7 @@ if "rascunho_gasto" in st.session_state:
                 },
             )
 
-            col1, col2, col3 = st.columns(3)
+            col1, col2 = st.columns(2)
             with col1:
                 data = st.date_input(
                     "Data",
@@ -152,8 +152,6 @@ if "rascunho_gasto" in st.session_state:
                 categoria = st.selectbox(
                     "Categoria (aplicada a todos os itens)", CATEGORIAS_GASTO, key="itens_categoria"
                 )
-            with col3:
-                pago = st.checkbox("Já foi pago", value=True, key="itens_pago")
             fornecedor = st.text_input(
                 "Fornecedor/prestador", value=(extraido.fornecedor or ""), key="itens_fornecedor"
             )
@@ -185,7 +183,7 @@ if "rascunho_gasto" in st.session_state:
                                 descricao=linha["Descrição"],
                                 valor=float(linha["Valor (R$)"]),
                                 fornecedor=fornecedor,
-                                pago=pago,
+                                pago=True,
                                 observacoes=observacoes,
                                 anexo=anexo_ref,
                             )
@@ -222,7 +220,7 @@ if "rascunho_gasto" in st.session_state:
                     key="unico_data",
                 )
 
-            col4, col5, col6 = st.columns(3)
+            col4, col5 = st.columns(2)
             with col4:
                 categoria = st.selectbox("Categoria", CATEGORIAS_GASTO, key="unico_categoria")
             with col5:
@@ -231,8 +229,6 @@ if "rascunho_gasto" in st.session_state:
                     value=(extraido.fornecedor if extraido and extraido.fornecedor else ""),
                     key="unico_fornecedor",
                 )
-            with col6:
-                pago = st.checkbox("Já foi pago", value=True, key="unico_pago")
 
             observacoes = st.text_input("Observação (opcional)", key="unico_observacoes")
 
@@ -255,7 +251,7 @@ if "rascunho_gasto" in st.session_state:
                             descricao=descricao,
                             valor=valor,
                             fornecedor=fornecedor,
-                            pago=pago,
+                            pago=True,
                             observacoes=observacoes,
                             anexo=anexo_ref,
                         )
@@ -277,12 +273,7 @@ with st.expander("Lançar sem comprovante (manual)"):
         with col3:
             data_m = st.date_input("Data", value=datetime.date.today(), format=FORMATO_DATA, key="m_data")
 
-        col4, col5 = st.columns(2)
-        with col4:
-            categoria_m = st.selectbox("Categoria", CATEGORIAS_GASTO, key="m_categoria")
-        with col5:
-            pago_m = st.checkbox("Já foi pago", value=True, key="m_pago")
-
+        categoria_m = st.selectbox("Categoria", CATEGORIAS_GASTO, key="m_categoria")
         fornecedor_m = st.text_input("Fornecedor/prestador (opcional)", key="m_fornecedor")
         observacoes_m = st.text_input("Observação (opcional)", key="m_observacoes")
 
@@ -298,7 +289,7 @@ with st.expander("Lançar sem comprovante (manual)"):
                         descricao=descricao_m,
                         valor=valor_m,
                         fornecedor=fornecedor_m,
-                        pago=pago_m,
+                        pago=True,
                         observacoes=observacoes_m,
                     )
                 )
@@ -314,13 +305,10 @@ if df_gastos.empty:
     st.info("Nenhum gasto lançado ainda.")
 else:
     total = total_geral(df_gastos)
-    pagamento = resumo_pagamento(df_gastos)
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2 = st.columns(2)
     col1.metric("Total gasto", fmt_moeda(total))
     col2.metric("Lançamentos", len(df_gastos))
-    col3.metric("Já pago", fmt_moeda(pagamento["pago"]))
-    col4.metric("Pendente", fmt_moeda(pagamento["pendente"]))
 
     if dados_obra.orcamento_previsto:
         pct = percentual_orcamento(total, dados_obra.orcamento_previsto)
@@ -332,9 +320,8 @@ else:
     df_exibicao = df_gastos.copy()
     df_exibicao["data"] = df_exibicao["data"].apply(fmt_data_br)
     df_exibicao["valor"] = df_exibicao["valor"].apply(fmt_moeda)
-    df_exibicao["pago"] = df_exibicao["pago"].map({True: "Pago", False: "Pendente"})
     st.dataframe(
-        df_exibicao[["data", "descricao", "categoria", "valor", "pago", "fornecedor"]],
+        df_exibicao[["data", "descricao", "categoria", "valor", "fornecedor"]],
         use_container_width=True,
         hide_index=True,
     )
@@ -362,7 +349,7 @@ else:
                     "Data", value=datetime.date.fromisoformat(gasto_atual["data"]), format=FORMATO_DATA, key="editar_data"
                 )
 
-            col4, col5, col6 = st.columns(3)
+            col4, col5 = st.columns(2)
             with col4:
                 categoria_e = st.selectbox(
                     "Categoria",
@@ -374,8 +361,6 @@ else:
                 fornecedor_e = st.text_input(
                     "Fornecedor/prestador", value=gasto_atual["fornecedor"], key="editar_fornecedor"
                 )
-            with col6:
-                pago_e = st.checkbox("Já foi pago", value=bool(gasto_atual["pago"]), key="editar_pago")
 
             observacoes_e = st.text_input("Observação (opcional)", value=gasto_atual["observacoes"], key="editar_observacoes")
 
@@ -392,7 +377,7 @@ else:
                             descricao=descricao_e,
                             valor=valor_e,
                             fornecedor=fornecedor_e,
-                            pago=pago_e,
+                            pago=True,
                             observacoes=observacoes_e,
                             anexo=gasto_atual["anexo"],
                         ),
