@@ -48,6 +48,14 @@ def percentual_orcamento(total_gasto: float, orcamento_previsto: float) -> float
     return total_gasto / orcamento_previsto
 
 
+def resumo_proprietario_inquilino(total_gasto: float, orcamento_previsto: float) -> dict:
+    """O proprietário cobre até o orçamento previsto; o que passar disso é
+    considerado gasto do inquilino."""
+    proprietario = min(total_gasto, orcamento_previsto) if orcamento_previsto else total_gasto
+    inquilino = max(0.0, total_gasto - orcamento_previsto) if orcamento_previsto else 0.0
+    return {"proprietario": proprietario, "inquilino": inquilino}
+
+
 def periodo_coberto(df: pd.DataFrame) -> tuple[str, str] | None:
     if df.empty:
         return None
