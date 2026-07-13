@@ -50,7 +50,13 @@ def _bloco_configuracao_arrecadacao(
         st.caption("Informe os tipos de unidade, a quantidade de cada tipo e o valor mensal por tipo.")
         tabela_inicial = pd.DataFrame({"tipo": ["Tipo 1"], "quantidade": [1], "valor": [0.0]})
         tabela = st.data_editor(
-            tabela_inicial, num_rows="dynamic", use_container_width=True, key=f"{key_prefix}_tabela_tipos"
+            tabela_inicial,
+            num_rows="dynamic",
+            use_container_width=True,
+            key=f"{key_prefix}_tabela_tipos",
+            column_config={
+                "valor": st.column_config.NumberColumn("Valor (R$/mês)", format="R$ %.2f"),
+            },
         )
         tipos = [
             TipoUnidade(nome=str(row["tipo"]), quantidade=int(row["quantidade"]), valor=float(row["valor"]))
@@ -82,10 +88,18 @@ def _bloco_configuracao_arrecadacao(
 
     n = max(numero_unidades_sugerido, 1)
     tabela_padrao = pd.DataFrame(
-        {"unidade": [f"Unidade {i + 1}" for i in range(n)], "fracao": [1 / n] * n, "proprietario": [""] * n}
+        {"unidade": [f"Unidade {i + 1}" for i in range(n)], "fracao": [100 / n] * n, "proprietario": [""] * n}
     )
     tabela_inicial = st.session_state.get(tabela_key, tabela_padrao)
-    tabela = st.data_editor(tabela_inicial, num_rows="dynamic", use_container_width=True, key=f"{key_prefix}_editor_fracoes")
+    tabela = st.data_editor(
+        tabela_inicial,
+        num_rows="dynamic",
+        use_container_width=True,
+        key=f"{key_prefix}_editor_fracoes",
+        column_config={
+            "fracao": st.column_config.NumberColumn("Fração (%)", format="%.3f%%"),
+        },
+    )
     numero_unidades = len(tabela)
     return ConfiguracaoArrecadacao(modo=modo, valor_total_mensal=valor_total_mensal, fracoes=tabela), numero_unidades
 
@@ -168,7 +182,7 @@ def renderizar_secao_formulario(dados_demonstrativo):
                 key="tabela_ajustes_manuais",
                 column_config={
                     "reajuste_manual_percentual": st.column_config.NumberColumn(
-                        "Reajuste manual (%)", help="Deixe em branco para usar o reajuste automático."
+                        "Reajuste manual (%)", help="Deixe em branco para usar o reajuste automático.", format="%.2f%%"
                     )
                 },
             )

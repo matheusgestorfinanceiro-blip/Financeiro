@@ -410,28 +410,42 @@ def _pagina_inadimplencia(pdf: RelatorioPDF, resultado):
     _caixa_consideracoes(pdf, texto)
 
 
-def _calcular_balanco(resultado) -> dict:
-    """Resumo consolidado (mesmo espirito da planilha manual "ANALISE" ja usada
-    pela Azul): receita total, despesas totais, inadimplencia e reajuste como
-    valores (nao so percentuais), e o saldo final - a unica informacao de
-    "fecha ou nao fecha a conta" que nao aparece em nenhuma outra pagina.
+FILL_RECEITA = "#2E5496"
+FILL_DESPESAS = "#FF0000"
+FILL_SUBGRUPO = "#A6A6A6"
+FILL_SUBTOTAL = "#D9D9D9"
+FILL_TOTAL_GERAL = "#808080"
+FILL_SALDO = "#D6D5D5"
+COR_TEXTO_DESPESA = "#FF0000"
+COR_TEXTO_REAJUSTE = "#002060"
 
-    Tudo aqui e anual, para bater com total_despesas_previsto (que ja e um
-    total de 12 meses): receita_rateio_necessaria, fundo_reserva_valor e
-    total_outras_arrecadacoes_previsto sao valores MENSAIS (mesma convencao
-    de ConfiguracaoArrecadacao, usada tambem em arrecadacao_prevista_mensal),
-    entao precisam ser multiplicados por 12 antes de somar com
-    total_outras_receitas_previsto, que ja vem anual do historico."""
-    receita_total = (
-        resultado.receita_rateio_necessaria
-        + resultado.fundo_reserva_valor
-        + resultado.total_outras_arrecadacoes_previsto
-    ) * 12 + resultado.total_outras_receitas_previsto
+
+def _calcular_balanco(resultado) -> dict:
+    """Resumo consolidado no mesmo espirito da planilha manual "ANALISE" ja
+    usada pela Azul (Receita / Despesas / Inadimplencia / Reajuste / Saldo
+    Final, tudo anual). `receita_itens` guarda cada linha de receita prevista
+    (nome, valor anual) para montar o "livro-razao" da pagina.
+
+    receita_rateio_necessaria, fundo_reserva_valor e cada item de
+    outras_arrecadacoes_detalhe sao valores MENSAIS (mesma convencao de
+    ConfiguracaoArrecadacao, usada tambem em arrecadacao_prevista_mensal) -
+    por isso sao multiplicados por 12 aqui. total_outras_receitas_previsto ja
+    vem anual do historico."""
+    receita_itens = [("Rateio mensal", resultado.receita_rateio_necessaria * 12)]
+    if resultado.possui_fundo_reserva:
+        receita_itens.append(("Fundo de reserva", resultado.fundo_reserva_valor * 12))
+    for nome, valor in resultado.outras_arrecadacoes_detalhe:
+        receita_itens.append((nome, valor * 12))
+    if resultado.total_outras_receitas_previsto:
+        receita_itens.append(("Outras receitas (historico, extraordinarias)", resultado.total_outras_receitas_previsto))
+
+    receita_total = sum(valor for _, valor in receita_itens)
     inadimplencia_valor = resultado.percentual_inadimplencia * receita_total
     reajuste_valor = resultado.percentual_reajuste_automatico * receita_total
     total_geral = resultado.total_despesas_previsto + inadimplencia_valor
     saldo_final = receita_total - total_geral + reajuste_valor
     return {
+        "receita_itens": receita_itens,
         "receita_total": receita_total,
         "inadimplencia_valor": inadimplencia_valor,
         "reajuste_valor": reajuste_valor,
@@ -440,55 +454,120 @@ def _calcular_balanco(resultado) -> dict:
     }
 
 
+def _linha_ledger(pdf: RelatorioPDF, larguras, celulas, fill=None, cor_texto=None, bold=False, align=None):
+    """Uma linha da "planilha" (categoria | anual | mensal | % do total),
+    com fundo e cor de texto opcionais - reaproveitada em todas as linhas da
+    pagina de balanco, do mesmo jeito que a planilha original usa faixas de
+    cor para separar cabecalhos, subtotais e totais."""
+    if align is None:
+        align = ["L"] + ["R"] * (len(celulas) - 1)
+    altura = 6
+
+    # Garante espaco antes de desenhar a linha inteira: como as 4 celulas sao
+    # posicionadas com set_xy usando um y fixo capturado uma unica vez, uma
+    # quebra de pagina automatica disparada no meio de uma celula (fpdf2)
+    # deixaria as celulas seguintes reusando esse y antigo (agora invalido na
+    # pagina nova) - cada uma delas dispararia sua propria quebra de novo,
+    # gerando dezenas de paginas em branco. Verificar o espaco ANTES evita
+    # que a quebra automatica dispare no meio de uma linha.
+    if pdf.get_y() + altura > pdf.h - pdf.b_margin:
+        pdf.add_page()
+
+    if fill:
+        pdf.set_fill_color(*_hex_para_rgb(fill))
+    pdf.set_text_color(*_hex_para_rgb(cor_texto)) if cor_texto else pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Helvetica", "B" if bold else "", 8.5)
+    x0 = pdf.l_margin
+    y0 = pdf.get_y()
+    x = x0
+    for texto, largura, alinhamento in zip(celulas, larguras, align):
+        pdf.set_xy(x, y0)
+        pdf.cell(largura, altura, texto, align=alinhamento, fill=bool(fill))
+        x += largura
+    pdf.set_xy(x0, y0 + altura)
+    pdf.set_text_color(0, 0, 0)
+
+
 def _pagina_balanco(pdf: RelatorioPDF, resultado):
+    """Reproduz a estrutura, cores e organizacao da planilha "ANALISE" que a
+    Azul ja usa manualmente para preparar previsoes (Receita / Despesas por
+    categoria / Inadimplencia / Reajuste / Saldo Final), preenchida com os
+    dados reais dos documentos anexados e da configuracao do formulario."""
     pdf.add_page()
     pdf.titulo_pagina("5. Balanco Orcamentario Consolidado")
 
+    largura_util = _largura_util(pdf)
+    larguras = [largura_util * 0.46, largura_util * 0.18, largura_util * 0.18, largura_util * 0.18]
+
     balanco = _calcular_balanco(resultado)
+    receita_total = balanco["receita_total"]
 
-    _cartoes_estatisticas(
-        pdf,
-        [
-            ("Receita total prevista (12 meses)", fmt_moeda(balanco["receita_total"])),
-            ("Despesas totais previstas (12 meses)", fmt_moeda(resultado.total_despesas_previsto)),
-            ("Saldo final previsto (12 meses)", fmt_moeda(balanco["saldo_final"])),
-        ],
-        colunas=3,
+    _linha_ledger(pdf, larguras, ["RECEITA", "Anual", "Mensal", "% do Total"], fill=FILL_RECEITA, cor_texto="#FFFFFF", bold=True)
+    for nome, valor_anual in balanco["receita_itens"]:
+        pct = valor_anual / receita_total if receita_total else 0.0
+        _linha_ledger(pdf, larguras, [nome, fmt_moeda(valor_anual), fmt_moeda(valor_anual / 12), fmt_pct(pct)])
+    _linha_ledger(
+        pdf, larguras,
+        ["TOTAL", fmt_moeda(receita_total), fmt_moeda(receita_total / 12), fmt_pct(1.0 if receita_total else 0.0)],
+        fill=FILL_SUBTOTAL, bold=True,
     )
 
     pdf.ln(2)
-    _cartoes_estatisticas(
-        pdf,
-        [
-            ("Inadimplencia (valor absorvido)", fmt_moeda(balanco["inadimplencia_valor"])),
-            ("Reajuste sugerido (valor)", fmt_moeda(balanco["reajuste_valor"])),
-            ("Total geral (despesas + inadimplencia)", fmt_moeda(balanco["total_geral"])),
-        ],
-        colunas=3,
+
+    despesas_total = resultado.total_despesas_previsto
+    despesas_por_categoria: dict[str, list] = {}
+    for linha_despesa in resultado.despesas_previstas:
+        despesas_por_categoria.setdefault(linha_despesa.categoria_pai, []).append(linha_despesa)
+
+    _linha_ledger(pdf, larguras, ["DESPESAS", "Anual", "Mensal", "% do Total"], fill=FILL_DESPESAS, cor_texto="#FFFFFF", bold=True)
+    for categoria_pai, linhas_despesa in despesas_por_categoria.items():
+        _linha_ledger(pdf, larguras, [categoria_pai.upper(), "", "", ""], fill=FILL_SUBGRUPO, bold=True)
+        subtotal = 0.0
+        for linha_despesa in linhas_despesa:
+            pct = linha_despesa.valor_previsto / despesas_total if despesas_total else 0.0
+            _linha_ledger(
+                pdf, larguras,
+                [linha_despesa.subcategoria, fmt_moeda(linha_despesa.valor_previsto),
+                 fmt_moeda(linha_despesa.valor_previsto / 12), fmt_pct(pct)],
+                cor_texto=COR_TEXTO_DESPESA,
+            )
+            subtotal += linha_despesa.valor_previsto
+        pct_subtotal = subtotal / despesas_total if despesas_total else 0.0
+        _linha_ledger(
+            pdf, larguras,
+            [f"Total de despesas {categoria_pai}", fmt_moeda(subtotal), fmt_moeda(subtotal / 12), fmt_pct(pct_subtotal)],
+            fill=FILL_SUBTOTAL, bold=True,
+        )
+    _linha_ledger(
+        pdf, larguras,
+        ["DESPESAS TOTAIS", fmt_moeda(despesas_total), fmt_moeda(despesas_total / 12), fmt_pct(1.0 if despesas_total else 0.0)],
+        fill=FILL_TOTAL_GERAL, cor_texto="#FFFFFF", bold=True,
     )
 
     pdf.ln(2)
-    if balanco["saldo_final"] >= 0:
-        texto = (
-            f"Somando receita total ({fmt_moeda(balanco['receita_total'])}), despesas totais "
-            f"({fmt_moeda(resultado.total_despesas_previsto)}), inadimplencia esperada "
-            f"({fmt_pct(resultado.percentual_inadimplencia)}, ou {fmt_moeda(balanco['inadimplencia_valor'])}) "
-            f"e reajuste sugerido ({fmt_pct(resultado.percentual_reajuste_automatico)}, ou "
-            f"{fmt_moeda(balanco['reajuste_valor'])}), a previsao fecha em superavit de "
-            f"{fmt_moeda(balanco['saldo_final'])}. Esse valor pode reforcar o fundo de reserva ou reduzir o "
-            "reajuste dos proximos periodos."
-        )
-    else:
-        texto = (
-            f"Somando receita total ({fmt_moeda(balanco['receita_total'])}), despesas totais "
-            f"({fmt_moeda(resultado.total_despesas_previsto)}), inadimplencia esperada "
-            f"({fmt_pct(resultado.percentual_inadimplencia)}, ou {fmt_moeda(balanco['inadimplencia_valor'])}) "
-            f"e reajuste sugerido ({fmt_pct(resultado.percentual_reajuste_automatico)}, ou "
-            f"{fmt_moeda(balanco['reajuste_valor'])}), a previsao fecha em deficit de "
-            f"{fmt_moeda(abs(balanco['saldo_final']))}. Vale revisar as despesas extraordinarias (pagina "
-            "anterior) ou considerar um reajuste maior para equilibrar as contas."
-        )
-    _caixa_consideracoes(pdf, texto, titulo="Leitura do saldo final")
+
+    _linha_ledger(
+        pdf, larguras,
+        [f"Inadimplencia ({fmt_pct(resultado.percentual_inadimplencia)})", fmt_moeda(balanco["inadimplencia_valor"]),
+         fmt_moeda(balanco["inadimplencia_valor"] / 12), ""],
+        fill=FILL_SUBTOTAL, cor_texto=COR_TEXTO_DESPESA, bold=True,
+    )
+    _linha_ledger(
+        pdf, larguras,
+        [f"Sugestao de reajuste ({fmt_pct(resultado.percentual_reajuste_automatico)})", fmt_moeda(balanco["reajuste_valor"]),
+         fmt_moeda(balanco["reajuste_valor"] / 12), ""],
+        fill=FILL_SUBTOTAL, cor_texto=COR_TEXTO_REAJUSTE, bold=True,
+    )
+    _linha_ledger(
+        pdf, larguras,
+        ["TOTAL GERAL (Despesas + Inadimplencia)", fmt_moeda(balanco["total_geral"]), fmt_moeda(balanco["total_geral"] / 12), ""],
+        fill=FILL_TOTAL_GERAL, cor_texto="#FFFFFF", bold=True,
+    )
+    _linha_ledger(
+        pdf, larguras,
+        ["SALDO FINAL (Receita - Total Geral + Reajuste)", fmt_moeda(balanco["saldo_final"]), fmt_moeda(balanco["saldo_final"] / 12), ""],
+        fill=FILL_SALDO, bold=True,
+    )
 
 
 def _pagina_reajuste(pdf: RelatorioPDF, resultado):
