@@ -1,7 +1,7 @@
 """Monta o relatório final em PDF da obra: capa, resumo executivo, gastos por
 categoria, evolução no tempo, detalhamento de todos os lançamentos, fotos da
-evolução da obra, anexos dos comprovantes (quando houver) e considerações
-finais sobre o andamento/finalização da obra."""
+evolução da obra, notas fiscais e comprovantes (quando houver) e
+considerações finais sobre o andamento/finalização da obra."""
 import datetime
 import io
 import os
@@ -296,11 +296,7 @@ def _pagina_detalhamento(pdf: RelatorioObraPDF, df_gastos, numero: int):
     pdf.titulo_pagina(f"{numero}. Detalhamento de todos os lancamentos")
     pdf.set_font("Helvetica", size=9)
     pdf.set_text_color(*_hex_para_rgb(GRAY))
-    pdf.multi_cell(
-        _largura_util(pdf),
-        5,
-        "Lista de todos os itens comprados, incluindo os identificados automaticamente nos comprovantes anexados.",
-    )
+    pdf.multi_cell(_largura_util(pdf), 5, "Lista de todos os itens comprados nesta obra.")
     pdf.set_text_color(0, 0, 0)
     pdf.ln(2)
     _tabela_gastos(pdf, df_gastos.sort_values("data"))
@@ -372,34 +368,37 @@ def _pagina_fotos(pdf: RelatorioObraPDF, fotos_df, obter_bytes_foto, numero: int
         pdf.set_xy(pdf.l_margin, y_linha + altura_linha)
 
 
-def _pagina_anexos(pdf: RelatorioObraPDF, df_gastos, obter_bytes_anexo, numero: int):
+def _pagina_notas_fiscais(pdf: RelatorioObraPDF, notas_df, obter_bytes_nota_fiscal, numero: int):
     largura_util = _largura_util(pdf)
-    colunas = 2  # ate 2 linhas x 2 colunas = 4 comprovantes por pagina
+    colunas = 2  # ate 2 linhas x 2 colunas = 4 notas fiscais por pagina
     gap_col, gap_linha = 8, 8
-    altura_max_img = 105
+    altura_max_img = 95
+    altura_legenda = 9
     largura_celula = (largura_util - gap_col * (colunas - 1)) / colunas
-    altura_linha = altura_max_img + gap_linha
+    altura_linha = altura_max_img + altura_legenda + gap_linha
 
     pdf.add_page()
-    pdf.titulo_pagina(f"{numero}. Anexos dos comprovantes")
+    pdf.titulo_pagina(f"{numero}. Notas fiscais e comprovantes")
     pdf.set_font("Helvetica", size=9)
     pdf.set_text_color(*_hex_para_rgb(GRAY))
-    pdf.multi_cell(largura_util, 5, "Comprovantes anexados aos lancamentos desta obra (o detalhamento dos itens de cada nota esta na pagina de lancamentos).")
+    pdf.multi_cell(largura_util, 5, "Notas fiscais e comprovantes anexados a esta obra.")
     pdf.set_text_color(0, 0, 0)
     pdf.ln(2)
 
-    referencias = list(df_gastos[df_gastos["anexo"].astype(str).str.strip() != ""]["anexo"].drop_duplicates())
-    for i in range(0, len(referencias), colunas):
-        linha_referencias = referencias[i : i + colunas]
+    notas = list(notas_df.itertuples())
+    for i in range(0, len(notas), colunas):
+        linha_notas = notas[i : i + colunas]
 
         if pdf.get_y() + altura_linha > pdf.h - pdf.b_margin:
             pdf.add_page()
         y_linha = pdf.get_y()
 
-        for col, referencia in enumerate(linha_referencias):
+        for col, nota in enumerate(linha_notas):
             x_celula = pdf.l_margin + col * (largura_celula + gap_col)
             try:
-                dados_imagem = _preparar_imagem_para_exibir(referencia, obter_bytes_anexo(referencia))
+                dados_imagem = _preparar_imagem_para_exibir(
+                    nota.nome_arquivo, obter_bytes_nota_fiscal(nota.nome_arquivo)
+                )
                 with Image.open(io.BytesIO(dados_imagem)) as imagem:
                     largura_px, altura_px = imagem.size
                 w, h = _dimensionar_para_celula(largura_px, altura_px, largura_celula, altura_max_img)
@@ -407,13 +406,20 @@ def _pagina_anexos(pdf: RelatorioObraPDF, df_gastos, obter_bytes_anexo, numero: 
                 pdf.set_xy(x_celula, y_linha + altura_max_img / 2 - 4)
                 pdf.set_font("Helvetica", "I", 9)
                 pdf.set_text_color(*_hex_para_rgb(GRAY))
-                pdf.multi_cell(largura_celula, 5, "(nao foi possivel carregar o anexo)", align="C")
+                pdf.multi_cell(largura_celula, 5, "(nao foi possivel carregar o arquivo)", align="C")
                 pdf.set_text_color(0, 0, 0)
                 continue
 
             x_img = x_celula + (largura_celula - w) / 2
             y_img = y_linha + (altura_max_img - h) / 2
             pdf.image(io.BytesIO(dados_imagem), x=x_img, y=y_img, w=w, h=h)
+
+            legenda = fmt_data_br(nota.data) + (f" - {nota.legenda}" if nota.legenda else "")
+            pdf.set_xy(x_celula, y_linha + altura_max_img + 1)
+            pdf.set_font("Helvetica", "B", 8)
+            pdf.set_text_color(*_hex_para_rgb(NAVY))
+            pdf.multi_cell(largura_celula, 4, legenda, align="C")
+            pdf.set_text_color(0, 0, 0)
 
         pdf.set_xy(pdf.l_margin, y_linha + altura_linha)
 
@@ -456,24 +462,21 @@ def gerar_pdf_obra(
     fotos_df=None,
     obter_bytes_foto=None,
     tipo_relatorio: str = "parcial",
-    obter_bytes_anexo=None,
+    notas_fiscais_df=None,
+    obter_bytes_nota_fiscal=None,
 ) -> bytes:
     """Gera o relatorio em PDF (capa, resumo, gastos por categoria, evolucao no
-    tempo, detalhamento completo, fotos da evolucao da obra, anexos dos
+    tempo, detalhamento completo, fotos da evolucao da obra, notas fiscais e
     comprovantes quando houver, e consideracoes finais) e retorna os bytes
     prontos para download.
 
-    `obter_bytes_foto`/`obter_bytes_anexo` são funções que recebem a
+    `obter_bytes_foto`/`obter_bytes_nota_fiscal` são funções que recebem a
     referência salva (nome de arquivo local ou ID do Drive) e devolvem os
     bytes do arquivo - o relatório não precisa saber onde cada arquivo está
     guardado. tipo_relatorio "parcial" pode ser gerado com ou sem fotos. Ja o
     "final" exige ao menos uma foto de evolucao cadastrada."""
     tem_fotos = fotos_df is not None and not fotos_df.empty
-    tem_anexos = (
-        obter_bytes_anexo is not None
-        and "anexo" in df_gastos.columns
-        and (df_gastos["anexo"].astype(str).str.strip() != "").any()
-    )
+    tem_notas_fiscais = notas_fiscais_df is not None and not notas_fiscais_df.empty
 
     if tipo_relatorio == "final" and not tem_fotos:
         raise ValueError("Inclua ao menos uma foto de evolucao da obra para gerar o relatorio final.")
@@ -494,8 +497,8 @@ def gerar_pdf_obra(
         if tem_fotos:
             _pagina_fotos(pdf, fotos_df, obter_bytes_foto, numero)
             numero += 1
-        if tem_anexos:
-            _pagina_anexos(pdf, df_gastos, obter_bytes_anexo, numero)
+        if tem_notas_fiscais:
+            _pagina_notas_fiscais(pdf, notas_fiscais_df, obter_bytes_nota_fiscal, numero)
             numero += 1
         _pagina_consideracoes_finais(pdf, dados_obra, df_gastos, numero)
         return bytes(pdf.output())

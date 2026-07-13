@@ -22,23 +22,16 @@ Uma aba abre no navegador com uma única tela:
 
 - Preencha uma vez os **dados da obra** (nome, proprietário, endereço, início,
   orçamento previsto e status).
-- Para lançar um gasto, **envie o comprovante** (PDF, foto ou imagem da nota):
-  o sistema lê o arquivo sozinho (texto do PDF ou OCR da foto) e tenta
-  identificar a data, o fornecedor e **cada item/produto da nota** (com sua
-  própria descrição e valor) automaticamente. Quando a nota tem vários itens,
-  aparece uma lista para conferir, desmarcar o que não quiser lançar e
-  ajustar antes de confirmar — todos os itens marcados são lançados de uma
-  vez, com a mesma data/categoria/fornecedor. O sistema avisa quais campos
-  não conseguiu identificar automaticamente, para você completar — e sempre
-  pede a sua confirmação antes de lançar qualquer coisa. Quando não há
-  comprovante (ex: pagamento em dinheiro sem nota), ainda é possível lançar
-  manualmente em "Lançar sem comprovante". O comprovante enviado (a nota, o
-  recibo, a foto) fica anexado ao(s) lançamento(s) gerados por ele.
+- Para lançar um gasto, preencha o formulário **Lançar gasto** manualmente
+  (o que foi gasto, valor, data, categoria e fornecedor).
 - Na lista de **gastos lançados**, é possível **editar** ou remover qualquer
   lançamento já feito (basta selecioná-lo e ajustar os campos).
 - Envie **fotos da evolução da obra** (com a data em que foram tiradas e uma
   legenda opcional) — elas entram no relatório em PDF organizadas na ordem
   cronológica de execução.
+- Envie as **notas fiscais e comprovantes** (PDF ou foto) numa seção própria,
+  independente dos lançamentos de gasto — cada arquivo leva apenas uma data e
+  uma legenda opcional.
 - Quando quiser, clique em **Gerar relatório em PDF**, escolhendo o tipo:
   - **Parcial** (andamento): pode ser gerado a qualquer momento, com ou sem
     fotos.
@@ -46,14 +39,12 @@ Uma aba abre no navegador com uma única tela:
     cadastrada.
   
   O relatório traz capa, resumo executivo, gastos por categoria, evolução dos
-  gastos no tempo, o detalhamento de todos os itens comprados (com os
-  identificados automaticamente em cada comprovante anexado), fotos da
-  evolução (quando houver, em grade de até 6 por página), os anexos dos
-  comprovantes (quando houver, em grade de até 4 por página, sem repetir a
-  mesma nota mesmo que tenha gerado vários itens) e considerações finais —
-  incluindo, quando há orçamento previsto, a divisão de quanto do total gasto
-  é de responsabilidade do proprietário (até o valor previsto) e quanto,
-  além disso, é de responsabilidade do inquilino.
+  gastos no tempo, o detalhamento de todos os itens comprados, fotos da
+  evolução (quando houver, em grade de até 6 por página), as notas
+  fiscais/comprovantes (quando houver, em grade de até 4 por página) e
+  considerações finais — incluindo, quando há orçamento previsto, a divisão
+  de quanto do total gasto é de responsabilidade do proprietário (até o
+  valor previsto) e quanto, além disso, é de responsabilidade do inquilino.
 
 Todo gasto lançado já é considerado pago e é descontado do orçamento
 previsto — não há mais controle de "pendente".
@@ -72,18 +63,18 @@ app de Finanças Pessoais. Configurando uma vez, toda vez que você abrir o
 app ele já aparece atualizado com o último lançamento, mesmo que o servidor
 tenha reiniciado.
 
-**Fotos e anexos (comprovantes) também podem ser permanentes**, guardados
-num **Google Drive** — sem essa configuração extra, eles continuam sendo
-salvos localmente e são apagados quando o app publicado reinicia.
+**Fotos e notas fiscais/comprovantes também podem ser permanentes**,
+guardados num **Google Drive** — sem essa configuração extra, eles continuam
+sendo salvos localmente e são apagados quando o app publicado reinicia.
 
 ⚠️ **Atenção se sua conta do Google for gratuita/pessoal (Gmail comum, não
 Google Workspace)**: o Google não permite que uma conta de serviço envie
 arquivos para o Drive nessas contas (erro `403 Forbidden` / sem cota de
 armazenamento). Isso só funciona em contas Google Workspace (com "Unidades
 Compartilhadas"). Se você não tiver Workspace, **não configure o Drive** —
-deixe só a Planilha configurada. Nesse caso, fotos e anexos continuam
-salvos localmente, e o app mostra um botão de **"Backup de fotos e anexos"**
-para você baixar tudo periodicamente num arquivo .zip.
+deixe só a Planilha configurada. Nesse caso, fotos e notas fiscais continuam
+salvas localmente, e o app mostra um botão de **"Backup de fotos e notas
+fiscais"** para você baixar tudo periodicamente num arquivo .zip.
 
 #### Configurar a Planilha do Google (recomendado para o app publicado)
 
@@ -92,12 +83,12 @@ completo na seção abaixo) — a única diferença é que, no passo de colar as
 credenciais nos **Secrets** do app da Obra (que é publicado separadamente,
 com seu próprio endereço), você pode usar a **mesma planilha e as mesmas
 credenciais** já criadas para as Finanças Pessoais (o sistema cria
-automaticamente as abas `gastos_obra`, `dados_obra` e `fotos_obra`, sem
-conflito com a aba `lancamentos` das Finanças), ou criar uma planilha nova
-só para a Obra — como preferir. Depois de colar os Secrets no app da Obra,
-salve e reinicie (**Manage app → Reboot**).
+automaticamente as abas `gastos_obra`, `dados_obra`, `fotos_obra` e
+`notas_fiscais_obra`, sem conflito com a aba `lancamentos` das Finanças), ou
+criar uma planilha nova só para a Obra — como preferir. Depois de colar os
+Secrets no app da Obra, salve e reinicie (**Manage app → Reboot**).
 
-#### Configurar o Google Drive para fotos e anexos (opcional, mas recomendado)
+#### Configurar o Google Drive para fotos e notas fiscais (opcional, mas recomendado)
 
 Reaproveita a mesma credencial de conta de serviço já criada acima — só
 precisa de mais 2 passos:
@@ -120,10 +111,9 @@ precisa de mais 2 passos:
    type = "service_account"
    ...
    ```
-4. Salve e reinicie (**Manage app → Reboot**). A partir daí, toda foto e todo
-   comprovante anexado a um lançamento ficam salvos na pasta do Drive e
-   nunca mais somem — e continuam aparecendo no relatório em PDF
-   normalmente.
+4. Salve e reinicie (**Manage app → Reboot**). A partir daí, toda foto e toda
+   nota fiscal ficam salvas na pasta do Drive e nunca mais somem — e
+   continuam aparecendo no relatório em PDF normalmente.
 
 Se o envio para o Drive falhar por qualquer motivo (ex: conta sem Workspace),
 o app não trava: o arquivo é salvo localmente automaticamente, como se o
@@ -132,31 +122,24 @@ Drive não estivesse configurado.
 Rodando localmente (`streamlit run`), sem configurar nada disso, o app
 continua funcionando normalmente com os arquivos locais.
 
-**Publicação (Streamlit Community Cloud):** além do `requirements.txt`, a
-leitura de comprovantes por foto/imagem depende do pacote de sistema
-`tesseract-ocr`, listado em `packages.txt` na raiz do repositório — a
-Streamlit Cloud instala isso automaticamente ao publicar, sem ação manual.
-
 ### Estrutura
 
 - `app_obra.py` — tela principal.
-- `src/obra/schema.py` — estrutura de um gasto, foto e categorias.
+- `src/obra/schema.py` — estrutura de um gasto, foto, nota fiscal e categorias.
 - `src/obra/armazenamento.py` — persistência local em CSV/JSON (gastos,
-  dados da obra e metadados de fotos), e leitura/escrita de arquivos locais
-  (fotos e anexos).
+  dados da obra e metadados de fotos/notas fiscais), e leitura/escrita de
+  arquivos locais.
 - `src/obra/armazenamento_sheets.py` — persistência dos gastos, dos dados
-  da obra e dos metadados das fotos numa Planilha do Google.
+  da obra e dos metadados das fotos/notas fiscais numa Planilha do Google.
 - `src/obra/armazenamento_drive.py` — envio/leitura/remoção de fotos e
-  anexos (comprovantes) num Google Drive.
+  notas fiscais num Google Drive.
 - `src/obra/repositorio.py` — escolhe automaticamente entre planilha/local
   (dados) e Drive/local (arquivos binários).
-- `src/obra/extracao.py` — leitura do comprovante (PDF/OCR) e identificação
-  automática de data, valor, fornecedor e itens da nota.
 - `src/obra/calculo.py` — totais, agrupamentos e formatação de datas.
 - `src/obra/graficos.py` — gráficos matplotlib.
 - `src/obra/relatorio_pdf.py` — geração do relatório final em PDF.
-- `src/obra/backup.py` — gera um .zip com todas as fotos e anexos (usado
-  quando eles não estão no Drive, como cópia de segurança manual).
+- `src/obra/backup.py` — gera um .zip com todas as fotos e notas fiscais
+  (usado quando eles não estão no Drive, como cópia de segurança manual).
 
 ## Sistema de Finanças Pessoais (uso do casal)
 

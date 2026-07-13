@@ -1,16 +1,19 @@
 from src.obra.armazenamento_sheets import (
     adicionar_foto_registro,
     adicionar_gasto,
+    adicionar_nota_fiscal_registro,
     atualizar_gasto,
     carregar_dados_obra,
     carregar_fotos,
     carregar_gastos,
+    carregar_notas_fiscais,
     disponivel,
     remover_foto_registro,
     remover_gasto,
+    remover_nota_fiscal_registro,
     salvar_dados_obra,
 )
-from src.obra.schema import DadosObra, FotoObra, GastoObra
+from src.obra.schema import DadosObra, FotoObra, GastoObra, NotaFiscalObra
 
 
 class FakeConexao:
@@ -130,6 +133,37 @@ def test_adicionar_e_remover_registro_de_foto():
     df = carregar_fotos(conexao)
     assert len(df) == 1
     assert df.iloc[0]["legenda"] == "Fundação"
+
+
+def test_carregar_notas_fiscais_aba_inexistente_cria_vazia_automaticamente():
+    conexao = FakeConexao()
+    df = carregar_notas_fiscais(conexao)
+    assert df.empty
+    assert "notas_fiscais_obra" in conexao.abas
+
+
+def test_adicionar_e_remover_registro_de_nota_fiscal():
+    conexao = FakeConexao()
+    nota1 = adicionar_nota_fiscal_registro(
+        conexao, NotaFiscalObra(data="2026-02-01", nome_arquivo="ref1.pdf", legenda="Nota do cimento")
+    )
+    nota2 = adicionar_nota_fiscal_registro(
+        conexao, NotaFiscalObra(data="2026-01-05", nome_arquivo="ref2.pdf", legenda="Nota da areia")
+    )
+
+    assert nota1.id == 1
+    assert nota2.id == 2
+
+    df = carregar_notas_fiscais(conexao)
+    assert len(df) == 2
+    # ordenadas por data, não por ordem de inserção
+    assert df.iloc[0]["legenda"] == "Nota da areia"
+    assert df.iloc[1]["legenda"] == "Nota do cimento"
+
+    remover_nota_fiscal_registro(conexao, nota2.id)
+    df = carregar_notas_fiscais(conexao)
+    assert len(df) == 1
+    assert df.iloc[0]["legenda"] == "Nota do cimento"
 
 
 def test_dados_obra_ida_e_volta():

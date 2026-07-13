@@ -12,16 +12,18 @@ from dataclasses import asdict
 import pandas as pd
 import streamlit as st
 
-from src.obra.schema import DadosObra, FotoObra, GastoObra
+from src.obra.schema import DadosObra, FotoObra, GastoObra, NotaFiscalObra
 
 NOME_ABA_GASTOS = "gastos_obra"
 NOME_ABA_DADOS_OBRA = "dados_obra"
 NOME_ABA_FOTOS = "fotos_obra"
+NOME_ABA_NOTAS_FISCAIS = "notas_fiscais_obra"
 
 COLUNAS_GASTOS = [
     "id", "data", "categoria", "descricao", "fornecedor", "valor", "pago", "observacoes", "anexo",
 ]
 COLUNAS_FOTOS = ["id", "data", "nome_arquivo", "legenda"]
+COLUNAS_NOTAS_FISCAIS = ["id", "data", "nome_arquivo", "legenda"]
 CAMPOS_DADOS_OBRA = [
     "nome_obra",
     "proprietario",
@@ -201,3 +203,53 @@ def remover_foto_registro(conexao, id_foto: int) -> None:
     df = _ler_fotos(conexao)
     df = df[df["id"] != int(id_foto)]
     _escrever_fotos(conexao, df)
+
+
+def _notas_fiscais_vazio() -> pd.DataFrame:
+    return pd.DataFrame(columns=COLUNAS_NOTAS_FISCAIS)
+
+
+def _ler_notas_fiscais(conexao) -> pd.DataFrame:
+    try:
+        df = conexao.read(worksheet=NOME_ABA_NOTAS_FISCAIS, ttl=0)
+    except Exception:
+        vazio = _notas_fiscais_vazio()
+        try:
+            conexao.create(worksheet=NOME_ABA_NOTAS_FISCAIS, data=vazio)
+        except Exception:
+            pass
+        return vazio
+
+    df = df.dropna(how="all")
+    if df.empty:
+        return _notas_fiscais_vazio()
+
+    df["data"] = pd.to_datetime(df["data"]).dt.date.astype(str)
+    df["id"] = df["id"].astype(float).astype(int)
+    df["legenda"] = df["legenda"].fillna("")
+    return df.sort_values(["data", "id"]).reset_index(drop=True)
+
+
+def _escrever_notas_fiscais(conexao, df: pd.DataFrame) -> None:
+    conexao.update(worksheet=NOME_ABA_NOTAS_FISCAIS, data=df[COLUNAS_NOTAS_FISCAIS])
+
+
+def carregar_notas_fiscais(conexao) -> pd.DataFrame:
+    return _ler_notas_fiscais(conexao)
+
+
+def adicionar_nota_fiscal_registro(conexao, nota: NotaFiscalObra) -> NotaFiscalObra:
+    """Registra os metadados de uma nota fiscal cujo arquivo já foi salvo em
+    algum lugar permanente (Drive) - veja `src/obra/repositorio.py`."""
+    df = _ler_notas_fiscais(conexao)
+    nota.id = int(df["id"].max()) + 1 if not df.empty else 1
+    nova_linha = pd.DataFrame([asdict(nota)])
+    df = pd.concat([df, nova_linha], ignore_index=True)
+    _escrever_notas_fiscais(conexao, df)
+    return nota
+
+
+def remover_nota_fiscal_registro(conexao, id_nota: int) -> None:
+    df = _ler_notas_fiscais(conexao)
+    df = df[df["id"] != int(id_nota)]
+    _escrever_notas_fiscais(conexao, df)

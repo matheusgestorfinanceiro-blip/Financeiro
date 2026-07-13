@@ -1,20 +1,25 @@
 from src.obra.armazenamento import (
     adicionar_foto,
     adicionar_gasto,
+    adicionar_nota_fiscal,
     atualizar_gasto,
     carregar_dados_obra,
     carregar_fotos,
     carregar_gastos,
+    carregar_notas_fiscais,
     desregistrar_foto,
+    desregistrar_nota_fiscal,
     ler_arquivo_local,
     registrar_foto,
+    registrar_nota_fiscal,
     remover_arquivo_local,
     remover_foto,
     remover_gasto,
+    remover_nota_fiscal,
     salvar_arquivo_local,
     salvar_dados_obra,
 )
-from src.obra.schema import DadosObra, FotoObra, GastoObra
+from src.obra.schema import DadosObra, FotoObra, GastoObra, NotaFiscalObra
 
 
 def test_carregar_gastos_sem_arquivo_retorna_dataframe_vazio(tmp_path):
@@ -200,3 +205,50 @@ def test_registrar_e_desregistrar_foto_sem_mexer_no_arquivo(tmp_path):
 
     desregistrar_foto(foto.id, caminho_csv)
     assert carregar_fotos(caminho_csv).empty
+
+
+def test_adicionar_nota_fiscal_salva_arquivo_e_registro(tmp_path):
+    caminho_csv = tmp_path / "notas_fiscais.csv"
+    dir_notas = tmp_path / "anexos"
+
+    nota1 = adicionar_nota_fiscal(b"conteudo-fake-1", "nota1.pdf", "2026-02-01", "Compra de cimento", caminho_csv, dir_notas)
+    nota2 = adicionar_nota_fiscal(b"conteudo-fake-2", "nota2.jpg", "2026-01-05", "Compra de tijolos", caminho_csv, dir_notas)
+
+    assert nota1.id == 1
+    assert nota2.id == 2
+    assert (dir_notas / nota1.nome_arquivo).read_bytes() == b"conteudo-fake-1"
+    assert (dir_notas / nota1.nome_arquivo).suffix == ".pdf"
+
+    df = carregar_notas_fiscais(caminho_csv)
+    assert len(df) == 2
+    # ordenadas por data, não por ordem de inserção
+    assert df.iloc[0]["legenda"] == "Compra de tijolos"
+    assert df.iloc[1]["legenda"] == "Compra de cimento"
+
+
+def test_remover_nota_fiscal_apaga_arquivo_e_registro(tmp_path):
+    caminho_csv = tmp_path / "notas_fiscais.csv"
+    dir_notas = tmp_path / "anexos"
+    nota = adicionar_nota_fiscal(b"conteudo", "nota.pdf", "2026-02-01", "", caminho_csv, dir_notas)
+    caminho_arquivo = dir_notas / nota.nome_arquivo
+    assert caminho_arquivo.exists()
+
+    remover_nota_fiscal(nota.id, caminho_csv, dir_notas)
+
+    assert not caminho_arquivo.exists()
+    assert carregar_notas_fiscais(caminho_csv).empty
+
+
+def test_registrar_e_desregistrar_nota_fiscal_sem_mexer_no_arquivo(tmp_path):
+    caminho_csv = tmp_path / "notas_fiscais.csv"
+    nota = registrar_nota_fiscal(
+        NotaFiscalObra(data="2026-01-05", nome_arquivo="referencia-externa", legenda="Nota da loja"), caminho_csv
+    )
+
+    assert nota.id == 1
+    df = carregar_notas_fiscais(caminho_csv)
+    assert len(df) == 1
+    assert df.iloc[0]["nome_arquivo"] == "referencia-externa"
+
+    desregistrar_nota_fiscal(nota.id, caminho_csv)
+    assert carregar_notas_fiscais(caminho_csv).empty

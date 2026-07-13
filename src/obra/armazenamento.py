@@ -9,16 +9,18 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.obra.schema import DadosObra, FotoObra, GastoObra
+from src.obra.schema import DadosObra, FotoObra, GastoObra, NotaFiscalObra
 
 DIR_OBRA = Path(__file__).resolve().parents[2] / "data" / "obra"
 CAMINHO_GASTOS = DIR_OBRA / "gastos.csv"
 CAMINHO_DADOS_OBRA = DIR_OBRA / "dados_obra.json"
 CAMINHO_FOTOS = DIR_OBRA / "fotos.csv"
+CAMINHO_NOTAS_FISCAIS = DIR_OBRA / "notas_fiscais.csv"
 DIR_FOTOS = DIR_OBRA / "fotos"
 DIR_ANEXOS = DIR_OBRA / "anexos"
 
 COLUNAS_FOTOS = ["id", "data", "nome_arquivo", "legenda"]
+COLUNAS_NOTAS_FISCAIS = ["id", "data", "nome_arquivo", "legenda"]
 
 COLUNAS_GASTOS = [
     "id",
@@ -168,3 +170,61 @@ def remover_foto(id_foto: int, caminho_csv: Path = CAMINHO_FOTOS, dir_fotos: Pat
     if not linha.empty:
         remover_arquivo_local(linha.iloc[0]["nome_arquivo"], dir_fotos)
     desregistrar_foto(id_foto, caminho_csv)
+
+
+def carregar_notas_fiscais(caminho: Path = CAMINHO_NOTAS_FISCAIS) -> pd.DataFrame:
+    """Retorna as notas fiscais/comprovantes cadastrados, ordenados por data."""
+    caminho = Path(caminho)
+    if not caminho.exists():
+        return pd.DataFrame(columns=COLUNAS_NOTAS_FISCAIS)
+    df = pd.read_csv(caminho, dtype={"legenda": str, "nome_arquivo": str})
+    df["data"] = pd.to_datetime(df["data"]).dt.date.astype(str)
+    df["legenda"] = df["legenda"].fillna("")
+    return df.sort_values(["data", "id"]).reset_index(drop=True)
+
+
+def salvar_notas_fiscais(df: pd.DataFrame, caminho: Path = CAMINHO_NOTAS_FISCAIS) -> None:
+    caminho = Path(caminho)
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(caminho, index=False, columns=COLUNAS_NOTAS_FISCAIS)
+
+
+def registrar_nota_fiscal(nota: NotaFiscalObra, caminho_csv: Path = CAMINHO_NOTAS_FISCAIS) -> NotaFiscalObra:
+    """Grava os metadados de uma nota fiscal cujo arquivo já foi salvo em
+    algum lugar (local ou Drive) - não mexe em nenhum arquivo."""
+    df = carregar_notas_fiscais(caminho_csv)
+    nota.id = int(df["id"].max()) + 1 if not df.empty else 1
+    nova_linha = pd.DataFrame([asdict(nota)])
+    df = pd.concat([df, nova_linha], ignore_index=True)
+    salvar_notas_fiscais(df, caminho_csv)
+    return nota
+
+
+def desregistrar_nota_fiscal(id_nota: int, caminho_csv: Path = CAMINHO_NOTAS_FISCAIS) -> None:
+    """Remove os metadados de uma nota fiscal - não mexe em nenhum arquivo."""
+    df = carregar_notas_fiscais(caminho_csv)
+    df = df[df["id"] != id_nota]
+    salvar_notas_fiscais(df, caminho_csv)
+
+
+def adicionar_nota_fiscal(
+    conteudo: bytes,
+    nome_original: str,
+    data: str,
+    legenda: str = "",
+    caminho_csv: Path = CAMINHO_NOTAS_FISCAIS,
+    dir_notas_fiscais: Path = DIR_ANEXOS,
+) -> NotaFiscalObra:
+    """Salva o arquivo da nota fiscal em disco e registra seus metadados."""
+    nome_arquivo = salvar_arquivo_local(conteudo, nome_original, dir_notas_fiscais)
+    return registrar_nota_fiscal(NotaFiscalObra(data=data, nome_arquivo=nome_arquivo, legenda=legenda), caminho_csv)
+
+
+def remover_nota_fiscal(
+    id_nota: int, caminho_csv: Path = CAMINHO_NOTAS_FISCAIS, dir_notas_fiscais: Path = DIR_ANEXOS
+) -> None:
+    df = carregar_notas_fiscais(caminho_csv)
+    linha = df[df["id"] == id_nota]
+    if not linha.empty:
+        remover_arquivo_local(linha.iloc[0]["nome_arquivo"], dir_notas_fiscais)
+    desregistrar_nota_fiscal(id_nota, caminho_csv)

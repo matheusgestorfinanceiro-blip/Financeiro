@@ -1,12 +1,12 @@
-"""Escolhe automaticamente onde os gastos, os dados da obra, as fotos e os
-anexos (comprovantes) são salvos.
+"""Escolhe automaticamente onde os gastos, os dados da obra, as fotos e as
+notas fiscais/comprovantes são salvos.
 
 Duas configurações independentes, ambas opcionais nos secrets do Streamlit:
 
 - `[connections.gsheets]`: se presente, os gastos e os dados da obra (texto/
   números) são salvos numa Google Sheets em vez de arquivo local.
 - `drive_folder_id` (dentro do mesmo `[connections.gsheets]`): se presente,
-  os arquivos binários (fotos e comprovantes anexados) são enviados para uma
+  os arquivos binários (fotos e notas fiscais) são enviados para uma
   pasta do Google Drive em vez de salvos localmente.
 
 Sem nenhuma das duas, tudo continua funcionando com arquivos locais
@@ -17,7 +17,7 @@ from pathlib import Path
 
 from src.obra import armazenamento as _local
 from src.obra.armazenamento import DIR_ANEXOS, DIR_FOTOS
-from src.obra.schema import DadosObra, FotoObra, GastoObra
+from src.obra.schema import DadosObra, FotoObra, GastoObra, NotaFiscalObra
 
 
 def usando_planilha() -> bool:
@@ -184,14 +184,33 @@ def obter_bytes_foto(referencia: str) -> bytes:
     return obter_arquivo(referencia, DIR_FOTOS)
 
 
-# --- Anexos (comprovantes dos gastos) --------------------------------------
+# --- Notas fiscais (arquivo + metadados) ------------------------------------
 
 
-def armazenar_anexo(conteudo: bytes, nome_original: str) -> str:
-    """Salva o comprovante enviado para gerar um ou mais lançamentos, e
-    retorna a referência a ser usada em `GastoObra.anexo`."""
-    return armazenar_arquivo(conteudo, nome_original, DIR_ANEXOS)
+def carregar_notas_fiscais(conexao=None):
+    if usando_planilha():
+        return _backend().carregar_notas_fiscais(conexao)
+    return _local.carregar_notas_fiscais()
 
 
-def obter_bytes_anexo(referencia: str) -> bytes:
+def adicionar_nota_fiscal(conexao, conteudo: bytes, nome_original: str, data: str, legenda: str = "") -> NotaFiscalObra:
+    nome_arquivo = armazenar_arquivo(conteudo, nome_original, DIR_ANEXOS)
+    nota = NotaFiscalObra(data=data, nome_arquivo=nome_arquivo, legenda=legenda)
+    if usando_planilha():
+        return _backend().adicionar_nota_fiscal_registro(conexao, nota)
+    return _local.registrar_nota_fiscal(nota)
+
+
+def remover_nota_fiscal(conexao, id_nota) -> None:
+    notas = carregar_notas_fiscais(conexao)
+    linha = notas[notas["id"] == id_nota]
+    if not linha.empty:
+        remover_arquivo(linha.iloc[0]["nome_arquivo"], DIR_ANEXOS)
+    if usando_planilha():
+        _backend().remover_nota_fiscal_registro(conexao, id_nota)
+    else:
+        _local.desregistrar_nota_fiscal(id_nota)
+
+
+def obter_bytes_nota_fiscal(referencia: str) -> bytes:
     return obter_arquivo(referencia, DIR_ANEXOS)

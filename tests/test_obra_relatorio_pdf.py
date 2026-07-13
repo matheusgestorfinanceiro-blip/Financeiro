@@ -16,7 +16,7 @@ def _bytes_imagem_teste() -> bytes:
     return buffer.getvalue()
 
 
-def _df_gastos(anexo1="", anexo2=""):
+def _df_gastos():
     return pd.DataFrame(
         [
             {
@@ -28,7 +28,7 @@ def _df_gastos(anexo1="", anexo2=""):
                 "valor": 1200.0,
                 "pago": True,
                 "observacoes": "",
-                "anexo": anexo1,
+                "anexo": "",
             },
             {
                 "id": 2,
@@ -37,10 +37,19 @@ def _df_gastos(anexo1="", anexo2=""):
                 "descricao": "Pedreiro - 2 semanas",
                 "fornecedor": "João Pedreiro",
                 "valor": 3000.0,
-                "pago": False,
+                "pago": True,
                 "observacoes": "",
-                "anexo": anexo2,
+                "anexo": "",
             },
+        ]
+    )
+
+
+def _df_notas_fiscais(*referencias):
+    return pd.DataFrame(
+        [
+            {"id": i + 1, "data": "2026-01-10", "nome_arquivo": referencia, "legenda": ""}
+            for i, referencia in enumerate(referencias)
         ]
     )
 
@@ -107,38 +116,18 @@ def test_relatorio_parcial_gerado_sem_fotos():
     assert pdf_bytes.startswith(b"%PDF")
 
 
-def test_relatorio_com_anexos_inclui_pagina_extra():
+def test_relatorio_com_notas_fiscais_inclui_pagina_extra():
     dados_obra = DadosObra(nome_obra="Reforma da cozinha")
-    anexos = {"anexo1.jpg": _bytes_imagem_teste(), "anexo2.jpg": _bytes_imagem_teste()}
+    notas = {"nota1.jpg": _bytes_imagem_teste(), "nota2.jpg": _bytes_imagem_teste()}
 
-    pdf_com_anexos = gerar_pdf_obra(
+    pdf_com_notas = gerar_pdf_obra(
         dados_obra,
-        _df_gastos(anexo1="anexo1.jpg", anexo2="anexo2.jpg"),
+        _df_gastos(),
         tipo_relatorio="parcial",
-        obter_bytes_anexo=lambda referencia: anexos[referencia],
+        notas_fiscais_df=_df_notas_fiscais("nota1.jpg", "nota2.jpg"),
+        obter_bytes_nota_fiscal=lambda referencia: notas[referencia],
     )
-    pdf_sem_anexos = gerar_pdf_obra(dados_obra, _df_gastos(), tipo_relatorio="parcial")
+    pdf_sem_notas = gerar_pdf_obra(dados_obra, _df_gastos(), tipo_relatorio="parcial")
 
-    assert pdf_com_anexos.startswith(b"%PDF")
-    assert len(pdf_com_anexos) > len(pdf_sem_anexos)
-
-
-def test_relatorio_agrupa_itens_do_mesmo_anexo():
-    """Vários itens vindos da mesma nota (mesmo anexo) não devem repetir a
-    mesma imagem várias vezes - só uma vez, com todas as descrições juntas."""
-    dados_obra = DadosObra(nome_obra="Reforma da cozinha")
-    chamadas = []
-
-    def obter_bytes_anexo(referencia: str) -> bytes:
-        chamadas.append(referencia)
-        return _bytes_imagem_teste()
-
-    pdf_bytes = gerar_pdf_obra(
-        dados_obra,
-        _df_gastos(anexo1="mesma-nota.jpg", anexo2="mesma-nota.jpg"),
-        tipo_relatorio="parcial",
-        obter_bytes_anexo=obter_bytes_anexo,
-    )
-
-    assert pdf_bytes.startswith(b"%PDF")
-    assert chamadas == ["mesma-nota.jpg"]
+    assert pdf_com_notas.startswith(b"%PDF")
+    assert len(pdf_com_notas) > len(pdf_sem_notas)
