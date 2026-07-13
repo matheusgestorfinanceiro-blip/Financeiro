@@ -293,9 +293,9 @@ tons de vermelho e as de receita em tons de azul).
 Gera a previsão orçamentária de um condomínio a partir de 2 PDFs (o relatório
 de **Inadimplentes** e o **Demonstrativo de Receitas e Despesas**, ambos no
 formato já usado hoje pela Azul), mais alguns dados que você preenche, e
-entrega **5 páginas finais** (capa, arrecadações, despesas, inadimplência e
-reajuste, com gráficos e a assinatura do responsável técnico), exportáveis
-em um único PDF pronto para assembleia.
+entrega **6 páginas finais** (capa, arrecadações, despesas, inadimplência,
+balanço orçamentário consolidado e reajuste, com gráficos e a assinatura do
+responsável técnico), exportáveis em um único PDF pronto para assembleia.
 
 ### Como rodar
 

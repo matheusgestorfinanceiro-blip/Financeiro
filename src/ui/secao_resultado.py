@@ -1,5 +1,6 @@
 """Tela 3: as páginas finais da previsão (receitas, despesas, inadimplência,
-reajuste) + botão de download do PDF completo (5 páginas, incluindo a capa)."""
+balanço consolidado, reajuste) + botão de download do PDF completo (6 páginas,
+incluindo a capa)."""
 import streamlit as st
 
 from src.relatorio.graficos import (
@@ -7,7 +8,7 @@ from src.relatorio.graficos import (
     grafico_evolucao_inadimplencia,
     grafico_receitas_ordinaria_x_extraordinaria,
 )
-from src.relatorio.pdf_export import gerar_pdf_previsao
+from src.relatorio.pdf_export import _calcular_balanco, gerar_pdf_previsao
 from src.ui.formatacao import escapar_markdown, fmt_moeda, fmt_pct
 
 
@@ -25,7 +26,7 @@ def renderizar_secao_resultado(resultado):
     st.header("3. Previsão orçamentária — resultado final")
     st.caption(f"Relatório gerado em {resultado.data_geracao}")
 
-    abas = st.tabs(["1. Arrecadações", "2. Despesas", "3. Inadimplência", "4. Reajuste"])
+    abas = st.tabs(["1. Arrecadações", "2. Despesas", "3. Inadimplência", "4. Balanço", "5. Reajuste"])
 
     with abas[0]:
         totais = _total_por_classificacao(resultado.receitas_classificadas)
@@ -96,6 +97,20 @@ def renderizar_secao_resultado(resultado):
             st.caption("Não há dados suficientes no relatório de inadimplentes para montar um gráfico de concentração por mês de competência.")
 
     with abas[3]:
+        balanco = _calcular_balanco(resultado)
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Receita total prevista (12 meses)", fmt_moeda(balanco["receita_total"]))
+        col2.metric("Despesas totais previstas (12 meses)", fmt_moeda(resultado.total_despesas_previsto))
+        col3.metric("Saldo final previsto (12 meses)", fmt_moeda(balanco["saldo_final"]))
+        col1.metric("Inadimplência (valor absorvido)", fmt_moeda(balanco["inadimplencia_valor"]))
+        col2.metric("Reajuste sugerido (valor)", fmt_moeda(balanco["reajuste_valor"]))
+        col3.metric("Total geral (despesas + inadimplência)", fmt_moeda(balanco["total_geral"]))
+        if balanco["saldo_final"] >= 0:
+            st.success(f"A previsão fecha em superávit de {fmt_moeda(balanco['saldo_final'])}.")
+        else:
+            st.warning(f"A previsão fecha em déficit de {fmt_moeda(abs(balanco['saldo_final']))}.")
+
+    with abas[4]:
         st.metric("Percentual de reajuste apurado", fmt_pct(resultado.percentual_reajuste_automatico))
         if resultado.observacoes:
             st.markdown("**Observações**")
