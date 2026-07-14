@@ -170,10 +170,16 @@ def grafico_evolucao_inadimplencia(resultado):
         ax.set_xticks([])
         ax.set_yticks([])
     else:
-        cores = [TOMATO if comp == resultado.mes_pico_inadimplencia else NAVY2 for comp in df["competencia"]]
-        ax.bar(df["competencia"], df["valor_total"], color=cores)
+        ax.plot(df["competencia"], df["valor_total"], color=NAVY2, linewidth=2, marker="o", markersize=5)
+        ax.fill_between(range(len(df)), df["valor_total"], color=CYAN2, alpha=0.15)
+        if resultado.mes_pico_inadimplencia in set(df["competencia"]):
+            idx_pico = df.index[df["competencia"] == resultado.mes_pico_inadimplencia][0]
+            ax.plot(
+                df.loc[idx_pico, "competencia"], df.loc[idx_pico, "valor_total"],
+                marker="o", markersize=9, color=TOMATO, zorder=5,
+            )
         ax.set_ylabel("R$ em aberto")
-        ax.set_title("Concentração de inadimplência por mês de competência")
+        ax.set_title("Evolução da inadimplência por mês de competência")
         ax.tick_params(axis="x", rotation=45)
     _aplicar_estilo_figura(fig, ax)
     fig.tight_layout()

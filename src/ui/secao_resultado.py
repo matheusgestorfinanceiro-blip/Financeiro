@@ -60,22 +60,24 @@ def renderizar_secao_resultado(resultado):
 
         if resultado.valores_por_unidade is not None and not resultado.valores_por_unidade.empty:
             st.markdown("**Valores por unidade**")
-            colunas_valor = [c for c in resultado.valores_por_unidade.columns if c != "unidade"]
+            colunas_valor = ["rateio", "fundo_reserva", "total"]
             st.dataframe(
-                resultado.valores_por_unidade,
+                resultado.valores_por_unidade[["unidade", *colunas_valor]],
                 use_container_width=True,
                 column_config={
-                    coluna: st.column_config.NumberColumn(coluna, format="R$ %.2f") for coluna in colunas_valor
+                    "unidade": st.column_config.TextColumn("Unidade"),
+                    "rateio": st.column_config.NumberColumn("Rateio mensal", format="R$ %.2f"),
+                    "fundo_reserva": st.column_config.NumberColumn("Fundo de reserva", format="R$ %.2f"),
+                    "total": st.column_config.NumberColumn("Total", format="R$ %.2f"),
                 },
             )
 
     with abas[1]:
         totais = _total_por_classificacao(resultado.despesas_classificadas)
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         col1.metric("Ordinárias (recorrente ou mensal)", fmt_moeda(totais["ordinaria"]))
         col2.metric("Extraordinárias (eventuais)", fmt_moeda(totais["extraordinaria"]))
-        col1.metric("Despesas totais previstas para 12 meses", fmt_moeda(resultado.total_despesas_previsto))
-        col2.metric("Total das despesas apuradas na análise", fmt_moeda(resultado.total_despesas_historico))
+        col3.metric("Total apurado no período", fmt_moeda(resultado.total_despesas_historico))
         st.pyplot(grafico_despesas_ordinaria_x_extraordinaria(resultado))
 
         import pandas as pd
