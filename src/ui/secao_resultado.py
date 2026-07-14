@@ -196,9 +196,8 @@ def renderizar_secao_resultado(resultado):
         st.metric("Percentual de reajuste apurado", fmt_pct(resultado.percentual_reajuste_automatico))
         st.caption(
             "Calculado comparando a receita total prevista (rateio + fundo de reserva + outras "
-            "arrecadações + receitas extraordinárias do histórico) com as despesas totais e a "
-            "inadimplência esperada do período - mesma conta usada na aba Balanço, para as duas "
-            "ficarem sempre consistentes entre si."
+            "arrecadações configuradas, sem receitas extraordinárias ou taxas extras do histórico) "
+            "com as despesas totais e a inadimplência esperada do período."
         )
         if resultado.observacoes:
             st.markdown("**Observações**")

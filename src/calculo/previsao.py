@@ -184,18 +184,14 @@ def gerar_previsao(
     arrecadacao_prevista_mensal = receita_rateio_necessaria
 
     # Reajuste automatico = receita total (rateio + fundo de reserva + outras
-    # arrecadacoes, ja anualizados, mais as receitas extraordinarias do
-    # historico) menos as despesas totais apuradas no periodo, ja descontada
-    # a inadimplencia esperada - mesma conta usada no Balanco Orcamentario
-    # Consolidado, para as duas paginas do relatorio ficarem sempre
-    # consistentes entre si (receita_disponivel - despesa_total >= 0 nas duas
-    # ou < 0 nas duas).
-    receita_extraordinaria_historico = _calcular_outras_receitas_previstas(receitas_classificadas, 0.0)
+    # arrecadacoes configurados, anualizados - sem receitas extraordinarias
+    # ou taxas extras do historico, que nao entram nessa conta) menos as
+    # despesas totais apuradas no periodo, ja descontada a inadimplencia
+    # esperada.
     receita_total_anual = (
         receita_rateio_necessaria * 12
         + fundo_reserva_valor * 12
         + total_outras_arrecadacoes_previsto * 12
-        + receita_extraordinaria_historico
     )
     despesas_totais_historico = demonstrativo.total_despesas
     receita_disponivel = receita_total_anual * fator_cobertura

@@ -119,10 +119,11 @@ def test_reajuste_automatico_considera_despesas_totais_incluindo_extraordinarias
     assert resultado_com_deficit.percentual_reajuste_automatico == pytest.approx((6000.0 - 3600.0) / 3600.0)
 
 
-def test_reajuste_automatico_consistente_com_o_balanco_inclui_fundo_e_outras_receitas():
-    # A receita total usada no reajuste inclui fundo de reserva e outras
-    # receitas extraordinarias do historico, nao so o rateio - mesmos
-    # componentes de `_calcular_balanco` (src/relatorio/pdf_export.py).
+def test_reajuste_automatico_inclui_fundo_de_reserva_mas_ignora_outras_receitas():
+    # A receita total usada no reajuste inclui rateio + fundo de reserva
+    # (configurados), mas NAO as receitas extraordinarias/taxas extras do
+    # historico - essas ficam de fora dessa conta, mesmo que apareçam no
+    # demonstrativo.
     demonstrativo = _demonstrativo_simples(total_despesa=3000.0, total_rateio=800.0, outras_receitas=600.0)
     formulario = _formulario(
         configuracao_rateio=_config_igual(10.0),
@@ -130,10 +131,10 @@ def test_reajuste_automatico_consistente_com_o_balanco_inclui_fundo_e_outras_rec
         configuracao_fundo_reserva=_config_igual(5.0),
     )
     resultado = gerar_previsao(demonstrativo, None, formulario)
-    # Receita total anual = (10 + 5) x 10 unidades x 12 + 600 (outras receitas historico) = 1800 + 600 = 2400.
-    assert resultado.receita_total_anual_base_reajuste == pytest.approx(2400.0)
-    # Despesas totais = 3000. (3000 - 2400) / 2400 = 0.25
-    assert resultado.percentual_reajuste_automatico == pytest.approx(0.25)
+    # Receita total anual = (10 + 5) x 10 unidades x 12 = 1800 (sem as 600 de outras receitas historico).
+    assert resultado.receita_total_anual_base_reajuste == pytest.approx(1800.0)
+    # Despesas totais = 3000. (3000 - 1800) / 1800 = 0.6666...
+    assert resultado.percentual_reajuste_automatico == pytest.approx((3000.0 - 1800.0) / 1800.0)
 
 
 def test_sem_fundo_de_reserva():
