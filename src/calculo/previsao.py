@@ -185,17 +185,21 @@ def gerar_previsao(
 
     # Reajuste automatico = receita total (rateio + fundo de reserva + outras
     # arrecadacoes configurados, anualizados - sem receitas extraordinarias
-    # ou taxas extras do historico, que nao entram nessa conta) menos as
-    # despesas totais apuradas no periodo, ja descontada a inadimplencia
-    # esperada.
+    # ou taxas extras do historico) menos as despesas ORDINARIAS apuradas no
+    # periodo (excluindo despesas extraordinarias/eventuais do historico),
+    # ja descontada a inadimplencia esperada.
     receita_total_anual = (
         receita_rateio_necessaria * 12
         + fundo_reserva_valor * 12
         + total_outras_arrecadacoes_previsto * 12
     )
-    despesas_totais_historico = demonstrativo.total_despesas
+    despesas_ordinarias_historico = (
+        despesas_classificadas[despesas_classificadas["classificacao"] == "ordinaria"]["total"].sum()
+        if not despesas_classificadas.empty
+        else 0.0
+    )
     receita_disponivel = receita_total_anual * fator_cobertura
-    percentual_reajuste_automatico = _calcular_reajuste_automatico(receita_disponivel, despesas_totais_historico)
+    percentual_reajuste_automatico = _calcular_reajuste_automatico(receita_disponivel, despesas_ordinarias_historico)
 
     despesas_previstas = _calcular_despesas_previstas(demonstrativo, formulario, percentual_reajuste_automatico)
     total_despesas_historico = sum(l.valor_historico for l in despesas_previstas)
