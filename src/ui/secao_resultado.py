@@ -60,13 +60,20 @@ def renderizar_secao_resultado(resultado):
 
         if resultado.valores_por_unidade is not None and not resultado.valores_por_unidade.empty:
             st.markdown("**Valores por unidade**")
+            nomes_outras_arrecadacoes = [nome for nome, _ in resultado.outras_arrecadacoes_detalhe]
+            colunas_tabela = ["unidade", "rateio", "fundo_reserva", *nomes_outras_arrecadacoes, "total"]
+            column_config = {
+                "unidade": st.column_config.TextColumn("Unidade"),
+                "rateio": st.column_config.NumberColumn("Rateio mensal", format="R$ %.2f"),
+                "fundo_reserva": st.column_config.NumberColumn("Fundo de reserva", format="R$ %.2f"),
+                "total": st.column_config.NumberColumn("Total", format="R$ %.2f"),
+            }
+            for nome in nomes_outras_arrecadacoes:
+                column_config[nome] = st.column_config.NumberColumn(nome, format="R$ %.2f")
             st.dataframe(
-                resultado.valores_por_unidade[["unidade", "total"]],
+                resultado.valores_por_unidade[colunas_tabela],
                 use_container_width=True,
-                column_config={
-                    "unidade": st.column_config.TextColumn("Unidade"),
-                    "total": st.column_config.NumberColumn("Total", format="R$ %.2f"),
-                },
+                column_config=column_config,
             )
 
     with abas[1]:
