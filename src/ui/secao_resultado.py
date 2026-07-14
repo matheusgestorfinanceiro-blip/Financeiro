@@ -197,7 +197,8 @@ def renderizar_secao_resultado(resultado):
         st.caption(
             "Calculado comparando a receita total prevista (rateio + fundo de reserva + outras "
             "arrecadações configuradas, sem receitas extraordinárias ou taxas extras do histórico) "
-            "com as despesas totais e a inadimplência esperada do período."
+            "com as despesas ordinárias (sem despesas extraordinárias) e a inadimplência esperada "
+            "do período."
         )
         if resultado.observacoes:
             st.markdown("**Observações**")

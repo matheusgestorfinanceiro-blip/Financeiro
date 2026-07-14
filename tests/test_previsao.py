@@ -78,17 +78,17 @@ def test_reajuste_automatico_quando_despesa_maior_que_receita():
     assert resultado.total_despesas_previsto == pytest.approx(1875.0)
 
 
-def test_reajuste_automatico_considera_despesas_totais_incluindo_extraordinarias():
-    # Diferente do critério antigo (que excluía despesas extraordinárias da
-    # base do reajuste), a despesa extraordinária agora entra no cálculo -
-    # mesma convenção usada no Balanço ("Total das despesas (12 meses)").
+def test_reajuste_automatico_ignora_despesas_extraordinarias():
+    # A despesa extraordinária (concentrada em poucos meses) não deve entrar
+    # na base de despesa usada no cálculo automático do reajuste, mesmo que
+    # seja muito maior que a despesa ordinária.
     meses = [f"Mes{i}" for i in range(1, 13)]
     valores_extraordinaria = {m: 0.0 for m in meses}
-    valores_extraordinaria[meses[0]] = 5000.0
+    valores_extraordinaria[meses[0]] = 50000.0
     df_despesas = pd.DataFrame(
         [
-            {"categoria_pai": "Categoria A", "subcategoria": "Item Ordinario", **{m: 1000.0 / 12 for m in meses}, "total": 1000.0},
-            {"categoria_pai": "Categoria B", "subcategoria": "Obra Emergencial", **valores_extraordinaria, "total": 5000.0},
+            {"categoria_pai": "Categoria A", "subcategoria": "Item Ordinario", **{m: 2000.0 / 12 for m in meses}, "total": 2000.0},
+            {"categoria_pai": "Categoria B", "subcategoria": "Obra Emergencial", **valores_extraordinaria, "total": 50000.0},
         ]
     )
     df_receitas = pd.DataFrame(
@@ -102,21 +102,22 @@ def test_reajuste_automatico_considera_despesas_totais_incluindo_extraordinarias
         df_receitas=df_receitas,
         df_despesas=df_despesas,
         total_receitas=1000.0,
-        total_despesas=6000.0,
+        total_despesas=52000.0,
     )
-    # Receita total anual = 100 x 10 unidades x 12 = 12000, cobre folgadamente
-    # as despesas totais de 6000 (ordinaria + extraordinaria) -> sem reajuste.
-    formulario = _formulario()
+    # Receita total anual = 25 x 10 unidades x 12 = 3000, cobre a despesa
+    # ordinaria de 2000 - se a despesa extraordinaria (50000) entrasse na
+    # conta, o resultado seria um deficit gigante em vez de 0%.
+    formulario = _formulario(configuracao_rateio=_config_igual(25.0))
     resultado = gerar_previsao(demonstrativo, None, formulario)
     assert resultado.percentual_reajuste_automatico == pytest.approx(0.0)
 
-    # Com um rateio bem menor, a despesa extraordinaria passa a pesar na
-    # conta e forca um reajuste (nao seria detectado se ela fosse ignorada).
-    formulario_rateio_baixo = _formulario(configuracao_rateio=_config_igual(30.0))
+    # Com a receita configurada abaixo da despesa ordinaria, o deficit e
+    # calculado só com base nela (2000), não com a despesa total (52000).
+    formulario_rateio_baixo = _formulario(configuracao_rateio=_config_igual(10.0))
     resultado_com_deficit = gerar_previsao(demonstrativo, None, formulario_rateio_baixo)
-    # Receita total anual = 30 x 10 x 12 = 3600. Despesas totais = 6000.
-    # (6000 - 3600) / 3600 = 0.6666...
-    assert resultado_com_deficit.percentual_reajuste_automatico == pytest.approx((6000.0 - 3600.0) / 3600.0)
+    # Receita total anual = 10 x 10 x 12 = 1200. Despesa ordinaria = 2000.
+    # (2000 - 1200) / 1200 = 0.6666...
+    assert resultado_com_deficit.percentual_reajuste_automatico == pytest.approx((2000.0 - 1200.0) / 1200.0)
 
 
 def test_reajuste_automatico_inclui_fundo_de_reserva_mas_ignora_outras_receitas():
