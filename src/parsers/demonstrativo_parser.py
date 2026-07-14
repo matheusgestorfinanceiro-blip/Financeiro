@@ -18,12 +18,12 @@ import pandas as pd
 import pdfplumber
 
 from src.models.schema import DadosDemonstrativo
-from src.parsers.pdf_utils import extrair_numeros, parse_moeda_brl, rotulo_da_linha
+from src.parsers.pdf_utils import extrair_numeros, parse_moeda_brl, remover_cabecalho_inline, rotulo_da_linha
 
 MES_RE = re.compile(r"^[A-Za-zç]{3}/\d{4}$")
 
 RODAPE_OU_CABECALHO_RE = re.compile(
-    r"^gestor@|^\d+\s+de\s+\d+$|^CONDOMINIO\b|Tel:|^AVENIDA\b|^RUA\b|^AV\.\b"
+    r"^[\w.+-]+@[\w.-]+\.\w+|^\d+\s+de\s+\d+$|^CONDOMINIO\b|Tel:|^AVENIDA\b|^RUA\b|^AV\.\b"
 )
 
 CABECALHOS_CONHECIDOS = {
@@ -38,7 +38,8 @@ def _linhas_do_pdf(caminho_pdf: str) -> list[str]:
         for pagina in pdf.pages:
             texto = pagina.extract_text() or ""
             for linha in texto.split("\n"):
-                if RODAPE_OU_CABECALHO_RE.search(linha.strip()):
+                linha = remover_cabecalho_inline(linha)
+                if not linha or RODAPE_OU_CABECALHO_RE.search(linha):
                     continue
                 linhas.append(linha)
     return linhas

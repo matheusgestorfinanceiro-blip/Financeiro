@@ -10,7 +10,14 @@ RODAPE_RE = re.compile(
     r"(\d+)\s+unidades\s+inadimplentes\s+\((\d+,\d+)%\)\s+"
     r"(-?\d{1,3}(?:\.\d{3})*,\d{2})\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})"
 )
-UNIDADE_RE = re.compile(r"^(AP\s*\S+.*?)\s*-\s*(.+?)(\s+1°\s*Notifica[çc][ãa]o)?$")
+EMAIL_CABECALHO_RE = re.compile(r"^[\w.+-]+@[\w.-]+\.\w+")
+# O codigo da unidade tanto pode vir como "AP 01"/"APTO 01"/"LOJA 01"/"SALA 01"
+# quanto so um numero (ex: "05 - NOME"), dependendo do condominio. O nome pode
+# vir seguido de uma tag de status (ex: "Juridico", "1a Notificacao").
+UNIDADE_RE = re.compile(
+    r"^(\d{1,4}|AP\s*\S+|APTO\s*\S+|LOJA\s*\S+|SALA\s*\S+)\s*-\s*(.+?)"
+    r"(\s+(?:Jur[íi]dico|\d°\s*Notifica[çc][ãa]o))?$"
+)
 LANCAMENTO_RE = re.compile(
     r"^(\d{2}/\d{2}/\d{2})\s+(\d{2}/\d{4})\s+(\d+)\s+(\d+)\s+"
     r"(-?\d{1,3}(?:\.\d{3})*,\d{2})\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})\s+"
@@ -34,7 +41,7 @@ def parse_inadimplentes(caminho_pdf: str) -> DadosInadimplencia:
 
     for linha in linhas:
         linha_stripped = linha.strip()
-        if linha_stripped and not linha_stripped.lower().startswith("gestor@"):
+        if linha_stripped and not EMAIL_CABECALHO_RE.match(linha_stripped):
             condominio = linha_stripped
             break
 

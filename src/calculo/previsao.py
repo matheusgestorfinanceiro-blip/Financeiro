@@ -9,6 +9,7 @@ from src.calculo.analise import (
     classificar_receitas,
     concentracao_inadimplencia_por_competencia,
     mes_pico_inadimplencia as calcular_mes_pico_inadimplencia,
+    valor_por_unidade_inadimplente,
 )
 from src.models.schema import (
     AjusteManual,
@@ -220,6 +221,7 @@ def gerar_previsao(
 
     concentracao_inadimplencia = concentracao_inadimplencia_por_competencia(inadimplencia)
     mes_pico = calcular_mes_pico_inadimplencia(concentracao_inadimplencia)
+    inadimplencia_valor_por_unidade = valor_por_unidade_inadimplente(inadimplencia)
 
     # Valor principal em aberto (sem juros/multa/honorarios), como pedido pelo
     # usuario - o PDF de inadimplentes anexado ja separa essa coluna.
@@ -257,6 +259,7 @@ def gerar_previsao(
         arrecadacao_prevista_mensal=arrecadacao_prevista_mensal,
         inadimplencia_valor_total=inadimplencia_valor_total,
         inadimplencia_unidades=inadimplencia_unidades,
+        inadimplencia_valor_por_unidade=inadimplencia_valor_por_unidade,
         possui_desconto_pontualidade=formulario.possui_desconto_pontualidade,
         desconto_pontualidade_modo=formulario.desconto_pontualidade_modo,
         desconto_pontualidade_valor=formulario.desconto_pontualidade_valor,

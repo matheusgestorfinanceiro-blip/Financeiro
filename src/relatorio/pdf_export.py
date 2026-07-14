@@ -330,54 +330,75 @@ def _pagina_inadimplencia(pdf: RelatorioPDF, resultado):
     pdf.add_page()
     pdf.titulo_pagina("4. Inadimplencia")
 
-    tem_grafico = resultado.concentracao_inadimplencia is not None and not resultado.concentracao_inadimplencia.empty
+    tem_unidades = (
+        resultado.inadimplencia_valor_por_unidade is not None
+        and not resultado.inadimplencia_valor_por_unidade.empty
+    )
+    tem_concentracao = resultado.concentracao_inadimplencia is not None and not resultado.concentracao_inadimplencia.empty
+    qtd_unidades = len(resultado.inadimplencia_unidades)
+    max_meses_atraso = int(resultado.inadimplencia_valor_por_unidade["meses_em_atraso"].max()) if tem_unidades else 0
+    # Grafico de evolucao so faz sentido quando ha mais de um mes de
+    # competencia em atraso (em alguma unidade) ou mais de uma unidade
+    # inadimplente - com 1 unidade e 1 mes, um grafico de 1 barra nao ajuda.
+    tem_grafico = tem_concentracao and (max_meses_atraso > 1 or qtd_unidades > 1)
+
+    _cartoes_estatisticas(
+        pdf,
+        [
+            ("Percentual de inadimplencia apurado", fmt_pct(resultado.percentual_inadimplencia)),
+            ("Valor principal em aberto", fmt_moeda(resultado.inadimplencia_valor_total)),
+        ],
+    )
+    pdf.ln(2)
 
     if tem_grafico:
-        _cartoes_estatisticas(
-            pdf,
-            [("Percentual de inadimplencia apurado", fmt_pct(resultado.percentual_inadimplencia))],
-            colunas=1,
-        )
-        pdf.ln(2)
         pdf.imagem_temporaria(grafico_evolucao_inadimplencia(resultado), w=_largura_util(pdf))
         pdf.ln(3)
-        texto = (
-            "O grafico acima mostra o valor em aberto por mes de competencia das cobrancas atualmente "
-            "inadimplentes (nao e uma serie historica do percentual de inadimplencia, e sim a concentracao "
-            "das cobrancas em aberto hoje). O mes de competencia com maior concentracao de valores em "
-            f"aberto foi {resultado.mes_pico_inadimplencia}, o que merece atencao especial do sindico e da "
-            "administradora para identificar a causa (ex: aumento pontual de taxa, dificuldade financeira "
-            "concentrada em um periodo, etc.)."
+
+    if tem_unidades:
+        largura_util = _largura_util(pdf)
+        larguras = [largura_util * 0.55, largura_util * 0.25, largura_util * 0.20]
+        _linha_ledger(
+            pdf, larguras, ["Unidade", "Valor em aberto", "Meses em atraso"],
+            fill=NAVY, cor_texto="#FFFFFF", bold=True,
+        )
+        for _, linha_unidade in resultado.inadimplencia_valor_por_unidade.iterrows():
+            _linha_ledger(
+                pdf, larguras,
+                [str(linha_unidade["unidade"]), fmt_moeda(linha_unidade["valor_total"]), str(int(linha_unidade["meses_em_atraso"]))],
+            )
+        pdf.ln(5)
+
+    partes_texto = [
+        f"O condominio apresenta {fmt_pct(resultado.percentual_inadimplencia)} de inadimplencia apurada, "
+        f"totalizando {fmt_moeda(resultado.inadimplencia_valor_total)} de valor principal em aberto "
+        "(sem juros, multa ou honorarios)."
+    ]
+    if qtd_unidades == 0:
+        partes_texto.append(
+            "Nao ha unidades inadimplentes identificadas no relatorio de inadimplentes enviado."
         )
     else:
-        _cartoes_estatisticas(
-            pdf,
-            [
-                ("Percentual de inadimplencia apurado", fmt_pct(resultado.percentual_inadimplencia)),
-                ("Valor principal em aberto", fmt_moeda(resultado.inadimplencia_valor_total)),
-            ],
+        partes_texto.append(f"Ao todo, {qtd_unidades} unidade(s) estao inadimplentes atualmente.")
+        if max_meses_atraso > 1:
+            partes_texto.append(
+                f"Algumas unidades acumulam atraso em mais de um mes de competencia (ate {max_meses_atraso} "
+                "meses), o que indica um padrao de inadimplencia recorrente, nao apenas pontual."
+            )
+        if tem_grafico:
+            partes_texto.append(
+                "O grafico acima mostra o valor em aberto por mes de competencia das cobrancas atualmente "
+                "inadimplentes (nao e uma serie historica do percentual de inadimplencia, e sim a "
+                f"concentracao das cobrancas em aberto hoje). O mes de competencia com maior concentracao "
+                f"de valores em aberto foi {resultado.mes_pico_inadimplencia}, o que merece atencao especial "
+                "do sindico e da administradora para identificar a causa (ex: aumento pontual de taxa, "
+                "dificuldade financeira concentrada em um periodo, etc.)."
+            )
+        partes_texto.append(
+            "A tabela acima detalha o valor total em aberto e a quantidade de meses em atraso de cada unidade."
         )
-        pdf.ln(2)
-        if resultado.inadimplencia_unidades:
-            pdf.set_font("Helvetica", "B", 10)
-            pdf.cell(0, 6, "Unidades inadimplentes:", new_x="LMARGIN", new_y="NEXT")
-            pdf.set_font("Helvetica", size=10)
-            pdf.multi_cell(_largura_util(pdf), 5.5, ", ".join(resultado.inadimplencia_unidades))
-            pdf.ln(2)
-            texto = (
-                f"O condominio apresenta {fmt_pct(resultado.percentual_inadimplencia)} de inadimplencia, "
-                f"totalizando {fmt_moeda(resultado.inadimplencia_valor_total)} de valor principal em aberto entre "
-                "as unidades listadas acima (sem juros, multa ou honorarios). Nao ha dados suficientes no "
-                "relatorio de inadimplentes para montar um grafico de concentracao por mes de competencia."
-            )
-        else:
-            texto = (
-                f"O condominio apresenta {fmt_pct(resultado.percentual_inadimplencia)} de inadimplencia "
-                "apurada. Nao ha unidades inadimplentes nem cobrancas em aberto identificadas no relatorio "
-                "enviado."
-            )
 
-    _caixa_consideracoes(pdf, texto)
+    _caixa_consideracoes(pdf, " ".join(partes_texto))
 
 
 FILL_RECEITA = "#2E5496"
@@ -385,9 +406,7 @@ FILL_DESPESAS = "#FF0000"
 FILL_SUBGRUPO = "#A6A6A6"
 FILL_SUBTOTAL = "#D9D9D9"
 FILL_TOTAL_GERAL = "#808080"
-FILL_SALDO = "#D6D5D5"
 COR_TEXTO_DESPESA = "#FF0000"
-COR_TEXTO_REAJUSTE = "#002060"
 
 
 def _calcular_balanco(resultado) -> dict:
@@ -461,8 +480,9 @@ def _linha_ledger(pdf: RelatorioPDF, larguras, celulas, fill=None, cor_texto=Non
 def _pagina_balanco(pdf: RelatorioPDF, resultado):
     """Reproduz a estrutura, cores e organizacao da planilha "ANALISE" que a
     Azul ja usa manualmente para preparar previsoes (Receita / Despesas por
-    categoria / Inadimplencia / Reajuste / Saldo Final), preenchida com os
-    dados reais dos documentos anexados e da configuracao do formulario."""
+    categoria), preenchida com os dados reais dos documentos anexados e da
+    configuracao do formulario. Inadimplencia, reajuste e saldo final ja tem
+    paginas proprias no relatorio, entao nao sao repetidos aqui."""
     pdf.add_page()
     pdf.titulo_pagina("5. Balanco Orcamentario Consolidado")
 
@@ -512,31 +532,6 @@ def _pagina_balanco(pdf: RelatorioPDF, resultado):
         pdf, larguras,
         ["DESPESAS TOTAIS", fmt_moeda(despesas_total), fmt_moeda(despesas_total / 12), fmt_pct(1.0 if despesas_total else 0.0)],
         fill=FILL_TOTAL_GERAL, cor_texto="#FFFFFF", bold=True,
-    )
-
-    pdf.ln(2)
-
-    _linha_ledger(
-        pdf, larguras,
-        [f"Inadimplencia ({fmt_pct(resultado.percentual_inadimplencia)})", fmt_moeda(balanco["inadimplencia_valor"]),
-         fmt_moeda(balanco["inadimplencia_valor"] / 12), ""],
-        fill=FILL_SUBTOTAL, cor_texto=COR_TEXTO_DESPESA, bold=True,
-    )
-    _linha_ledger(
-        pdf, larguras,
-        [f"Sugestao de reajuste ({fmt_pct(resultado.percentual_reajuste_automatico)})", fmt_moeda(balanco["reajuste_valor"]),
-         fmt_moeda(balanco["reajuste_valor"] / 12), ""],
-        fill=FILL_SUBTOTAL, cor_texto=COR_TEXTO_REAJUSTE, bold=True,
-    )
-    _linha_ledger(
-        pdf, larguras,
-        ["TOTAL GERAL (Despesas + Inadimplencia)", fmt_moeda(balanco["total_geral"]), fmt_moeda(balanco["total_geral"] / 12), ""],
-        fill=FILL_TOTAL_GERAL, cor_texto="#FFFFFF", bold=True,
-    )
-    _linha_ledger(
-        pdf, larguras,
-        ["SALDO FINAL (Receita - Total Geral + Reajuste)", fmt_moeda(balanco["saldo_final"]), fmt_moeda(balanco["saldo_final"] / 12), ""],
-        fill=FILL_SALDO, bold=True,
     )
 
 

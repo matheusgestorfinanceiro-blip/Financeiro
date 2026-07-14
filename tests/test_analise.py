@@ -4,6 +4,7 @@ from src.calculo.analise import (
     classificar_regularidade,
     concentracao_inadimplencia_por_competencia,
     mes_pico_inadimplencia,
+    valor_por_unidade_inadimplente,
 )
 from src.models.schema import DadosInadimplencia
 
@@ -61,3 +62,41 @@ def test_mes_pico_inadimplencia_identifica_maior_valor():
 
 def test_mes_pico_inadimplencia_none_quando_vazio():
     assert mes_pico_inadimplencia(pd.DataFrame(columns=["competencia", "valor_total"])) is None
+
+
+def _inadimplencia_com_unidades(lancamentos: list[tuple[str, str, float]]) -> DadosInadimplencia:
+    df = pd.DataFrame(
+        [{"unidade": unidade, "competencia": comp, "total": total} for unidade, comp, total in lancamentos]
+    )
+    return DadosInadimplencia(
+        condominio="Condomínio Teste",
+        unidades=df,
+        qtd_unidades_inadimplentes=df["unidade"].nunique() if not df.empty else 0,
+        percentual_inadimplencia=0.1,
+        total_principal=0.0,
+        total_geral=sum(t for _, _, t in lancamentos),
+    )
+
+
+def test_valor_por_unidade_inadimplente_agrupa_valor_e_conta_meses():
+    inadimplencia = _inadimplencia_com_unidades(
+        [
+            ("AP 01", "01/2026", 100.0),
+            ("AP 01", "02/2026", 100.0),
+            ("AP 02", "01/2026", 500.0),
+        ]
+    )
+    resultado = valor_por_unidade_inadimplente(inadimplencia)
+    linha_ap01 = resultado[resultado["unidade"] == "AP 01"].iloc[0]
+    linha_ap02 = resultado[resultado["unidade"] == "AP 02"].iloc[0]
+    assert linha_ap01["valor_total"] == 200.0
+    assert linha_ap01["meses_em_atraso"] == 2
+    assert linha_ap02["valor_total"] == 500.0
+    assert linha_ap02["meses_em_atraso"] == 1
+    # Ordenado do maior para o menor valor em aberto.
+    assert resultado["unidade"].tolist() == ["AP 02", "AP 01"]
+
+
+def test_valor_por_unidade_inadimplente_vazio_sem_dados():
+    assert valor_por_unidade_inadimplente(None).empty
+    assert valor_por_unidade_inadimplente(_inadimplencia_com_unidades([])).empty
