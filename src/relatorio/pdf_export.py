@@ -560,45 +560,47 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado):
 
     totais_receitas = _total_por_classificacao(resultado.receitas_classificadas)
     totais_despesas = _total_por_classificacao(resultado.despesas_classificadas)
-    receita_ordinaria = totais_receitas["ordinaria"]
-    despesa_ordinaria = totais_despesas["ordinaria"]
 
-    resultado_ordinario = receita_ordinaria - despesa_ordinaria
+    receita_total = resultado.receita_total_anual_base_reajuste
+    despesas_totais = resultado.total_despesas_historico
+    inadimplencia_valor = resultado.percentual_inadimplencia * receita_total
+    resultado_geral = receita_total - despesas_totais - inadimplencia_valor
     texto_reajuste = (
-        "Criterio tecnico: o percentual de reajuste e apurado comparando, no historico dos ultimos 12 meses "
-        "(periodo avaliado), a receita ordinaria (recorrente, como o rateio mensal) com a despesa ordinaria "
-        "(recorrente) - ambas classificadas pela regularidade mensal, sem considerar arrecadacoes ou despesas "
-        "extraordinarias/eventuais.\n\n"
-        f"Receita ordinaria apurada: {fmt_moeda(receita_ordinaria)}. Despesa ordinaria apurada: "
-        f"{fmt_moeda(despesa_ordinaria)}. Resultado (receita ordinaria menos despesa ordinaria): "
-        f"{fmt_moeda(resultado_ordinario)}."
+        "Criterio tecnico: o percentual de reajuste e apurado comparando a receita total prevista (rateio + "
+        "fundo de reserva + outras arrecadacoes configuradas, anualizados, mais as receitas extraordinarias "
+        "identificadas no historico) com as despesas totais apuradas no periodo avaliado (12 meses) e com a "
+        "inadimplencia esperada - a mesma conta usada no Balanco Orcamentario Consolidado, para as duas paginas "
+        "do relatorio ficarem sempre consistentes entre si.\n\n"
+        f"Receita total apurada: {fmt_moeda(receita_total)}. Despesas totais apuradas: {fmt_moeda(despesas_totais)}. "
+        f"Inadimplencia esperada ({fmt_pct(resultado.percentual_inadimplencia)} da receita total): "
+        f"{fmt_moeda(inadimplencia_valor)}. Resultado (receita total menos despesas totais menos inadimplencia): "
+        f"{fmt_moeda(resultado_geral)}."
     )
-    if resultado_ordinario >= 0:
+    if resultado_geral >= 0:
         texto_reajuste += (
-            "\n\nComo o resultado e maior ou igual a zero, a receita ordinaria recorrente ja cobre "
-            "integralmente a despesa ordinaria recorrente do periodo - nao ha deficit estrutural a "
-            "equacionar, portanto nao ha justificativa tecnica para propor reajuste. Elevar a taxa "
-            "condominial nesse cenario oneraria os condominos sem necessidade comprovada pelos numeros do "
-            "periodo avaliado."
+            "\n\nComo o resultado e maior ou igual a zero, a receita total configurada ja cobre integralmente as "
+            "despesas totais do periodo e a inadimplencia esperada - nao ha deficit a equacionar, portanto nao ha "
+            "justificativa tecnica para propor reajuste. Elevar a taxa condominial nesse cenario oneraria os "
+            "condominos sem necessidade comprovada pelos numeros do periodo avaliado."
         )
     else:
-        deficit = despesa_ordinaria - receita_ordinaria
+        deficit = despesas_totais + inadimplencia_valor - receita_total
         texto_reajuste += (
-            f"\n\nComo o resultado e negativo, ha um deficit ordinario de {fmt_moeda(deficit)}: a despesa "
-            "ordinaria recorrente supera a receita ordinaria recorrente do periodo. O percentual de reajuste "
-            f"proposto ({fmt_pct(resultado.percentual_reajuste_automatico)}) e exatamente esse deficit dividido "
-            "pela receita ordinaria apurada - aplicado a receita ordinaria atual, o valor resultante passa a "
-            "cobrir a despesa ordinaria apurada sem sobra nem falta, equilibrando a operacao recorrente do "
-            "condominio."
+            f"\n\nComo o resultado e negativo, ha um deficit de {fmt_moeda(deficit)}: as despesas totais somadas "
+            "a inadimplencia esperada superam a receita total do periodo. O percentual de reajuste proposto "
+            f"({fmt_pct(resultado.percentual_reajuste_automatico)}) e exatamente esse deficit dividido pela "
+            "receita total apurada - aplicado a receita atual, o valor resultante passa a cobrir as despesas "
+            "totais e a inadimplencia esperada sem sobra nem falta, equilibrando o orcamento do condominio."
         )
     _caixa_consideracoes(pdf, texto_reajuste, titulo="Como o reajuste foi apurado")
 
     receita_extraordinaria = totais_receitas["extraordinaria"]
     despesa_extraordinaria = totais_despesas["extraordinaria"]
     texto_atencao = (
-        "Arrecadacoes e despesas extraordinarias (eventuais, sem regularidade mensal) ficam de fora do "
-        "calculo do reajuste, por nao haver garantia de que se repitam no proximo periodo - mas merecem "
-        "atencao pelo impacto direto que tem no caixa do condominio quando ocorrem.\n\n"
+        "As receitas e despesas extraordinarias (eventuais, sem regularidade mensal) ja entram na conta do "
+        "reajuste acima (a receita extraordinaria compoe a receita total, e a despesa extraordinaria compoe as "
+        "despesas totais) - mas, por nao haver garantia de que se repitam no proximo periodo, merecem atencao "
+        "separada pelo impacto que tem no caixa do condominio quando ocorrem.\n\n"
         f"No periodo avaliado, as arrecadacoes extraordinarias somaram {fmt_moeda(receita_extraordinaria)} "
         f"e as despesas extraordinarias somaram {fmt_moeda(despesa_extraordinaria)}."
     )

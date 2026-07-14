@@ -65,45 +65,23 @@ def test_sem_reajuste_quando_receita_cobre_a_despesa():
 
 
 def test_reajuste_automatico_quando_despesa_maior_que_receita():
-    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=800.0)
-    formulario = _formulario()
+    # Reajuste agora compara a receita TOTAL configurada no formulário
+    # (rateio + fundo de reserva + outras arrecadações, anualizados, mais as
+    # receitas extraordinárias do histórico) com as despesas TOTAIS apuradas
+    # no período - mesma conta usada no Balanço Orçamentário Consolidado.
+    demonstrativo = _demonstrativo_simples(total_despesa=1500.0, total_rateio=800.0)
+    formulario = _formulario(configuracao_rateio=_config_igual(10.0))
     resultado = gerar_previsao(demonstrativo, None, formulario)
-    # (1000 - 800) / 800 = 0.25
+    # Receita total anual = 10 x 10 unidades x 12 = 1200. Despesas totais = 1500.
+    # (1500 - 1200) / 1200 = 0.25
     assert resultado.percentual_reajuste_automatico == pytest.approx(0.25)
-    assert resultado.total_despesas_previsto == pytest.approx(1250.0)
+    assert resultado.total_despesas_previsto == pytest.approx(1875.0)
 
 
-def test_reajuste_correto_mesmo_sem_a_palavra_rateio_na_receita():
-    # A receita ordinária deve ser identificada pela regularidade mensal
-    # (valor uniforme nos 12 meses), não por conter a palavra "rateio" no nome.
-    meses = [f"Mes{i}" for i in range(1, 13)]
-    df_despesas = pd.DataFrame(
-        [
-            {"categoria_pai": "Categoria A", "subcategoria": "Item 1", **{m: 1000.0 / 12 for m in meses}, "total": 1000.0},
-        ]
-    )
-    df_receitas = pd.DataFrame(
-        [
-            {"categoria": "Taxa Condominial", **{m: 800.0 / 12 for m in meses}, "total": 800.0},
-        ]
-    )
-    demonstrativo = DadosDemonstrativo(
-        condominio="Condomínio Teste",
-        meses=meses,
-        df_receitas=df_receitas,
-        df_despesas=df_despesas,
-        total_receitas=800.0,
-        total_despesas=1000.0,
-    )
-    formulario = _formulario()
-    resultado = gerar_previsao(demonstrativo, None, formulario)
-    # (1000 - 800) / 800 = 0.25 - não pode explodir só porque o nome não contém "rateio"
-    assert resultado.percentual_reajuste_automatico == pytest.approx(0.25)
-
-
-def test_despesa_ordinaria_do_reajuste_ignora_despesas_extraordinarias():
-    # Uma despesa extraordinária (concentrada em poucos meses) não deve inflar
-    # a base de despesa usada no cálculo automático do reajuste.
+def test_reajuste_automatico_considera_despesas_totais_incluindo_extraordinarias():
+    # Diferente do critério antigo (que excluía despesas extraordinárias da
+    # base do reajuste), a despesa extraordinária agora entra no cálculo -
+    # mesma convenção usada no Balanço ("Total das despesas (12 meses)").
     meses = [f"Mes{i}" for i in range(1, 13)]
     valores_extraordinaria = {m: 0.0 for m in meses}
     valores_extraordinaria[meses[0]] = 5000.0
@@ -126,10 +104,36 @@ def test_despesa_ordinaria_do_reajuste_ignora_despesas_extraordinarias():
         total_receitas=1000.0,
         total_despesas=6000.0,
     )
+    # Receita total anual = 100 x 10 unidades x 12 = 12000, cobre folgadamente
+    # as despesas totais de 6000 (ordinaria + extraordinaria) -> sem reajuste.
     formulario = _formulario()
     resultado = gerar_previsao(demonstrativo, None, formulario)
-    # Despesa ordinária = 1000 (só "Item Ordinario"), igual à receita ordinária -> sem reajuste.
     assert resultado.percentual_reajuste_automatico == pytest.approx(0.0)
+
+    # Com um rateio bem menor, a despesa extraordinaria passa a pesar na
+    # conta e forca um reajuste (nao seria detectado se ela fosse ignorada).
+    formulario_rateio_baixo = _formulario(configuracao_rateio=_config_igual(30.0))
+    resultado_com_deficit = gerar_previsao(demonstrativo, None, formulario_rateio_baixo)
+    # Receita total anual = 30 x 10 x 12 = 3600. Despesas totais = 6000.
+    # (6000 - 3600) / 3600 = 0.6666...
+    assert resultado_com_deficit.percentual_reajuste_automatico == pytest.approx((6000.0 - 3600.0) / 3600.0)
+
+
+def test_reajuste_automatico_consistente_com_o_balanco_inclui_fundo_e_outras_receitas():
+    # A receita total usada no reajuste inclui fundo de reserva e outras
+    # receitas extraordinarias do historico, nao so o rateio - mesmos
+    # componentes de `_calcular_balanco` (src/relatorio/pdf_export.py).
+    demonstrativo = _demonstrativo_simples(total_despesa=3000.0, total_rateio=800.0, outras_receitas=600.0)
+    formulario = _formulario(
+        configuracao_rateio=_config_igual(10.0),
+        possui_fundo_reserva=True,
+        configuracao_fundo_reserva=_config_igual(5.0),
+    )
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    # Receita total anual = (10 + 5) x 10 unidades x 12 + 600 (outras receitas historico) = 1800 + 600 = 2400.
+    assert resultado.receita_total_anual_base_reajuste == pytest.approx(2400.0)
+    # Despesas totais = 3000. (3000 - 2400) / 2400 = 0.25
+    assert resultado.percentual_reajuste_automatico == pytest.approx(0.25)
 
 
 def test_sem_fundo_de_reserva():
