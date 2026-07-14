@@ -264,6 +264,59 @@ def test_arrecadacao_prevista_mensal_e_a_soma_do_rateio_configurado():
     assert resultado.arrecadacao_prevista_mensal == pytest.approx(1500.0)
 
 
+def test_desconto_pontualidade_valor_fixo_reduz_arrecadacao_prevista():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    formulario = _formulario(
+        numero_unidades=40,
+        configuracao_rateio=_config_igual(180.0),
+        possui_desconto_pontualidade=True,
+        desconto_pontualidade_modo="valor_fixo",
+        desconto_pontualidade_valor=20.0,
+    )
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    # (180 - 20) x 40 = 6400
+    assert resultado.arrecadacao_prevista_mensal == pytest.approx(6400.0)
+    assert resultado.desconto_pontualidade_total_mensal == pytest.approx(800.0)
+
+
+def test_desconto_pontualidade_percentual_reduz_arrecadacao_prevista():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    formulario = _formulario(
+        numero_unidades=40,
+        configuracao_rateio=_config_igual(180.0),
+        possui_desconto_pontualidade=True,
+        desconto_pontualidade_modo="percentual",
+        desconto_pontualidade_valor=0.05,
+    )
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    # 180 x 40 x 0.95 = 6840
+    assert resultado.arrecadacao_prevista_mensal == pytest.approx(6840.0)
+    assert resultado.desconto_pontualidade_total_mensal == pytest.approx(360.0)
+
+
+def test_desconto_pontualidade_nao_deixa_rateio_negativo():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    formulario = _formulario(
+        numero_unidades=5,
+        configuracao_rateio=_config_igual(50.0),
+        possui_desconto_pontualidade=True,
+        desconto_pontualidade_modo="valor_fixo",
+        desconto_pontualidade_valor=100.0,
+    )
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    assert resultado.arrecadacao_prevista_mensal == pytest.approx(0.0)
+    assert (resultado.valores_por_unidade["rateio"] >= 0).all()
+
+
+def test_sem_desconto_pontualidade_nao_altera_arrecadacao():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    formulario = _formulario(numero_unidades=10, configuracao_rateio=_config_igual(150.0))
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    assert resultado.possui_desconto_pontualidade is False
+    assert resultado.desconto_pontualidade_total_mensal == pytest.approx(0.0)
+    assert resultado.arrecadacao_prevista_mensal == pytest.approx(1500.0)
+
+
 def test_outras_arrecadacoes_somam_no_total_por_unidade():
     demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
     config_agua = ConfiguracaoArrecadacao(modo="igual", valor_unico=10.0)

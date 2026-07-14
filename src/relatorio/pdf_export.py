@@ -243,9 +243,19 @@ def _pagina_arrecadacoes(pdf: RelatorioPDF, resultado):
     pdf.ln(3)
 
     if total_historico:
+        texto_desconto = ""
+        if resultado.possui_desconto_pontualidade and resultado.desconto_pontualidade_total_mensal:
+            if resultado.desconto_pontualidade_modo == "valor_fixo":
+                descricao_desconto = f"{fmt_moeda(resultado.desconto_pontualidade_valor)} por unidade"
+            else:
+                descricao_desconto = fmt_pct(resultado.desconto_pontualidade_valor)
+            texto_desconto = (
+                f" Ja esta descontado o desconto de pontualidade configurado ({descricao_desconto}), que reduz "
+                f"o rateio em {fmt_moeda(resultado.desconto_pontualidade_total_mensal)} por mes no total."
+            )
         texto = (
             f"A arrecadacao mensal prevista para o proximo periodo e de {fmt_moeda(resultado.arrecadacao_prevista_mensal)}, "
-            "com base no rateio, fundo de reserva e demais arrecadacoes configurados. "
+            f"com base no rateio, fundo de reserva e demais arrecadacoes configurados.{texto_desconto} "
             f"No historico dos ultimos 12 meses (periodo avaliado), a arrecadacao ordinaria somou "
             f"{fmt_moeda(totais['ordinaria'])} ({fmt_pct(pct_ordinaria)} do total arrecadado) - valores recorrentes "
             "e regulares mes a mes, como o rateio mensal, que servem de base confiavel para o calculo do reajuste. "

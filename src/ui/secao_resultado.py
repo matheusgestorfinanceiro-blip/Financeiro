@@ -35,6 +35,16 @@ def renderizar_secao_resultado(resultado):
         col2.metric("Extraordinário (eventual)", fmt_moeda(totais["extraordinaria"]))
         col1.metric("Arrecadação prevista mensalmente", fmt_moeda(resultado.arrecadacao_prevista_mensal))
         col2.metric("Outras receitas (identificadas no período)", fmt_moeda(resultado.total_outras_receitas_previsto))
+        if resultado.possui_desconto_pontualidade and resultado.desconto_pontualidade_total_mensal:
+            descricao_desconto = (
+                fmt_moeda(resultado.desconto_pontualidade_valor) + " por unidade"
+                if resultado.desconto_pontualidade_modo == "valor_fixo"
+                else fmt_pct(resultado.desconto_pontualidade_valor)
+            )
+            st.caption(
+                f"Já descontado o desconto de pontualidade configurado ({descricao_desconto}): "
+                f"{fmt_moeda(resultado.desconto_pontualidade_total_mensal)} a menos por mês no total."
+            )
         st.pyplot(grafico_receitas_ordinaria_x_extraordinaria(resultado))
         st.caption(
             "Classificação baseada na regularidade mensal do histórico (não é uma classificação contábil "

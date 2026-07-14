@@ -166,6 +166,16 @@ def gerar_previsao(
     rateio_df = rateio_df.rename(columns={"valor": "rateio"})
     numero_unidades = len(rateio_df)
 
+    desconto_pontualidade_total_mensal = 0.0
+    if formulario.possui_desconto_pontualidade and not rateio_df.empty:
+        if formulario.desconto_pontualidade_modo == "valor_fixo":
+            # Nunca deduz mais do que a propria taxa da unidade (evita rateio negativo).
+            desconto_por_unidade = rateio_df["rateio"].clip(upper=formulario.desconto_pontualidade_valor)
+        else:  # "percentual"
+            desconto_por_unidade = rateio_df["rateio"] * formulario.desconto_pontualidade_valor
+        desconto_pontualidade_total_mensal = float(desconto_por_unidade.sum())
+        rateio_df["rateio"] = rateio_df["rateio"] - desconto_por_unidade
+
     valores_por_unidade = rateio_df
 
     unidades_referencia = rateio_df["unidade"].tolist()
@@ -245,4 +255,8 @@ def gerar_previsao(
         arrecadacao_prevista_mensal=arrecadacao_prevista_mensal,
         inadimplencia_valor_total=inadimplencia_valor_total,
         inadimplencia_unidades=inadimplencia_unidades,
+        possui_desconto_pontualidade=formulario.possui_desconto_pontualidade,
+        desconto_pontualidade_modo=formulario.desconto_pontualidade_modo,
+        desconto_pontualidade_valor=formulario.desconto_pontualidade_valor,
+        desconto_pontualidade_total_mensal=desconto_pontualidade_total_mensal,
     )

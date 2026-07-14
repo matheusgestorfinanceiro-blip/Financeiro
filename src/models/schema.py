@@ -86,6 +86,10 @@ class DadosFormulario:
 
     configuracao_rateio: ConfiguracaoArrecadacao = field(default_factory=ConfiguracaoArrecadacao)
 
+    possui_desconto_pontualidade: bool = False
+    desconto_pontualidade_modo: str = "valor_fixo"  # "valor_fixo" (R$/unidade) ou "percentual" (fração, ex: 0.05)
+    desconto_pontualidade_valor: float = 0.0
+
     possui_fundo_reserva: bool = False
     configuracao_fundo_reserva: ConfiguracaoArrecadacao | None = None
 
@@ -144,3 +148,8 @@ class ResultadoPrevisao:
     arrecadacao_prevista_mensal: float = 0.0
     inadimplencia_valor_total: float = 0.0
     inadimplencia_unidades: list[str] = field(default_factory=list)
+
+    possui_desconto_pontualidade: bool = False
+    desconto_pontualidade_modo: str = "valor_fixo"
+    desconto_pontualidade_valor: float = 0.0
+    desconto_pontualidade_total_mensal: float = 0.0

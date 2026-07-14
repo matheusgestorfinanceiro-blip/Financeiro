@@ -123,6 +123,32 @@ def renderizar_secao_formulario(dados_demonstrativo):
             "Rateio entre unidades", key_prefix="rateio", numero_unidades_sugerido=40
         )
 
+        st.markdown("**Desconto de pontualidade**")
+        possui_desconto_pontualidade_label = st.radio(
+            "Existe desconto de pontualidade no rateio?", ["Não", "Sim"], horizontal=True, key="desconto_pontualidade_possui"
+        )
+        possui_desconto_pontualidade = possui_desconto_pontualidade_label == "Sim"
+        desconto_pontualidade_modo = "valor_fixo"
+        desconto_pontualidade_valor = 0.0
+        if possui_desconto_pontualidade:
+            desconto_pontualidade_modo_label = st.radio(
+                "O desconto é valor fixo ou percentual?", ["Valor fixo", "Percentual"], horizontal=True, key="desconto_pontualidade_modo"
+            )
+            if desconto_pontualidade_modo_label == "Valor fixo":
+                desconto_pontualidade_modo = "valor_fixo"
+                desconto_pontualidade_valor = st.number_input(
+                    "Valor do desconto por unidade (R$/mês)", min_value=0.0, value=0.0, step=5.0, key="desconto_pontualidade_valor_fixo"
+                )
+            else:
+                desconto_pontualidade_modo = "percentual"
+                desconto_pontualidade_valor = st.number_input(
+                    "Percentual do desconto (%)", min_value=0.0, max_value=100.0, value=0.0, step=1.0, key="desconto_pontualidade_valor_pct"
+                ) / 100
+            st.caption(
+                "O desconto é deduzido do rateio de cada unidade antes de calcular a arrecadação prevista mensalmente "
+                "(não afeta o fundo de reserva nem outras arrecadações)."
+            )
+
         st.markdown("**Fundo de reserva**")
         possui_fundo_reserva_label = st.radio("O condomínio possui fundo de reserva?", ["Não", "Sim"], horizontal=True)
         possui_fundo_reserva = possui_fundo_reserva_label == "Sim"
@@ -203,6 +229,9 @@ def renderizar_secao_formulario(dados_demonstrativo):
             periodo=periodo,
             numero_unidades=int(numero_unidades),
             configuracao_rateio=configuracao_rateio,
+            possui_desconto_pontualidade=possui_desconto_pontualidade,
+            desconto_pontualidade_modo=desconto_pontualidade_modo,
+            desconto_pontualidade_valor=desconto_pontualidade_valor,
             possui_fundo_reserva=possui_fundo_reserva,
             configuracao_fundo_reserva=configuracao_fundo_reserva,
             outras_arrecadacoes=outras_arrecadacoes,
