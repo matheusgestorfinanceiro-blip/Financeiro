@@ -60,21 +60,13 @@ def renderizar_secao_resultado(resultado):
 
         if resultado.valores_por_unidade is not None and not resultado.valores_por_unidade.empty:
             st.markdown("**Valores por unidade**")
-            colunas_valor = ["rateio", "fundo_reserva", "total"]
             st.dataframe(
-                resultado.valores_por_unidade[["unidade", *colunas_valor]],
+                resultado.valores_por_unidade[["unidade", "total"]],
                 use_container_width=True,
                 column_config={
                     "unidade": st.column_config.TextColumn("Unidade"),
-                    "rateio": st.column_config.NumberColumn("Rateio mensal", format="R$ %.2f"),
-                    "fundo_reserva": st.column_config.NumberColumn("Fundo de reserva", format="R$ %.2f"),
                     "total": st.column_config.NumberColumn("Total", format="R$ %.2f"),
                 },
-            )
-            st.caption(
-                f"O Total já inclui o ajuste pela inadimplência esperada "
-                f"({fmt_pct(resultado.percentual_inadimplencia)}): Rateio + Fundo de reserva, dividido por "
-                "(1 - % de inadimplência) - por isso é maior que a soma simples das duas colunas."
             )
 
     with abas[1]:
