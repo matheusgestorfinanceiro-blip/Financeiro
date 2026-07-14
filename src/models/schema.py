@@ -155,9 +155,8 @@ class ResultadoPrevisao:
     desconto_pontualidade_valor: float = 0.0
     desconto_pontualidade_total_mensal: float = 0.0
 
-    # Base (anual, antes do proprio reajuste) usada para calcular
-    # percentual_reajuste_automatico: receita total = rateio + fundo de
-    # reserva + outras arrecadacoes (configurados, anualizados) + receitas
-    # extraordinarias do historico. Mesma logica usada no Balanco
-    # Orcamentario Consolidado, para as duas paginas ficarem consistentes.
+    # Base (anual) usada para calcular percentual_reajuste_automatico:
+    # receita total = rateio + fundo de reserva + outras arrecadacoes
+    # (configurados, anualizados) - sem receitas extraordinarias ou taxas
+    # extras do historico.
     receita_total_anual_base_reajuste: float = 0.0

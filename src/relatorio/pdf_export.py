@@ -567,10 +567,9 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado):
     resultado_geral = receita_total - despesas_totais - inadimplencia_valor
     texto_reajuste = (
         "Criterio tecnico: o percentual de reajuste e apurado comparando a receita total prevista (rateio + "
-        "fundo de reserva + outras arrecadacoes configuradas, anualizados, mais as receitas extraordinarias "
-        "identificadas no historico) com as despesas totais apuradas no periodo avaliado (12 meses) e com a "
-        "inadimplencia esperada - a mesma conta usada no Balanco Orcamentario Consolidado, para as duas paginas "
-        "do relatorio ficarem sempre consistentes entre si.\n\n"
+        "fundo de reserva + outras arrecadacoes configuradas, anualizados - sem receitas extraordinarias ou "
+        "taxas extras do historico, que nao entram nessa conta) com as despesas totais apuradas no periodo "
+        "avaliado (12 meses, incluindo despesas extraordinarias) e com a inadimplencia esperada.\n\n"
         f"Receita total apurada: {fmt_moeda(receita_total)}. Despesas totais apuradas: {fmt_moeda(despesas_totais)}. "
         f"Inadimplencia esperada ({fmt_pct(resultado.percentual_inadimplencia)} da receita total): "
         f"{fmt_moeda(inadimplencia_valor)}. Resultado (receita total menos despesas totais menos inadimplencia): "
@@ -597,10 +596,11 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado):
     receita_extraordinaria = totais_receitas["extraordinaria"]
     despesa_extraordinaria = totais_despesas["extraordinaria"]
     texto_atencao = (
-        "As receitas e despesas extraordinarias (eventuais, sem regularidade mensal) ja entram na conta do "
-        "reajuste acima (a receita extraordinaria compoe a receita total, e a despesa extraordinaria compoe as "
-        "despesas totais) - mas, por nao haver garantia de que se repitam no proximo periodo, merecem atencao "
-        "separada pelo impacto que tem no caixa do condominio quando ocorrem.\n\n"
+        "As receitas extraordinarias e taxas extras (eventuais, sem regularidade mensal) ficam de fora da "
+        "receita total usada no calculo do reajuste acima, por nao haver garantia de que se repitam no proximo "
+        "periodo - ja as despesas extraordinarias continuam entrando nas despesas totais do calculo. Ainda "
+        "assim, os dois lados merecem atencao separada pelo impacto que tem no caixa do condominio quando "
+        "ocorrem.\n\n"
         f"No periodo avaliado, as arrecadacoes extraordinarias somaram {fmt_moeda(receita_extraordinaria)} "
         f"e as despesas extraordinarias somaram {fmt_moeda(despesa_extraordinaria)}."
     )
