@@ -8,7 +8,7 @@ from src.relatorio.graficos import (
     grafico_evolucao_inadimplencia,
     grafico_receitas_ordinaria_x_extraordinaria,
 )
-from src.relatorio.pdf_export import _calcular_balanco, gerar_pdf_previsao
+from src.relatorio.pdf_export import _calcular_balanco, _despesas_previstas_ordinarias, gerar_pdf_previsao
 from src.ui.formatacao import escapar_markdown, fmt_moeda, fmt_pct
 
 
@@ -161,8 +161,9 @@ def renderizar_secao_resultado(resultado):
         )
         st.metric("Total da receita (12 meses)", fmt_moeda(balanco["receita_total"]))
 
-        st.markdown("**Despesas por categoria (anual)**")
-        despesas_total = resultado.total_despesas_previsto
+        st.markdown("**Despesas ordinárias por categoria (anual)**")
+        despesas_previstas_ordinarias = _despesas_previstas_ordinarias(resultado)
+        despesas_total = sum(l.valor_previsto for l in despesas_previstas_ordinarias)
         df_despesas = pd.DataFrame(
             [
                 {
@@ -172,7 +173,7 @@ def renderizar_secao_resultado(resultado):
                     "Mensal": l.valor_previsto / 12,
                     "% do total": l.valor_previsto / despesas_total if despesas_total else 0.0,
                 }
-                for l in resultado.despesas_previstas
+                for l in despesas_previstas_ordinarias
             ]
         )
         st.dataframe(
@@ -184,7 +185,7 @@ def renderizar_secao_resultado(resultado):
                 "% do total": st.column_config.NumberColumn("% do total", format="percent"),
             },
         )
-        st.metric("Total das despesas (12 meses)", fmt_moeda(despesas_total))
+        st.metric("Total das despesas ordinárias (12 meses)", fmt_moeda(despesas_total))
 
         st.markdown("**Inadimplência, reajuste e saldo final**")
         col1, col2, col3 = st.columns(3)

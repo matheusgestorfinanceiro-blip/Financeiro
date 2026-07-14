@@ -42,6 +42,22 @@ def _total_por_classificacao(df) -> dict:
     }
 
 
+def _despesas_previstas_ordinarias(resultado) -> list:
+    """Filtra `despesas_previstas` para só as subcategorias classificadas como
+    ordinarias (mesma base usada no calculo do reajuste automatico), a partir
+    de `despesas_classificadas` (categoria_pai + subcategoria + classificacao)."""
+    df = resultado.despesas_classificadas
+    if df is None or df.empty:
+        return list(resultado.despesas_previstas)
+    ordinarias = set(
+        zip(df[df["classificacao"] == "ordinaria"]["categoria_pai"], df[df["classificacao"] == "ordinaria"]["subcategoria"])
+    )
+    return [
+        linha for linha in resultado.despesas_previstas
+        if (linha.categoria_pai, linha.subcategoria) in ordinarias
+    ]
+
+
 def _top_despesas_extraordinarias(resultado, n: int = 3) -> list[tuple[str, str, float]]:
     df = resultado.despesas_classificadas
     if df is None or df.empty:
@@ -415,27 +431,31 @@ def _calcular_balanco(resultado) -> dict:
     Final, tudo anual). `receita_itens` guarda cada linha de receita prevista
     (nome, valor anual) para montar o "livro-razao" da pagina.
 
+    Usa a mesma base do calculo automatico do reajuste (rateio + fundo de
+    reserva + outras arrecadacoes, sem receitas extraordinarias/taxas extras;
+    despesas ordinarias, sem despesas extraordinarias/eventuais), para o
+    Balanco e o Reajuste sempre concordarem sobre haver ou nao deficit.
+
     receita_rateio_necessaria, fundo_reserva_valor e cada item de
     outras_arrecadacoes_detalhe sao valores MENSAIS (mesma convencao de
     ConfiguracaoArrecadacao, usada tambem em arrecadacao_prevista_mensal) -
-    por isso sao multiplicados por 12 aqui. total_outras_receitas_previsto ja
-    vem anual do historico."""
+    por isso sao multiplicados por 12 aqui."""
     receita_itens = [("Rateio mensal", resultado.receita_rateio_necessaria * 12)]
     if resultado.possui_fundo_reserva:
         receita_itens.append(("Fundo de reserva", resultado.fundo_reserva_valor * 12))
     for nome, valor in resultado.outras_arrecadacoes_detalhe:
         receita_itens.append((nome, valor * 12))
-    if resultado.total_outras_receitas_previsto:
-        receita_itens.append(("Outras receitas (historico, extraordinarias)", resultado.total_outras_receitas_previsto))
 
     receita_total = sum(valor for _, valor in receita_itens)
+    despesas_total = _total_por_classificacao(resultado.despesas_classificadas)["ordinaria"]
     inadimplencia_valor = resultado.percentual_inadimplencia * receita_total
     reajuste_valor = resultado.percentual_reajuste_automatico * receita_total
-    total_geral = resultado.total_despesas_previsto + inadimplencia_valor
+    total_geral = despesas_total + inadimplencia_valor
     saldo_final = receita_total - total_geral + reajuste_valor
     return {
         "receita_itens": receita_itens,
         "receita_total": receita_total,
+        "despesas_total": despesas_total,
         "inadimplencia_valor": inadimplencia_valor,
         "reajuste_valor": reajuste_valor,
         "total_geral": total_geral,
@@ -504,9 +524,10 @@ def _pagina_balanco(pdf: RelatorioPDF, resultado):
 
     pdf.ln(2)
 
-    despesas_total = resultado.total_despesas_previsto
+    despesas_previstas_ordinarias = _despesas_previstas_ordinarias(resultado)
+    despesas_total = sum(l.valor_previsto for l in despesas_previstas_ordinarias)
     despesas_por_categoria: dict[str, list] = {}
-    for linha_despesa in resultado.despesas_previstas:
+    for linha_despesa in despesas_previstas_ordinarias:
         despesas_por_categoria.setdefault(linha_despesa.categoria_pai, []).append(linha_despesa)
 
     _linha_ledger(pdf, larguras, ["DESPESAS", "Anual", "Mensal", "% do Total"], fill=FILL_DESPESAS, cor_texto="#FFFFFF", bold=True)
