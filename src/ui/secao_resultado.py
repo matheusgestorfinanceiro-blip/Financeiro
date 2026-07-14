@@ -71,6 +71,11 @@ def renderizar_secao_resultado(resultado):
                     "total": st.column_config.NumberColumn("Total", format="R$ %.2f"),
                 },
             )
+            st.caption(
+                f"O Total já inclui o ajuste pela inadimplência esperada "
+                f"({fmt_pct(resultado.percentual_inadimplencia)}): Rateio + Fundo de reserva, dividido por "
+                "(1 - % de inadimplência) - por isso é maior que a soma simples das duas colunas."
+            )
 
     with abas[1]:
         totais = _total_por_classificacao(resultado.despesas_classificadas)
