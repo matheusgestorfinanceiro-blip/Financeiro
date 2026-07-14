@@ -114,7 +114,7 @@ def renderizar_secao_resultado(resultado):
         else:
             col1, col2 = st.columns(2)
             col1.metric("Percentual de inadimplência apurado", fmt_pct(resultado.percentual_inadimplencia))
-            col2.metric("Valor total em aberto", fmt_moeda(resultado.inadimplencia_valor_total))
+            col2.metric("Valor principal em aberto", fmt_moeda(resultado.inadimplencia_valor_total))
             if resultado.inadimplencia_unidades:
                 st.markdown("**Unidades inadimplentes**")
                 st.write(", ".join(resultado.inadimplencia_unidades))

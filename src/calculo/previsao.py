@@ -221,7 +221,9 @@ def gerar_previsao(
     concentracao_inadimplencia = concentracao_inadimplencia_por_competencia(inadimplencia)
     mes_pico = calcular_mes_pico_inadimplencia(concentracao_inadimplencia)
 
-    inadimplencia_valor_total = inadimplencia.total_geral if inadimplencia else 0.0
+    # Valor principal em aberto (sem juros/multa/honorarios), como pedido pelo
+    # usuario - o PDF de inadimplentes anexado ja separa essa coluna.
+    inadimplencia_valor_total = inadimplencia.total_principal if inadimplencia else 0.0
     inadimplencia_unidades = (
         sorted(inadimplencia.unidades["unidade"].unique().tolist())
         if inadimplencia is not None and not inadimplencia.unidades.empty

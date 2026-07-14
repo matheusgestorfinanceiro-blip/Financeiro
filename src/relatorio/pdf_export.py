@@ -354,7 +354,7 @@ def _pagina_inadimplencia(pdf: RelatorioPDF, resultado):
             pdf,
             [
                 ("Percentual de inadimplencia apurado", fmt_pct(resultado.percentual_inadimplencia)),
-                ("Valor total em aberto", fmt_moeda(resultado.inadimplencia_valor_total)),
+                ("Valor principal em aberto", fmt_moeda(resultado.inadimplencia_valor_total)),
             ],
         )
         pdf.ln(2)
@@ -366,9 +366,9 @@ def _pagina_inadimplencia(pdf: RelatorioPDF, resultado):
             pdf.ln(2)
             texto = (
                 f"O condominio apresenta {fmt_pct(resultado.percentual_inadimplencia)} de inadimplencia, "
-                f"totalizando {fmt_moeda(resultado.inadimplencia_valor_total)} em aberto entre as unidades "
-                "listadas acima. Nao ha dados suficientes no relatorio de inadimplentes para montar um "
-                "grafico de concentracao por mes de competencia."
+                f"totalizando {fmt_moeda(resultado.inadimplencia_valor_total)} de valor principal em aberto entre "
+                "as unidades listadas acima (sem juros, multa ou honorarios). Nao ha dados suficientes no "
+                "relatorio de inadimplentes para montar um grafico de concentracao por mes de competencia."
             )
         else:
             texto = (
