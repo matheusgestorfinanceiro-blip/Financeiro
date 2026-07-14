@@ -330,54 +330,75 @@ def _pagina_inadimplencia(pdf: RelatorioPDF, resultado):
     pdf.add_page()
     pdf.titulo_pagina("4. Inadimplencia")
 
-    tem_grafico = resultado.concentracao_inadimplencia is not None and not resultado.concentracao_inadimplencia.empty
+    tem_unidades = (
+        resultado.inadimplencia_valor_por_unidade is not None
+        and not resultado.inadimplencia_valor_por_unidade.empty
+    )
+    tem_concentracao = resultado.concentracao_inadimplencia is not None and not resultado.concentracao_inadimplencia.empty
+    qtd_unidades = len(resultado.inadimplencia_unidades)
+    max_meses_atraso = int(resultado.inadimplencia_valor_por_unidade["meses_em_atraso"].max()) if tem_unidades else 0
+    # Grafico de evolucao so faz sentido quando ha mais de um mes de
+    # competencia em atraso (em alguma unidade) ou mais de uma unidade
+    # inadimplente - com 1 unidade e 1 mes, um grafico de 1 barra nao ajuda.
+    tem_grafico = tem_concentracao and (max_meses_atraso > 1 or qtd_unidades > 1)
+
+    _cartoes_estatisticas(
+        pdf,
+        [
+            ("Percentual de inadimplencia apurado", fmt_pct(resultado.percentual_inadimplencia)),
+            ("Valor principal em aberto", fmt_moeda(resultado.inadimplencia_valor_total)),
+        ],
+    )
+    pdf.ln(2)
 
     if tem_grafico:
-        _cartoes_estatisticas(
-            pdf,
-            [("Percentual de inadimplencia apurado", fmt_pct(resultado.percentual_inadimplencia))],
-            colunas=1,
-        )
-        pdf.ln(2)
         pdf.imagem_temporaria(grafico_evolucao_inadimplencia(resultado), w=_largura_util(pdf))
         pdf.ln(3)
-        texto = (
-            "O grafico acima mostra o valor em aberto por mes de competencia das cobrancas atualmente "
-            "inadimplentes (nao e uma serie historica do percentual de inadimplencia, e sim a concentracao "
-            "das cobrancas em aberto hoje). O mes de competencia com maior concentracao de valores em "
-            f"aberto foi {resultado.mes_pico_inadimplencia}, o que merece atencao especial do sindico e da "
-            "administradora para identificar a causa (ex: aumento pontual de taxa, dificuldade financeira "
-            "concentrada em um periodo, etc.)."
+
+    if tem_unidades:
+        largura_util = _largura_util(pdf)
+        larguras = [largura_util * 0.55, largura_util * 0.25, largura_util * 0.20]
+        _linha_ledger(
+            pdf, larguras, ["Unidade", "Valor em aberto", "Meses em atraso"],
+            fill=NAVY, cor_texto="#FFFFFF", bold=True,
+        )
+        for _, linha_unidade in resultado.inadimplencia_valor_por_unidade.iterrows():
+            _linha_ledger(
+                pdf, larguras,
+                [str(linha_unidade["unidade"]), fmt_moeda(linha_unidade["valor_total"]), str(int(linha_unidade["meses_em_atraso"]))],
+            )
+        pdf.ln(5)
+
+    partes_texto = [
+        f"O condominio apresenta {fmt_pct(resultado.percentual_inadimplencia)} de inadimplencia apurada, "
+        f"totalizando {fmt_moeda(resultado.inadimplencia_valor_total)} de valor principal em aberto "
+        "(sem juros, multa ou honorarios)."
+    ]
+    if qtd_unidades == 0:
+        partes_texto.append(
+            "Nao ha unidades inadimplentes identificadas no relatorio de inadimplentes enviado."
         )
     else:
-        _cartoes_estatisticas(
-            pdf,
-            [
-                ("Percentual de inadimplencia apurado", fmt_pct(resultado.percentual_inadimplencia)),
-                ("Valor principal em aberto", fmt_moeda(resultado.inadimplencia_valor_total)),
-            ],
+        partes_texto.append(f"Ao todo, {qtd_unidades} unidade(s) estao inadimplentes atualmente.")
+        if max_meses_atraso > 1:
+            partes_texto.append(
+                f"Algumas unidades acumulam atraso em mais de um mes de competencia (ate {max_meses_atraso} "
+                "meses), o que indica um padrao de inadimplencia recorrente, nao apenas pontual."
+            )
+        if tem_grafico:
+            partes_texto.append(
+                "O grafico acima mostra o valor em aberto por mes de competencia das cobrancas atualmente "
+                "inadimplentes (nao e uma serie historica do percentual de inadimplencia, e sim a "
+                f"concentracao das cobrancas em aberto hoje). O mes de competencia com maior concentracao "
+                f"de valores em aberto foi {resultado.mes_pico_inadimplencia}, o que merece atencao especial "
+                "do sindico e da administradora para identificar a causa (ex: aumento pontual de taxa, "
+                "dificuldade financeira concentrada em um periodo, etc.)."
+            )
+        partes_texto.append(
+            "A tabela acima detalha o valor total em aberto e a quantidade de meses em atraso de cada unidade."
         )
-        pdf.ln(2)
-        if resultado.inadimplencia_unidades:
-            pdf.set_font("Helvetica", "B", 10)
-            pdf.cell(0, 6, "Unidades inadimplentes:", new_x="LMARGIN", new_y="NEXT")
-            pdf.set_font("Helvetica", size=10)
-            pdf.multi_cell(_largura_util(pdf), 5.5, ", ".join(resultado.inadimplencia_unidades))
-            pdf.ln(2)
-            texto = (
-                f"O condominio apresenta {fmt_pct(resultado.percentual_inadimplencia)} de inadimplencia, "
-                f"totalizando {fmt_moeda(resultado.inadimplencia_valor_total)} de valor principal em aberto entre "
-                "as unidades listadas acima (sem juros, multa ou honorarios). Nao ha dados suficientes no "
-                "relatorio de inadimplentes para montar um grafico de concentracao por mes de competencia."
-            )
-        else:
-            texto = (
-                f"O condominio apresenta {fmt_pct(resultado.percentual_inadimplencia)} de inadimplencia "
-                "apurada. Nao ha unidades inadimplentes nem cobrancas em aberto identificadas no relatorio "
-                "enviado."
-            )
 
-    _caixa_consideracoes(pdf, texto)
+    _caixa_consideracoes(pdf, " ".join(partes_texto))
 
 
 FILL_RECEITA = "#2E5496"

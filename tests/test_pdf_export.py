@@ -35,6 +35,26 @@ def test_gerar_pdf_com_grafico_de_inadimplencia(caminho_demonstrativo, caminho_i
     assert len(pdf_bytes) > 0
 
 
+def test_gerar_pdf_inadimplencia_formato_horizontal_lista_unidades(caminho_demonstrativo, caminho_inadimplentes_horizontal):
+    # Regressão: um PDF real de inadimplentes com códigos de unidade
+    # numéricos (sem "AP") e várias unidades/meses em atraso não podia gerar
+    # uma página de inadimplência contraditória (percentual > 0 mas "não há
+    # unidades inadimplentes"). Confere que a tabela por unidade aparece no
+    # texto do PDF.
+    demonstrativo = parse_demonstrativo(caminho_demonstrativo)
+    inadimplencia = parse_inadimplentes(caminho_inadimplentes_horizontal)
+    resultado = gerar_previsao(demonstrativo, inadimplencia, _formulario())
+    assert len(resultado.inadimplencia_unidades) == 6
+    assert not resultado.inadimplencia_valor_por_unidade.empty
+
+    pdf_bytes = gerar_pdf_previsao(resultado)
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        texto_pagina_4 = pdf.pages[3].extract_text() or ""
+    assert "nao ha unidades inadimplentes" not in texto_pagina_4.lower()
+    assert "16 - PROPRIETARIO EXEMPLO 16" in texto_pagina_4
+    assert "Meses em atraso" in texto_pagina_4
+
+
 def test_gerar_pdf_sem_grafico_de_inadimplencia(caminho_demonstrativo):
     demonstrativo = parse_demonstrativo(caminho_demonstrativo)
     inadimplencia = DadosInadimplencia(

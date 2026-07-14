@@ -103,22 +103,34 @@ def renderizar_secao_resultado(resultado):
         )
 
     with abas[2]:
-        tem_grafico = resultado.concentracao_inadimplencia is not None and not resultado.concentracao_inadimplencia.empty
+        tem_unidades = resultado.inadimplencia_valor_por_unidade is not None and not resultado.inadimplencia_valor_por_unidade.empty
+        tem_concentracao = resultado.concentracao_inadimplencia is not None and not resultado.concentracao_inadimplencia.empty
+        qtd_unidades = len(resultado.inadimplencia_unidades)
+        max_meses_atraso = int(resultado.inadimplencia_valor_por_unidade["meses_em_atraso"].max()) if tem_unidades else 0
+        tem_grafico = tem_concentracao and (max_meses_atraso > 1 or qtd_unidades > 1)
+
+        col1, col2 = st.columns(2)
+        col1.metric("Percentual de inadimplência apurado", fmt_pct(resultado.percentual_inadimplencia))
+        col2.metric("Valor principal em aberto", fmt_moeda(resultado.inadimplencia_valor_total))
+
         if tem_grafico:
-            st.metric("Percentual de inadimplência apurado", fmt_pct(resultado.percentual_inadimplencia))
             st.pyplot(grafico_evolucao_inadimplencia(resultado))
             st.caption(
                 f"Mês de competência com maior concentração de cobranças em aberto: "
                 f"**{resultado.mes_pico_inadimplencia}**."
             )
+
+        if tem_unidades:
+            st.markdown("**Unidades inadimplentes**")
+            st.dataframe(
+                resultado.inadimplencia_valor_por_unidade.rename(
+                    columns={"unidade": "Unidade", "valor_total": "Valor em aberto", "meses_em_atraso": "Meses em atraso"}
+                ),
+                use_container_width=True,
+                column_config={"Valor em aberto": st.column_config.NumberColumn("Valor em aberto", format="R$ %.2f")},
+            )
         else:
-            col1, col2 = st.columns(2)
-            col1.metric("Percentual de inadimplência apurado", fmt_pct(resultado.percentual_inadimplencia))
-            col2.metric("Valor principal em aberto", fmt_moeda(resultado.inadimplencia_valor_total))
-            if resultado.inadimplencia_unidades:
-                st.markdown("**Unidades inadimplentes**")
-                st.write(", ".join(resultado.inadimplencia_unidades))
-            st.caption("Não há dados suficientes no relatório de inadimplentes para montar um gráfico de concentração por mês de competência.")
+            st.caption("Não há unidades inadimplentes identificadas no relatório de inadimplentes enviado.")
 
     with abas[3]:
         import pandas as pd

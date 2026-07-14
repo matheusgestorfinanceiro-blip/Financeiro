@@ -80,3 +80,15 @@ def mes_pico_inadimplencia(df_concentracao: pd.DataFrame) -> str | None:
         return None
     linha_pico = df_concentracao.loc[df_concentracao["valor_total"].idxmax()]
     return str(linha_pico["competencia"])
+
+
+def valor_por_unidade_inadimplente(inadimplencia) -> pd.DataFrame:
+    """Agrupa o valor total em aberto e a quantidade de meses de competência
+    em atraso por unidade. Retorna colunas `unidade`, `valor_total` e
+    `meses_em_atraso`, ordenadas do maior para o menor valor em aberto."""
+    if inadimplencia is None or inadimplencia.unidades.empty:
+        return pd.DataFrame(columns=["unidade", "valor_total", "meses_em_atraso"])
+    agrupado = inadimplencia.unidades.groupby("unidade", as_index=False).agg(
+        valor_total=("total", "sum"), meses_em_atraso=("competencia", "nunique")
+    )
+    return agrupado.sort_values(by="valor_total", ascending=False).reset_index(drop=True)

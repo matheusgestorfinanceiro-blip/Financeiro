@@ -23,7 +23,7 @@ from src.parsers.pdf_utils import extrair_numeros, parse_moeda_brl, rotulo_da_li
 MES_RE = re.compile(r"^[A-Za-zç]{3}/\d{4}$")
 
 RODAPE_OU_CABECALHO_RE = re.compile(
-    r"^gestor@|^\d+\s+de\s+\d+$|^CONDOMINIO\b|Tel:|^AVENIDA\b|^RUA\b|^AV\.\b"
+    r"^[\w.+-]+@[\w.-]+\.\w+|^\d+\s+de\s+\d+$|^CONDOMINIO\b|Tel:|^AVENIDA\b|^RUA\b|^AV\.\b"
 )
 
 CABECALHOS_CONHECIDOS = {

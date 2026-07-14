@@ -148,6 +148,7 @@ class ResultadoPrevisao:
     arrecadacao_prevista_mensal: float = 0.0
     inadimplencia_valor_total: float = 0.0
     inadimplencia_unidades: list[str] = field(default_factory=list)
+    inadimplencia_valor_por_unidade: pd.DataFrame = None  # colunas: unidade, valor_total, meses_em_atraso
 
     possui_desconto_pontualidade: bool = False
     desconto_pontualidade_modo: str = "valor_fixo"
