@@ -563,35 +563,72 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado):
     receita_ordinaria = totais_receitas["ordinaria"]
     despesa_ordinaria = totais_despesas["ordinaria"]
 
-    if resultado.percentual_reajuste_automatico > 0:
-        texto_reajuste = (
-            f"A receita ordinaria do historico (rateio mensal) foi de {fmt_moeda(receita_ordinaria)}, enquanto "
-            f"a despesa ordinaria do mesmo periodo foi de {fmt_moeda(despesa_ordinaria)} - uma diferenca de "
-            f"{fmt_moeda(despesa_ordinaria - receita_ordinaria)}. O percentual acima e o necessario para "
-            "equilibrar as duas, mantendo a mesma base de despesas do periodo anterior."
+    resultado_ordinario = receita_ordinaria - despesa_ordinaria
+    texto_reajuste = (
+        "Criterio tecnico: o percentual de reajuste e apurado comparando, no historico dos ultimos 12 meses "
+        "(periodo avaliado), a receita ordinaria (recorrente, como o rateio mensal) com a despesa ordinaria "
+        "(recorrente) - ambas classificadas pela regularidade mensal, sem considerar arrecadacoes ou despesas "
+        "extraordinarias/eventuais.\n\n"
+        f"Receita ordinaria apurada: {fmt_moeda(receita_ordinaria)}. Despesa ordinaria apurada: "
+        f"{fmt_moeda(despesa_ordinaria)}. Resultado (receita ordinaria menos despesa ordinaria): "
+        f"{fmt_moeda(resultado_ordinario)}."
+    )
+    if resultado_ordinario >= 0:
+        texto_reajuste += (
+            "\n\nComo o resultado e maior ou igual a zero, a receita ordinaria recorrente ja cobre "
+            "integralmente a despesa ordinaria recorrente do periodo - nao ha deficit estrutural a "
+            "equacionar, portanto nao ha justificativa tecnica para propor reajuste. Elevar a taxa "
+            "condominial nesse cenario oneraria os condominos sem necessidade comprovada pelos numeros do "
+            "periodo avaliado."
         )
     else:
-        texto_reajuste = (
-            f"Nao houve necessidade de reajuste: a receita ordinaria do historico ({fmt_moeda(receita_ordinaria)}) "
-            f"ja cobriu a despesa ordinaria do mesmo periodo ({fmt_moeda(despesa_ordinaria)})."
+        deficit = despesa_ordinaria - receita_ordinaria
+        texto_reajuste += (
+            f"\n\nComo o resultado e negativo, ha um deficit ordinario de {fmt_moeda(deficit)}: a despesa "
+            "ordinaria recorrente supera a receita ordinaria recorrente do periodo. O percentual de reajuste "
+            f"proposto ({fmt_pct(resultado.percentual_reajuste_automatico)}) e exatamente esse deficit dividido "
+            "pela receita ordinaria apurada - aplicado a receita ordinaria atual, o valor resultante passa a "
+            "cobrir a despesa ordinaria apurada sem sobra nem falta, equilibrando a operacao recorrente do "
+            "condominio."
         )
     _caixa_consideracoes(pdf, texto_reajuste, titulo="Como o reajuste foi apurado")
 
+    receita_extraordinaria = totais_receitas["extraordinaria"]
+    despesa_extraordinaria = totais_despesas["extraordinaria"]
+    texto_atencao = (
+        "Arrecadacoes e despesas extraordinarias (eventuais, sem regularidade mensal) ficam de fora do "
+        "calculo do reajuste, por nao haver garantia de que se repitam no proximo periodo - mas merecem "
+        "atencao pelo impacto direto que tem no caixa do condominio quando ocorrem.\n\n"
+        f"No periodo avaliado, as arrecadacoes extraordinarias somaram {fmt_moeda(receita_extraordinaria)} "
+        f"e as despesas extraordinarias somaram {fmt_moeda(despesa_extraordinaria)}."
+    )
+    if despesa_extraordinaria > receita_extraordinaria:
+        diferenca_extraordinaria = despesa_extraordinaria - receita_extraordinaria
+        texto_atencao += (
+            f" Como as despesas extraordinarias superaram as arrecadacoes extraordinarias em "
+            f"{fmt_moeda(diferenca_extraordinaria)}, esse desequilibrio pontual tende a consumir caixa ou "
+            "fundo de reserva nos meses em que ocorre, ja que o condominio gastou eventualmente mais do que "
+            "arrecadou eventualmente - vale avaliar se essas despesas continuarao ocorrendo e se o fundo de "
+            "reserva esta dimensionado para absorve-las."
+        )
+    elif receita_extraordinaria > despesa_extraordinaria:
+        diferenca_extraordinaria = receita_extraordinaria - despesa_extraordinaria
+        texto_atencao += (
+            f" Como as arrecadacoes extraordinarias superaram as despesas extraordinarias em "
+            f"{fmt_moeda(diferenca_extraordinaria)}, esses periodos geraram folga eventual de caixa, que "
+            "pode ter sido usada para reforcar o fundo de reserva ou reduzir a necessidade de reajuste nos "
+            "proximos periodos - desde que essa folga nao seja tratada como receita recorrente."
+        )
+    else:
+        texto_atencao += " Arrecadacoes e despesas extraordinarias se equilibraram no periodo avaliado."
+
     top_extraordinarias = _top_despesas_extraordinarias(resultado)
     if top_extraordinarias:
-        texto_atencao = (
-            "As categorias de despesa abaixo tiveram comportamento extraordinario/eventual no historico e "
-            "merecem atencao especial para avaliar se devem se repetir no proximo periodo - reduzir sua "
-            "recorrencia ajuda a manter o reajuste dos proximos periodos mais baixo:"
-        )
+        texto_atencao += "\n\nMaiores despesas extraordinarias identificadas no periodo:"
         for categoria_pai, subcategoria, total in top_extraordinarias:
             texto_atencao += f"\n- {categoria_pai} / {subcategoria}: {fmt_moeda(total)}"
-    else:
-        texto_atencao = (
-            "Nao foram identificadas categorias de despesa com comportamento fora do padrao no historico "
-            "analisado."
-        )
-    _caixa_consideracoes(pdf, texto_atencao, titulo="Pontos de atencao para equilibrar despesas e receitas")
+
+    _caixa_consideracoes(pdf, texto_atencao, titulo="Pontos de atencao: extraordinarias e impacto no caixa")
 
     # Assinatura sempre ancorada no rodape da pagina, mesmo que o conteudo
     # acima varie de tamanho - por isso a quebra automatica fica desligada
