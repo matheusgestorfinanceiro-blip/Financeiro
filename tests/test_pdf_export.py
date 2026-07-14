@@ -5,7 +5,7 @@ import pdfplumber
 import pytest
 
 from src.calculo.previsao import gerar_previsao
-from src.models.schema import ConfiguracaoArrecadacao, DadosFormulario, DadosInadimplencia
+from src.models.schema import ConfiguracaoArrecadacao, DadosFormulario, DadosInadimplencia, LinhaDespesaPrevista
 from src.parsers.demonstrativo_parser import parse_demonstrativo
 from src.parsers.inadimplentes_parser import parse_inadimplentes
 from src.relatorio.pdf_export import _calcular_balanco, gerar_pdf_previsao
@@ -137,6 +137,15 @@ def test_calcular_balanco_reconhece_superavit_e_deficit():
             self.outras_arrecadacoes_detalhe = outras_arrecadacoes
             self.total_outras_receitas_previsto = outras_receitas_anual
             self.total_despesas_previsto = despesas_anual
+            self.despesas_classificadas = pd.DataFrame(
+                [{"categoria_pai": "Categoria A", "subcategoria": "Item", "total": despesas_anual, "classificacao": "ordinaria"}]
+            )
+            self.despesas_previstas = [
+                LinhaDespesaPrevista(
+                    categoria_pai="Categoria A", subcategoria="Item", valor_historico=despesas_anual,
+                    percentual_reajuste_aplicado=0.0, valor_previsto=despesas_anual, ajuste_manual=False,
+                )
+            ]
             self.percentual_inadimplencia = pct_inadimplencia
             self.percentual_reajuste_automatico = pct_reajuste
 
