@@ -406,9 +406,7 @@ FILL_DESPESAS = "#FF0000"
 FILL_SUBGRUPO = "#A6A6A6"
 FILL_SUBTOTAL = "#D9D9D9"
 FILL_TOTAL_GERAL = "#808080"
-FILL_SALDO = "#D6D5D5"
 COR_TEXTO_DESPESA = "#FF0000"
-COR_TEXTO_REAJUSTE = "#002060"
 
 
 def _calcular_balanco(resultado) -> dict:
@@ -482,8 +480,9 @@ def _linha_ledger(pdf: RelatorioPDF, larguras, celulas, fill=None, cor_texto=Non
 def _pagina_balanco(pdf: RelatorioPDF, resultado):
     """Reproduz a estrutura, cores e organizacao da planilha "ANALISE" que a
     Azul ja usa manualmente para preparar previsoes (Receita / Despesas por
-    categoria / Inadimplencia / Reajuste / Saldo Final), preenchida com os
-    dados reais dos documentos anexados e da configuracao do formulario."""
+    categoria), preenchida com os dados reais dos documentos anexados e da
+    configuracao do formulario. Inadimplencia, reajuste e saldo final ja tem
+    paginas proprias no relatorio, entao nao sao repetidos aqui."""
     pdf.add_page()
     pdf.titulo_pagina("5. Balanco Orcamentario Consolidado")
 
@@ -533,31 +532,6 @@ def _pagina_balanco(pdf: RelatorioPDF, resultado):
         pdf, larguras,
         ["DESPESAS TOTAIS", fmt_moeda(despesas_total), fmt_moeda(despesas_total / 12), fmt_pct(1.0 if despesas_total else 0.0)],
         fill=FILL_TOTAL_GERAL, cor_texto="#FFFFFF", bold=True,
-    )
-
-    pdf.ln(2)
-
-    _linha_ledger(
-        pdf, larguras,
-        [f"Inadimplencia ({fmt_pct(resultado.percentual_inadimplencia)})", fmt_moeda(balanco["inadimplencia_valor"]),
-         fmt_moeda(balanco["inadimplencia_valor"] / 12), ""],
-        fill=FILL_SUBTOTAL, cor_texto=COR_TEXTO_DESPESA, bold=True,
-    )
-    _linha_ledger(
-        pdf, larguras,
-        [f"Sugestao de reajuste ({fmt_pct(resultado.percentual_reajuste_automatico)})", fmt_moeda(balanco["reajuste_valor"]),
-         fmt_moeda(balanco["reajuste_valor"] / 12), ""],
-        fill=FILL_SUBTOTAL, cor_texto=COR_TEXTO_REAJUSTE, bold=True,
-    )
-    _linha_ledger(
-        pdf, larguras,
-        ["TOTAL GERAL (Despesas + Inadimplencia)", fmt_moeda(balanco["total_geral"]), fmt_moeda(balanco["total_geral"] / 12), ""],
-        fill=FILL_TOTAL_GERAL, cor_texto="#FFFFFF", bold=True,
-    )
-    _linha_ledger(
-        pdf, larguras,
-        ["SALDO FINAL (Receita - Total Geral + Reajuste)", fmt_moeda(balanco["saldo_final"]), fmt_moeda(balanco["saldo_final"] / 12), ""],
-        fill=FILL_SALDO, bold=True,
     )
 
 
