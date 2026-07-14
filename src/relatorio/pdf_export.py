@@ -203,60 +203,6 @@ def _pagina_capa(pdf: RelatorioPDF, resultado):
     pdf.set_text_color(0, 0, 0)
 
 
-def _cartao_valor_medio_unidade(pdf: RelatorioPDF, resultado):
-    """Cartao de destaque explicando a media do valor total (rateio + fundo de
-    reserva + outras arrecadacoes) que cada unidade paga por mes, ja ajustada
-    pela inadimplencia esperada - desenhado logo apos os cartoes principais
-    (com espaco garantido), nao como um resto de rodape que pode sumir."""
-    if resultado.valores_por_unidade is None or resultado.valores_por_unidade.empty:
-        return
-
-    media_unidade = float(resultado.valores_por_unidade["total"].sum() / len(resultado.valores_por_unidade))
-    legenda = (
-        f"Media entre as {resultado.numero_unidades} unidades, ja somando rateio + fundo de reserva + outras "
-        f"arrecadacoes. O valor ja esta ajustado para cobrir os {fmt_pct(resultado.percentual_inadimplencia)} de "
-        "inadimplencia esperada - por isso e maior que a soma nominal das taxas. Cada unidade pode pagar um valor "
-        "diferente conforme a fracao/tipo configurado; veja o detalhamento completo na tela do sistema."
-    )
-
-    largura_util = _largura_util(pdf)
-    padding = 4
-
-    pdf.set_font("Helvetica", size=9)
-    linhas = pdf.multi_cell(largura_util - 2 * padding, 4.5, legenda, dry_run=True, output="LINES")
-    altura_legenda = len(linhas) * 4.5
-    altura_titulo_valor = 14
-    altura_caixa = altura_titulo_valor + altura_legenda + 2 * padding
-
-    # Mesma guarda defensiva ja usada em _caixa_consideracoes: se genuinamente
-    # nao houver espaco (pagina cheia), pula em vez de forcar uma 6a pagina.
-    if pdf.get_y() + altura_caixa > pdf.h - pdf.b_margin:
-        return
-
-    x = pdf.l_margin
-    y = pdf.get_y()
-
-    pdf.set_fill_color(*_hex_para_rgb(DESTAQUE_BG))
-    pdf.rect(x, y, largura_util, altura_caixa, style="F")
-
-    pdf.set_xy(x + padding, y + padding)
-    pdf.set_font("Helvetica", size=8.5)
-    pdf.set_text_color(*_hex_para_rgb(GRAY))
-    pdf.cell(largura_util - 2 * padding, 4, "Valor medio mensal por unidade", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_x(x + padding)
-
-    pdf.set_font("Helvetica", "B", 14)
-    pdf.set_text_color(*_hex_para_rgb(NAVY))
-    pdf.cell(largura_util - 2 * padding, 8, fmt_moeda(media_unidade), new_x="LMARGIN", new_y="NEXT")
-    pdf.set_x(x + padding)
-
-    pdf.set_font("Helvetica", size=9)
-    pdf.set_text_color(0, 0, 0)
-    pdf.multi_cell(largura_util - 2 * padding, 4.5, legenda)
-
-    pdf.set_xy(pdf.l_margin, y + altura_caixa + 8)
-
-
 def _pagina_arrecadacoes(pdf: RelatorioPDF, resultado):
     pdf.add_page()
     pdf.titulo_pagina("2. Arrecadacoes")
@@ -277,7 +223,6 @@ def _pagina_arrecadacoes(pdf: RelatorioPDF, resultado):
     )
 
     pdf.ln(2)
-    _cartao_valor_medio_unidade(pdf, resultado)
 
     if resultado.outras_arrecadacoes_detalhe:
         _cartoes_estatisticas(
@@ -287,8 +232,8 @@ def _pagina_arrecadacoes(pdf: RelatorioPDF, resultado):
         )
         pdf.ln(2)
 
-    # O grafico e menor quando ha conteudo extra acima (cartao de valor medio
-    # e/ou outras arrecadacoes) para sempre caber nas 5 paginas fixas.
+    # O grafico e menor quando ha outras arrecadacoes ocupando espaco acima,
+    # para sempre caber com folga antes das considerações.
     largura_grafico = 80 if resultado.outras_arrecadacoes_detalhe else 130
     pdf.imagem_temporaria(
         grafico_receitas_ordinaria_x_extraordinaria(resultado),
@@ -299,11 +244,15 @@ def _pagina_arrecadacoes(pdf: RelatorioPDF, resultado):
 
     if total_historico:
         texto = (
-            f"No historico dos ultimos 12 meses, {fmt_pct(pct_ordinaria)} da arrecadacao veio de fontes "
-            f"ordinarias e recorrentes (como o rateio mensal), enquanto {fmt_pct(pct_extraordinaria)} "
-            "veio de fontes extraordinarias ou eventuais (ex: juros, multas, receitas pontuais). Receitas "
-            "eventuais nao devem ser usadas como base para o calculo do reajuste ou do rateio do proximo "
-            "periodo, pois nao ha garantia de que se repitam."
+            f"A arrecadacao mensal prevista para o proximo periodo e de {fmt_moeda(resultado.arrecadacao_prevista_mensal)}, "
+            "com base no rateio, fundo de reserva e demais arrecadacoes configurados. "
+            f"No historico dos ultimos 12 meses (periodo avaliado), a arrecadacao ordinaria somou "
+            f"{fmt_moeda(totais['ordinaria'])} ({fmt_pct(pct_ordinaria)} do total arrecadado) - valores recorrentes "
+            "e regulares mes a mes, como o rateio mensal, que servem de base confiavel para o calculo do reajuste. "
+            f"Ja as arrecadacoes extraordinarias somaram {fmt_moeda(totais['extraordinaria'])} ({fmt_pct(pct_extraordinaria)} "
+            "do total): sao receitas eventuais e nao recorrentes (ex: juros, multas, receitas pontuais), que nao "
+            "se repetem todo mes e por isso nao devem ser usadas como base para o calculo do reajuste ou do "
+            "rateio do proximo periodo, pois nao ha garantia de que voltem a ocorrer."
         )
     else:
         texto = "Nao ha dados de receita suficientes no historico para esta analise."
