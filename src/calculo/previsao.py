@@ -29,39 +29,18 @@ def _percentual_para_subcategoria(ajustes: list[AjusteManual], subcategoria: str
     return padrao, False
 
 
-def _receita_ordinaria(receitas_classificadas: pd.DataFrame) -> float:
-    """Receita ordinária = soma das linhas de receita classificadas como
-    recorrentes (regulares mês a mês, veja src/calculo/analise.py), qualquer
-    que seja o nome usado na categoria (ex: 'Rateio Mensal', 'Taxa
-    Condominial', 'Cota Condominial'). Exclui uma eventual linha de 'fundo de
-    reserva' histórico, tratado separadamente e de forma manual."""
-    if receitas_classificadas.empty:
+def _calcular_reajuste_automatico(receita_disponivel: float, despesa_total: float) -> float:
+    """Se a receita (já líquida da inadimplência esperada) cobre a despesa
+    total, não há necessidade de reajuste. Caso contrário, calcula o
+    percentual necessário para equacionar receita e despesa - mesma conta de
+    `receita_disponivel - despesa_total` usada no Balanço Orçamentário
+    Consolidado (veja `_calcular_balanco` em `src/relatorio/pdf_export.py`),
+    para as duas páginas do relatório ficarem sempre consistentes entre si."""
+    if receita_disponivel <= 0:
         return 0.0
-    mascara_fundo_reserva = receitas_classificadas["categoria"].str.contains(
-        "fundo de reserva", case=False, na=False
-    )
-    mascara_ordinaria = receitas_classificadas["classificacao"] == "ordinaria"
-    return float(receitas_classificadas[mascara_ordinaria & ~mascara_fundo_reserva]["total"].sum())
-
-
-def _despesa_ordinaria(despesas_classificadas: pd.DataFrame) -> float:
-    """Despesa ordinária = soma das linhas de despesa classificadas como
-    recorrentes (exclui despesas extraordinárias/eventuais do histórico)."""
-    if despesas_classificadas.empty:
+    if receita_disponivel >= despesa_total:
         return 0.0
-    mascara_ordinaria = despesas_classificadas["classificacao"] == "ordinaria"
-    return float(despesas_classificadas[mascara_ordinaria]["total"].sum())
-
-
-def _calcular_reajuste_automatico(receita_ordinaria: float, despesa_ordinaria: float) -> float:
-    """Se a receita ordinária histórica já cobre a despesa ordinária, não há
-    necessidade de reajuste. Caso contrário, calcula o percentual necessário
-    para equacionar receita e despesa."""
-    if receita_ordinaria <= 0:
-        return 0.0
-    if receita_ordinaria >= despesa_ordinaria:
-        return 0.0
-    return (despesa_ordinaria - receita_ordinaria) / receita_ordinaria
+    return (despesa_total - receita_disponivel) / receita_disponivel
 
 
 def _calcular_despesas_previstas(
@@ -151,18 +130,10 @@ def gerar_previsao(
     receitas_classificadas = classificar_receitas(demonstrativo)
     despesas_classificadas = classificar_despesas(demonstrativo)
 
-    receita_ordinaria = _receita_ordinaria(receitas_classificadas)
-    despesa_ordinaria = _despesa_ordinaria(despesas_classificadas)
-    percentual_reajuste_automatico = _calcular_reajuste_automatico(receita_ordinaria, despesa_ordinaria)
-
-    despesas_previstas = _calcular_despesas_previstas(demonstrativo, formulario, percentual_reajuste_automatico)
-    total_despesas_historico = sum(l.valor_historico for l in despesas_previstas)
-    total_despesas_previsto = sum(l.valor_previsto for l in despesas_previstas)
-
-    total_outras_receitas_previsto = _calcular_outras_receitas_previstas(
-        receitas_classificadas, percentual_reajuste_automatico
-    )
-
+    # Rateio, fundo de reserva e outras arrecadacoes sao configurados
+    # diretamente pelo usuario no formulario (nao dependem do percentual de
+    # reajuste), entao sao resolvidos primeiro - o percentual de reajuste
+    # automatico e calculado a partir deles logo em seguida.
     rateio_df = _resolver_configuracao(formulario.configuracao_rateio, formulario.numero_unidades)
     rateio_df = rateio_df.rename(columns={"valor": "rateio"})
     numero_unidades = len(rateio_df)
@@ -211,6 +182,32 @@ def gerar_previsao(
 
     receita_rateio_necessaria = float(rateio_df["rateio"].sum())
     arrecadacao_prevista_mensal = receita_rateio_necessaria
+
+    # Reajuste automatico = receita total (rateio + fundo de reserva + outras
+    # arrecadacoes, ja anualizados, mais as receitas extraordinarias do
+    # historico) menos as despesas totais apuradas no periodo, ja descontada
+    # a inadimplencia esperada - mesma conta usada no Balanco Orcamentario
+    # Consolidado, para as duas paginas do relatorio ficarem sempre
+    # consistentes entre si (receita_disponivel - despesa_total >= 0 nas duas
+    # ou < 0 nas duas).
+    receita_extraordinaria_historico = _calcular_outras_receitas_previstas(receitas_classificadas, 0.0)
+    receita_total_anual = (
+        receita_rateio_necessaria * 12
+        + fundo_reserva_valor * 12
+        + total_outras_arrecadacoes_previsto * 12
+        + receita_extraordinaria_historico
+    )
+    despesas_totais_historico = demonstrativo.total_despesas
+    receita_disponivel = receita_total_anual * fator_cobertura
+    percentual_reajuste_automatico = _calcular_reajuste_automatico(receita_disponivel, despesas_totais_historico)
+
+    despesas_previstas = _calcular_despesas_previstas(demonstrativo, formulario, percentual_reajuste_automatico)
+    total_despesas_historico = sum(l.valor_historico for l in despesas_previstas)
+    total_despesas_previsto = sum(l.valor_previsto for l in despesas_previstas)
+
+    total_outras_receitas_previsto = _calcular_outras_receitas_previstas(
+        receitas_classificadas, percentual_reajuste_automatico
+    )
 
     total_despesas_historico_por_mes = {
         mes: float(demonstrativo.df_despesas[mes].sum()) for mes in demonstrativo.meses
@@ -264,4 +261,5 @@ def gerar_previsao(
         desconto_pontualidade_modo=formulario.desconto_pontualidade_modo,
         desconto_pontualidade_valor=formulario.desconto_pontualidade_valor,
         desconto_pontualidade_total_mensal=desconto_pontualidade_total_mensal,
+        receita_total_anual_base_reajuste=receita_total_anual,
     )
