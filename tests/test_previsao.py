@@ -354,6 +354,9 @@ def test_fundo_de_reserva_igual_reaproveita_nomes_de_unidade_do_rateio_por_fraca
 
 
 def test_inadimplencia_valor_total_e_unidades_preenchidos_a_partir_dos_dados():
+    # inadimplencia_valor_total deve usar o valor PRINCIPAL (sem juros/multa/
+    # honorarios), nao o total_geral - por isso os dois valores sao diferentes
+    # neste teste, confirmando que o campo certo esta sendo usado.
     demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
     formulario = _formulario()
     unidades = pd.DataFrame(
@@ -367,11 +370,11 @@ def test_inadimplencia_valor_total_e_unidades_preenchidos_a_partir_dos_dados():
         unidades=unidades,
         qtd_unidades_inadimplentes=2,
         percentual_inadimplencia=0.2,
-        total_principal=0.0,
+        total_principal=130.0,
         total_geral=150.0,
     )
     resultado = gerar_previsao(demonstrativo, inadimplencia, formulario)
-    assert resultado.inadimplencia_valor_total == pytest.approx(150.0)
+    assert resultado.inadimplencia_valor_total == pytest.approx(130.0)
     assert resultado.inadimplencia_unidades == ["AP 01", "AP 02"]
 
 

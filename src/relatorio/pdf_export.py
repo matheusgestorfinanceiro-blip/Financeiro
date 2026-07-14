@@ -5,6 +5,7 @@ que já tem identidade visual própria)."""
 import tempfile
 from pathlib import Path
 
+import pandas as pd
 from fpdf import FPDF
 
 from src.relatorio.graficos import (
@@ -298,19 +299,29 @@ def _pagina_despesas(pdf: RelatorioPDF, resultado):
     pdf.ln(3)
 
     if total_historico:
+        contagem = (
+            resultado.despesas_classificadas["classificacao"].value_counts()
+            if resultado.despesas_classificadas is not None
+            else pd.Series(dtype="int64")
+        )
+        qtd_ordinarias = int(contagem.get("ordinaria", 0))
+        qtd_extraordinarias = int(contagem.get("extraordinaria", 0))
+        qtd_total = qtd_ordinarias + qtd_extraordinarias
         texto = (
             f"No historico dos ultimos 12 meses, {fmt_pct(pct_ordinaria)} da despesa foi recorrente "
             f"(aparece de forma regular ao longo do ano) e {fmt_pct(pct_extraordinaria)} foi "
-            "extraordinaria ou eventual (concentrada em poucos meses)."
+            "extraordinaria ou eventual (concentrada em poucos meses).\n\n"
+            "Criterio tecnico: cada subcategoria e classificada pelo coeficiente de variacao "
+            "(desvio padrao dividido pela media) dos seus 12 valores mensais. Coeficiente de variacao ate 50% "
+            "indica uma distribuicao regular ao longo do ano (despesa ordinaria/recorrente); acima de 50% "
+            "indica valores concentrados em poucos meses (despesa extraordinaria/eventual). E uma classificacao "
+            "estatistica, nao uma categorizacao contabil oficial.\n\n"
+            f"Das {qtd_total} subcategorias de despesa analisadas, {qtd_ordinarias} foram classificadas como "
+            f"ordinarias e {qtd_extraordinarias} como extraordinarias. Despesas extraordinarias nao devem compor "
+            "a base de calculo do reajuste, ja que nao ha garantia de que se repitam no proximo periodo."
         )
     else:
         texto = "Nao ha dados de despesa suficientes no historico para esta analise."
-
-    top_extraordinarias = _top_despesas_extraordinarias(resultado)
-    if top_extraordinarias:
-        texto += "\n\nCategorias com maior peso extraordinario/eventual no historico:"
-        for categoria_pai, subcategoria, total in top_extraordinarias:
-            texto += f"\n- {categoria_pai} / {subcategoria}: {fmt_moeda(total)}"
 
     _caixa_consideracoes(pdf, texto)
 
@@ -343,7 +354,7 @@ def _pagina_inadimplencia(pdf: RelatorioPDF, resultado):
             pdf,
             [
                 ("Percentual de inadimplencia apurado", fmt_pct(resultado.percentual_inadimplencia)),
-                ("Valor total em aberto", fmt_moeda(resultado.inadimplencia_valor_total)),
+                ("Valor principal em aberto", fmt_moeda(resultado.inadimplencia_valor_total)),
             ],
         )
         pdf.ln(2)
@@ -355,9 +366,9 @@ def _pagina_inadimplencia(pdf: RelatorioPDF, resultado):
             pdf.ln(2)
             texto = (
                 f"O condominio apresenta {fmt_pct(resultado.percentual_inadimplencia)} de inadimplencia, "
-                f"totalizando {fmt_moeda(resultado.inadimplencia_valor_total)} em aberto entre as unidades "
-                "listadas acima. Nao ha dados suficientes no relatorio de inadimplentes para montar um "
-                "grafico de concentracao por mes de competencia."
+                f"totalizando {fmt_moeda(resultado.inadimplencia_valor_total)} de valor principal em aberto entre "
+                "as unidades listadas acima (sem juros, multa ou honorarios). Nao ha dados suficientes no "
+                "relatorio de inadimplentes para montar um grafico de concentracao por mes de competencia."
             )
         else:
             texto = (
