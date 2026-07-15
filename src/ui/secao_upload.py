@@ -34,6 +34,22 @@ def renderizar_secao_upload():
                     f"({fmt_pct(dados.percentual_inadimplencia)})"
                 )
             )
+            usar_percentual_pdf = st.radio(
+                f"Usar o percentual de inadimplência informado no PDF ({fmt_pct(dados.percentual_inadimplencia)})?",
+                ["Sim", "Não"], horizontal=True, key="inadimplencia_usar_percentual_pdf",
+            )
+            if usar_percentual_pdf == "Não":
+                percentual_manual = st.number_input(
+                    "Qual percentual de inadimplência deve ser considerado (%)?",
+                    min_value=0.0, max_value=100.0,
+                    value=round(dados.percentual_inadimplencia * 100, 2), step=0.5,
+                    key="inadimplencia_percentual_manual",
+                )
+                dados.percentual_inadimplencia = percentual_manual / 100
+                st.caption(
+                    f"Será considerado {fmt_pct(dados.percentual_inadimplencia)} de inadimplência em todo "
+                    "o formulário e no relatório, no lugar do percentual lido do PDF."
+                )
             with st.expander("Ver unidades inadimplentes extraídas"):
                 st.dataframe(dados.unidades, use_container_width=True, key="tabela_unidades_inadimplentes")
         except Exception as e:
