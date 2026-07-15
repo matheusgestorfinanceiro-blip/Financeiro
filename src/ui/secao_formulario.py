@@ -239,29 +239,39 @@ def renderizar_secao_formulario(dados_demonstrativo):
     enviado = st.button("Confirmar dados", type="primary")
 
     if enviado:
-        ajustes_manuais = []
-        if ajustes_tabela is not None:
-            for _, row in ajustes_tabela.iterrows():
-                if pd.notna(row["reajuste_manual_percentual"]):
-                    ajustes_manuais.append(
-                        AjusteManual(subcategoria=row["subcategoria"], percentual_reajuste=float(row["reajuste_manual_percentual"]) / 100)
-                    )
+        receitas_extraordinarias = st.session_state.get("receitas_extraordinarias_marcadas", [])
+        despesas_extraordinarias = st.session_state.get("despesas_extraordinarias_marcadas", [])
+        if not receitas_extraordinarias or not despesas_extraordinarias:
+            st.error(
+                "Marque pelo menos 1 receita e pelo menos 1 despesa como extraordinária (tela 1, tabelas "
+                "'Ver e marcar receitas/despesas extraídas') antes de confirmar os dados."
+            )
+        else:
+            ajustes_manuais = []
+            if ajustes_tabela is not None:
+                for _, row in ajustes_tabela.iterrows():
+                    if pd.notna(row["reajuste_manual_percentual"]):
+                        ajustes_manuais.append(
+                            AjusteManual(subcategoria=row["subcategoria"], percentual_reajuste=float(row["reajuste_manual_percentual"]) / 100)
+                        )
 
-        formulario = DadosFormulario(
-            nome_condominio=nome_condominio,
-            periodo=periodo,
-            numero_unidades=int(numero_unidades),
-            configuracao_rateio=configuracao_rateio,
-            unidades_isentas=unidades_isentas,
-            possui_desconto_pontualidade=possui_desconto_pontualidade,
-            desconto_pontualidade_modo=desconto_pontualidade_modo,
-            desconto_pontualidade_valor=desconto_pontualidade_valor,
-            possui_fundo_reserva=possui_fundo_reserva,
-            configuracao_fundo_reserva=configuracao_fundo_reserva,
-            outras_arrecadacoes=outras_arrecadacoes,
-            observacoes=observacoes,
-            ajustes_manuais=ajustes_manuais,
-        )
-        st.session_state["dados_formulario"] = formulario
+            formulario = DadosFormulario(
+                nome_condominio=nome_condominio,
+                periodo=periodo,
+                numero_unidades=int(numero_unidades),
+                configuracao_rateio=configuracao_rateio,
+                unidades_isentas=unidades_isentas,
+                receitas_extraordinarias=receitas_extraordinarias,
+                despesas_extraordinarias=despesas_extraordinarias,
+                possui_desconto_pontualidade=possui_desconto_pontualidade,
+                desconto_pontualidade_modo=desconto_pontualidade_modo,
+                desconto_pontualidade_valor=desconto_pontualidade_valor,
+                possui_fundo_reserva=possui_fundo_reserva,
+                configuracao_fundo_reserva=configuracao_fundo_reserva,
+                outras_arrecadacoes=outras_arrecadacoes,
+                observacoes=observacoes,
+                ajustes_manuais=ajustes_manuais,
+            )
+            st.session_state["dados_formulario"] = formulario
 
     return st.session_state.get("dados_formulario")

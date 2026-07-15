@@ -88,6 +88,13 @@ class DadosFormulario:
 
     unidades_isentas: list[tuple[str, float]] = field(default_factory=list)  # (unidade, percentual de isencao 0-1)
 
+    # Classificacao ordinaria/extraordinaria marcada manualmente pelo usuario
+    # na tela de upload: nomes de categoria (receitas) / subcategoria
+    # (despesas) marcados como extraordinarios; as demais linhas sao tratadas
+    # como ordinarias.
+    receitas_extraordinarias: list[str] = field(default_factory=list)
+    despesas_extraordinarias: list[str] = field(default_factory=list)
+
     possui_desconto_pontualidade: bool = False
     desconto_pontualidade_modo: str = "valor_fixo"  # "valor_fixo" (R$/unidade) ou "percentual" (fração, ex: 0.05)
     desconto_pontualidade_valor: float = 0.0

@@ -1,26 +1,55 @@
 import pandas as pd
 
 from src.calculo.analise import (
-    classificar_regularidade,
+    classificar_despesas,
+    classificar_receitas,
     concentracao_inadimplencia_por_competencia,
     mes_pico_inadimplencia,
     valor_por_unidade_inadimplente,
 )
-from src.models.schema import DadosInadimplencia
+from src.models.schema import DadosDemonstrativo, DadosInadimplencia
 
 
-def test_classificar_regularidade_valores_uniformes_e_ordinaria():
-    valores = [100.0] * 12
-    assert classificar_regularidade(valores) == "ordinaria"
+def _demonstrativo_para_classificacao() -> DadosDemonstrativo:
+    meses = ["Jan/2026", "Fev/2026"]
+    df_receitas = pd.DataFrame(
+        [
+            {"categoria": "Rateio Mensal", "Jan/2026": 100.0, "Fev/2026": 100.0, "total": 200.0},
+            {"categoria": "Juros", "Jan/2026": 5.0, "Fev/2026": 0.0, "total": 5.0},
+        ]
+    )
+    df_despesas = pd.DataFrame(
+        [
+            {"categoria_pai": "Mensais", "subcategoria": "Água", "Jan/2026": 50.0, "Fev/2026": 50.0, "total": 100.0},
+            {"categoria_pai": "Diversas", "subcategoria": "Obra Emergencial", "Jan/2026": 500.0, "Fev/2026": 0.0, "total": 500.0},
+        ]
+    )
+    return DadosDemonstrativo(
+        condominio="Condomínio Teste", meses=meses, df_receitas=df_receitas, df_despesas=df_despesas,
+        total_receitas=205.0, total_despesas=600.0,
+    )
 
 
-def test_classificar_regularidade_concentrada_em_poucos_meses_e_extraordinaria():
-    valores = [0.0] * 10 + [5000.0, 5000.0]
-    assert classificar_regularidade(valores) == "extraordinaria"
+def test_classificar_receitas_marca_so_as_categorias_indicadas_como_extraordinarias():
+    demonstrativo = _demonstrativo_para_classificacao()
+    df = classificar_receitas(demonstrativo, ["Juros"])
+    classificacoes = dict(zip(df["categoria"], df["classificacao"]))
+    assert classificacoes["Rateio Mensal"] == "ordinaria"
+    assert classificacoes["Juros"] == "extraordinaria"
 
 
-def test_classificar_regularidade_media_zero_e_extraordinaria():
-    assert classificar_regularidade([0.0] * 12) == "extraordinaria"
+def test_classificar_receitas_sem_marcacoes_tudo_ordinaria():
+    demonstrativo = _demonstrativo_para_classificacao()
+    df = classificar_receitas(demonstrativo, [])
+    assert (df["classificacao"] == "ordinaria").all()
+
+
+def test_classificar_despesas_marca_so_as_subcategorias_indicadas_como_extraordinarias():
+    demonstrativo = _demonstrativo_para_classificacao()
+    df = classificar_despesas(demonstrativo, ["Obra Emergencial"])
+    classificacoes = dict(zip(df["subcategoria"], df["classificacao"]))
+    assert classificacoes["Água"] == "ordinaria"
+    assert classificacoes["Obra Emergencial"] == "extraordinaria"
 
 
 def _inadimplencia_com_competencias(competencias_e_totais: list[tuple[str, float]]) -> DadosInadimplencia:

@@ -141,8 +141,8 @@ def gerar_previsao(
     inadimplencia: DadosInadimplencia | None,
     formulario: DadosFormulario,
 ) -> ResultadoPrevisao:
-    receitas_classificadas = classificar_receitas(demonstrativo)
-    despesas_classificadas = classificar_despesas(demonstrativo)
+    receitas_classificadas = classificar_receitas(demonstrativo, formulario.receitas_extraordinarias)
+    despesas_classificadas = classificar_despesas(demonstrativo, formulario.despesas_extraordinarias)
 
     # Rateio, fundo de reserva e outras arrecadacoes sao configurados
     # diretamente pelo usuario no formulario (nao dependem do percentual de

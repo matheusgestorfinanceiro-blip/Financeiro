@@ -7,44 +7,35 @@ import re
 
 import pandas as pd
 
-LIMIAR_COEFICIENTE_VARIACAO = 0.5
 
-
-def classificar_regularidade(valores_mensais: list[float]) -> str:
-    """Classifica uma série de 12 valores mensais como "ordinaria" (distribuição
-    uniforme ao longo do ano, típica de receita/despesa recorrente) ou
-    "extraordinaria" (concentrada em poucos meses, típica de algo eventual).
-
-    Usa o coeficiente de variação (desvio padrão / média). É uma classificação
-    estatística, não uma categorização contábil oficial."""
-    serie = pd.Series(valores_mensais, dtype="float64")
-    media = serie.mean()
-    if not media:
-        return "extraordinaria"
-    coeficiente_variacao = serie.std(ddof=0) / abs(media)
-    return "extraordinaria" if coeficiente_variacao > LIMIAR_COEFICIENTE_VARIACAO else "ordinaria"
-
-
-def classificar_receitas(demonstrativo) -> pd.DataFrame:
-    """Retorna uma cópia de df_receitas com a coluna `classificacao` adicionada."""
+def classificar_receitas(demonstrativo, categorias_extraordinarias: list[str] | None = None) -> pd.DataFrame:
+    """Retorna uma cópia de df_receitas com a coluna `classificacao` adicionada:
+    "extraordinaria" para as linhas cuja `categoria` está em
+    `categorias_extraordinarias` (marcadas manualmente pelo usuário na tela de
+    upload), "ordinaria" para todas as demais."""
+    categorias_extraordinarias = categorias_extraordinarias or []
     df = demonstrativo.df_receitas.copy()
     if df.empty:
         df["classificacao"] = []
         return df
-    df["classificacao"] = df[demonstrativo.meses].apply(
-        lambda linha: classificar_regularidade(linha.tolist()), axis=1
+    df["classificacao"] = df["categoria"].apply(
+        lambda categoria: "extraordinaria" if categoria in categorias_extraordinarias else "ordinaria"
     )
     return df
 
 
-def classificar_despesas(demonstrativo) -> pd.DataFrame:
-    """Retorna uma cópia de df_despesas com a coluna `classificacao` adicionada."""
+def classificar_despesas(demonstrativo, subcategorias_extraordinarias: list[str] | None = None) -> pd.DataFrame:
+    """Retorna uma cópia de df_despesas com a coluna `classificacao` adicionada:
+    "extraordinaria" para as linhas cuja `subcategoria` está em
+    `subcategorias_extraordinarias` (marcadas manualmente pelo usuário na tela
+    de upload), "ordinaria" para todas as demais."""
+    subcategorias_extraordinarias = subcategorias_extraordinarias or []
     df = demonstrativo.df_despesas.copy()
     if df.empty:
         df["classificacao"] = []
         return df
-    df["classificacao"] = df[demonstrativo.meses].apply(
-        lambda linha: classificar_regularidade(linha.tolist()), axis=1
+    df["classificacao"] = df["subcategoria"].apply(
+        lambda subcategoria: "extraordinaria" if subcategoria in subcategorias_extraordinarias else "ordinaria"
     )
     return df
 
