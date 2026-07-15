@@ -148,6 +148,7 @@ def test_calcular_balanco_reconhece_superavit_e_deficit():
             ]
             self.percentual_inadimplencia = pct_inadimplencia
             self.percentual_reajuste_automatico = pct_reajuste
+            self.desconto_receita_historico_anual = 0.0
 
     # Receita anual (1000*12=12000) folgada frente a despesas (6000) mesmo com inadimplencia -> superavit.
     superavit = _calcular_balanco(

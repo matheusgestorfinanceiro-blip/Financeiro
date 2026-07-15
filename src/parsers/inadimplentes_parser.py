@@ -7,7 +7,7 @@ import pdfplumber
 from src.models.schema import DadosInadimplencia
 
 RODAPE_RE = re.compile(
-    r"(\d+)\s+unidades\s+inadimplentes\s+\((\d+,\d+)%\)\s+"
+    r"(\d+)\s+unidades?\s+inadimplentes?\s+\((\d+,\d+)%\)\s+"
     r"(-?\d{1,3}(?:\.\d{3})*,\d{2})\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})"
 )
 EMAIL_CABECALHO_RE = re.compile(r"^[\w.+-]+@[\w.-]+\.\w+")

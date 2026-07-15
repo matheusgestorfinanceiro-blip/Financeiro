@@ -16,6 +16,11 @@ def caminho_inadimplentes_horizontal():
 
 
 @pytest.fixture
+def caminho_inadimplentes_singular():
+    return os.path.join(FIXTURES_DIR, "exemplo_inadimplentes_singular.pdf")
+
+
+@pytest.fixture
 def caminho_demonstrativo():
     return os.path.join(FIXTURES_DIR, "exemplo_demonstrativo.pdf")
 

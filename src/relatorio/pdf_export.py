@@ -270,6 +270,20 @@ def _pagina_arrecadacoes(pdf: RelatorioPDF, resultado):
                 f" Ja esta descontado o desconto de pontualidade configurado ({descricao_desconto}), que reduz "
                 f"o rateio em {fmt_moeda(resultado.desconto_pontualidade_total_mensal)} por mes no total."
             )
+        if resultado.unidades_isentas:
+            nomes_isentas = ", ".join(
+                f"{unidade} ({fmt_pct(percentual)})" for unidade, percentual in resultado.unidades_isentas
+            )
+            texto_desconto += (
+                f" Ja esta descontada a isencao configurada para {nomes_isentas}, que reduz o rateio em "
+                f"{fmt_moeda(resultado.isencao_total_mensal)} por mes no total."
+            )
+        if resultado.desconto_receita_historico_anual:
+            texto_desconto += (
+                f" O valor previsto ja esta liquido de {fmt_moeda(resultado.desconto_receita_historico_anual / 12)} "
+                "por mes em descontos identificados no campo de receita do historico (ex: isencoes, compensacoes "
+                "bancarias), tratados como uma deducao da arrecadacao esperada."
+            )
         texto = (
             f"A arrecadacao mensal prevista para o proximo periodo e de {fmt_moeda(resultado.arrecadacao_prevista_mensal)}, "
             f"com base no rateio, fundo de reserva e demais arrecadacoes configurados.{texto_desconto} "
@@ -445,6 +459,8 @@ def _calcular_balanco(resultado) -> dict:
         receita_itens.append(("Fundo de reserva", resultado.fundo_reserva_valor * 12))
     for nome, valor in resultado.outras_arrecadacoes_detalhe:
         receita_itens.append((nome, valor * 12))
+    if resultado.desconto_receita_historico_anual:
+        receita_itens.append(("Descontos identificados no historico de receitas", -resultado.desconto_receita_historico_anual))
 
     receita_total = sum(valor for _, valor in receita_itens)
     despesas_total = _total_por_classificacao(resultado.despesas_classificadas)["ordinaria"]

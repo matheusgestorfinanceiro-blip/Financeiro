@@ -45,6 +45,20 @@ def renderizar_secao_resultado(resultado):
                 f"Já descontado o desconto de pontualidade configurado ({descricao_desconto}): "
                 f"{fmt_moeda(resultado.desconto_pontualidade_total_mensal)} a menos por mês no total."
             )
+        if resultado.unidades_isentas:
+            nomes_isentas = ", ".join(
+                f"{unidade} ({fmt_pct(percentual)})" for unidade, percentual in resultado.unidades_isentas
+            )
+            st.caption(
+                f"Já descontada a isenção configurada para {nomes_isentas}: "
+                f"{fmt_moeda(resultado.isencao_total_mensal)} a menos por mês no total."
+            )
+        if resultado.desconto_receita_historico_anual:
+            st.caption(
+                f"O valor previsto já está líquido de {fmt_moeda(resultado.desconto_receita_historico_anual / 12)} "
+                "por mês em descontos identificados no campo de receita do histórico (ex: isenções, compensações "
+                "bancárias)."
+            )
         st.pyplot(grafico_receitas_ordinaria_x_extraordinaria(resultado))
         st.caption(
             "Classificação baseada na regularidade mensal do histórico (não é uma classificação contábil "
