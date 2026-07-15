@@ -267,7 +267,7 @@ def _pagina_arrecadacoes(pdf: RelatorioPDF, resultado):
             else:
                 descricao_desconto = fmt_pct(resultado.desconto_pontualidade_valor)
             texto_desconto = (
-                f" Ja esta descontado o desconto de pontualidade configurado ({descricao_desconto}), que reduz "
+                f" Ja esta descontado o desconto de pontualidade ({descricao_desconto}), que reduz "
                 f"o rateio em {fmt_moeda(resultado.desconto_pontualidade_total_mensal)} por mes no total."
             )
         if resultado.unidades_isentas:
@@ -275,7 +275,7 @@ def _pagina_arrecadacoes(pdf: RelatorioPDF, resultado):
                 f"{unidade} ({fmt_pct(percentual)})" for unidade, percentual in resultado.unidades_isentas
             )
             texto_desconto += (
-                f" Ja esta descontada a isencao configurada para {nomes_isentas}, que reduz o rateio em "
+                f" Ja esta descontada a isencao de {nomes_isentas}, que reduz o rateio em "
                 f"{fmt_moeda(resultado.isencao_total_mensal)} por mes no total."
             )
         if resultado.desconto_receita_historico_anual:
@@ -286,9 +286,7 @@ def _pagina_arrecadacoes(pdf: RelatorioPDF, resultado):
             )
         texto = (
             f"A arrecadacao mensal prevista para o proximo periodo e de {fmt_moeda(resultado.arrecadacao_prevista_mensal)}, "
-            f"com base no rateio, fundo de reserva e demais arrecadacoes configurados.{texto_desconto} "
-            "A classificacao ordinaria/extraordinaria abaixo e definida manualmente pelo usuario na tela de "
-            "upload dos documentos. "
+            f"com base no rateio, fundo de reserva e demais arrecadacoes.{texto_desconto} "
             f"No historico dos ultimos 12 meses (periodo avaliado), a arrecadacao ordinaria somou "
             f"{fmt_moeda(totais['ordinaria'])} ({fmt_pct(pct_ordinaria)} do total arrecadado) - valores recorrentes "
             "e regulares mes a mes, como o rateio mensal, que servem de base confiavel para o calculo do reajuste. "
@@ -342,9 +340,8 @@ def _pagina_despesas(pdf: RelatorioPDF, resultado):
         texto = (
             f"No historico dos ultimos 12 meses, {fmt_pct(pct_ordinaria)} da despesa foi ordinaria "
             f"(recorrente) e {fmt_pct(pct_extraordinaria)} foi extraordinaria (eventual).\n\n"
-            "Criterio: a classificacao ordinaria/extraordinaria e definida manualmente pelo usuario na "
-            "tela de upload dos documentos - cada subcategoria de despesa marcada como extraordinaria "
-            "entra nesse grupo; todas as demais, nao marcadas, sao tratadas como ordinarias.\n\n"
+            "Criterio: despesas ordinarias sao recorrentes, com regularidade mensal; despesas "
+            "extraordinarias sao eventuais, sem garantia de que se repitam no proximo periodo.\n\n"
             f"Das {qtd_total} subcategorias de despesa analisadas, {qtd_ordinarias} foram classificadas como "
             f"ordinarias e {qtd_extraordinarias} como extraordinarias. Despesas extraordinarias nao devem compor "
             "a base de calculo do reajuste, ja que nao ha garantia de que se repitam no proximo periodo."
@@ -603,7 +600,7 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado):
     resultado_geral = receita_total - despesas_ordinarias - inadimplencia_valor
     texto_reajuste = (
         "Criterio tecnico: o percentual de reajuste e apurado comparando a receita total prevista (rateio + "
-        "fundo de reserva + outras arrecadacoes configuradas, anualizados - sem receitas extraordinarias ou "
+        "fundo de reserva + outras arrecadacoes, anualizados - sem receitas extraordinarias ou "
         "taxas extras do historico, que nao entram nessa conta) com as despesas ORDINARIAS apuradas no periodo "
         "avaliado (12 meses, sem despesas extraordinarias/eventuais) e com a inadimplencia esperada.\n\n"
         f"Receita total apurada: {fmt_moeda(receita_total)}. Despesas ordinarias apuradas: "
@@ -613,7 +610,7 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado):
     )
     if resultado_geral >= 0:
         texto_reajuste += (
-            "\n\nComo o resultado e maior ou igual a zero, a receita total configurada ja cobre integralmente as "
+            "\n\nComo o resultado e maior ou igual a zero, a receita total ja cobre integralmente as "
             "despesas ordinarias do periodo e a inadimplencia esperada - nao ha deficit a equacionar, portanto "
             "nao ha justificativa tecnica para propor reajuste. Elevar a taxa condominial nesse cenario oneraria "
             "os condominos sem necessidade comprovada pelos numeros do periodo avaliado."
@@ -633,8 +630,8 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado):
     receita_extraordinaria = totais_receitas["extraordinaria"]
     despesa_extraordinaria = totais_despesas["extraordinaria"]
     texto_atencao = (
-        "As receitas extraordinarias/taxas extras e as despesas extraordinarias (marcadas manualmente na "
-        "tela de upload como eventuais, sem recorrencia mensal) ficam de fora do calculo do reajuste acima, "
+        "As receitas extraordinarias/taxas extras e as despesas extraordinarias (eventuais, sem recorrencia "
+        "mensal) ficam de fora do calculo do reajuste acima, "
         "por nao haver garantia de que se repitam no proximo periodo - mas merecem atencao separada pelo "
         "impacto que tem no caixa do condominio quando ocorrem.\n\n"
         f"No periodo avaliado, as arrecadacoes extraordinarias somaram {fmt_moeda(receita_extraordinaria)} "
