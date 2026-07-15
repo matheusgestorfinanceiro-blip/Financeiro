@@ -77,7 +77,9 @@ def parse_inadimplentes(caminho_pdf: str) -> DadosInadimplencia:
             continue
         m_unidade = UNIDADE_RE.match(linha)
         if m_unidade and "Vencimento" not in linha and not linha.lower().startswith("total"):
-            unidade_atual = f"{m_unidade.group(1).strip()} - {m_unidade.group(2).strip()}"
+            # O nome do proprietario (grupo 2) nunca entra no relatorio gerado -
+            # so o codigo/numero da unidade e informado, por privacidade.
+            unidade_atual = m_unidade.group(1).strip()
 
     df = pd.DataFrame(
         registros,
