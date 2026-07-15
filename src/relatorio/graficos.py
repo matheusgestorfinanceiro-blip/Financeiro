@@ -124,7 +124,7 @@ def grafico_receitas_ordinaria_x_extraordinaria(resultado):
 
 
 def grafico_despesas_por_categoria_pai(resultado):
-    """Percentual das despesas previstas por categoria (Com Pessoal, Mensais,
+    """Percentual das despesas apuradas por categoria (Com Pessoal, Mensais,
     Manutenção, Diversas, Serviços Terceirizados etc.)."""
     fig, ax = plt.subplots(figsize=(6, 6))
     if not resultado.despesas_previstas:
@@ -135,13 +135,13 @@ def grafico_despesas_por_categoria_pai(resultado):
         return fig
 
     df = pd.DataFrame(
-        [{"categoria_pai": l.categoria_pai, "valor": l.valor_previsto} for l in resultado.despesas_previstas]
+        [{"categoria_pai": l.categoria_pai, "valor": l.valor_historico} for l in resultado.despesas_previstas]
     )
     agrupado = df.groupby("categoria_pai", as_index=False)["valor"].sum().sort_values("valor", ascending=False)
     cores = [CORES_CATEGORICAS[i % len(CORES_CATEGORICAS)] for i in range(len(agrupado))]
 
     ax.pie(agrupado["valor"], labels=agrupado["categoria_pai"], autopct="%1.1f%%", colors=cores)
-    ax.set_title("Despesas previstas por categoria")
+    ax.set_title("Despesas por categoria")
     ax.title.set_color(NAVY)
     fig.tight_layout()
     return fig
