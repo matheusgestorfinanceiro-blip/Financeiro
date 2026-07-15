@@ -51,8 +51,10 @@ def test_gerar_pdf_inadimplencia_formato_horizontal_lista_unidades(caminho_demon
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
         texto_pagina_4 = pdf.pages[3].extract_text() or ""
     assert "nao ha unidades inadimplentes" not in texto_pagina_4.lower()
-    assert "16 - PROPRIETARIO EXEMPLO 16" in texto_pagina_4
+    assert "16" in texto_pagina_4
     assert "Meses em atraso" in texto_pagina_4
+    # O relatorio gerado nunca deve conter o nome do proprietario, so o codigo da unidade.
+    assert "PROPRIETARIO EXEMPLO" not in texto_pagina_4
 
 
 def test_gerar_pdf_sem_grafico_de_inadimplencia(caminho_demonstrativo):
