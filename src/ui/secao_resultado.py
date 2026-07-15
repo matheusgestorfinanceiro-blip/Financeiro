@@ -61,9 +61,9 @@ def renderizar_secao_resultado(resultado):
             )
         st.pyplot(grafico_receitas_ordinaria_x_extraordinaria(resultado))
         st.caption(
-            "Classificação baseada na regularidade mensal do histórico (não é uma classificação contábil "
-            "oficial): receitas com valores parecidos ao longo dos 12 meses são tratadas como ordinárias; "
-            "receitas concentradas em poucos meses, como extraordinárias/eventuais."
+            "Classificação definida manualmente pelo usuário na tela de upload dos documentos: receitas "
+            "marcadas como extraordinárias entram nesse grupo; as demais, não marcadas, são tratadas "
+            "como ordinárias."
         )
 
         if resultado.outras_arrecadacoes_detalhe:

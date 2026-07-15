@@ -287,6 +287,8 @@ def _pagina_arrecadacoes(pdf: RelatorioPDF, resultado):
         texto = (
             f"A arrecadacao mensal prevista para o proximo periodo e de {fmt_moeda(resultado.arrecadacao_prevista_mensal)}, "
             f"com base no rateio, fundo de reserva e demais arrecadacoes configurados.{texto_desconto} "
+            "A classificacao ordinaria/extraordinaria abaixo e definida manualmente pelo usuario na tela de "
+            "upload dos documentos. "
             f"No historico dos ultimos 12 meses (periodo avaliado), a arrecadacao ordinaria somou "
             f"{fmt_moeda(totais['ordinaria'])} ({fmt_pct(pct_ordinaria)} do total arrecadado) - valores recorrentes "
             "e regulares mes a mes, como o rateio mensal, que servem de base confiavel para o calculo do reajuste. "
@@ -338,14 +340,11 @@ def _pagina_despesas(pdf: RelatorioPDF, resultado):
         qtd_extraordinarias = int(contagem.get("extraordinaria", 0))
         qtd_total = qtd_ordinarias + qtd_extraordinarias
         texto = (
-            f"No historico dos ultimos 12 meses, {fmt_pct(pct_ordinaria)} da despesa foi recorrente "
-            f"(aparece de forma regular ao longo do ano) e {fmt_pct(pct_extraordinaria)} foi "
-            "extraordinaria ou eventual (concentrada em poucos meses).\n\n"
-            "Criterio tecnico: cada subcategoria e classificada pelo coeficiente de variacao "
-            "(desvio padrao dividido pela media) dos seus 12 valores mensais. Coeficiente de variacao ate 50% "
-            "indica uma distribuicao regular ao longo do ano (despesa ordinaria/recorrente); acima de 50% "
-            "indica valores concentrados em poucos meses (despesa extraordinaria/eventual). E uma classificacao "
-            "estatistica, nao uma categorizacao contabil oficial.\n\n"
+            f"No historico dos ultimos 12 meses, {fmt_pct(pct_ordinaria)} da despesa foi ordinaria "
+            f"(recorrente) e {fmt_pct(pct_extraordinaria)} foi extraordinaria (eventual).\n\n"
+            "Criterio: a classificacao ordinaria/extraordinaria e definida manualmente pelo usuario na "
+            "tela de upload dos documentos - cada subcategoria de despesa marcada como extraordinaria "
+            "entra nesse grupo; todas as demais, nao marcadas, sao tratadas como ordinarias.\n\n"
             f"Das {qtd_total} subcategorias de despesa analisadas, {qtd_ordinarias} foram classificadas como "
             f"ordinarias e {qtd_extraordinarias} como extraordinarias. Despesas extraordinarias nao devem compor "
             "a base de calculo do reajuste, ja que nao ha garantia de que se repitam no proximo periodo."
@@ -634,10 +633,10 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado):
     receita_extraordinaria = totais_receitas["extraordinaria"]
     despesa_extraordinaria = totais_despesas["extraordinaria"]
     texto_atencao = (
-        "As receitas extraordinarias/taxas extras e as despesas extraordinarias (eventuais, sem regularidade "
-        "mensal) ficam de fora do calculo do reajuste acima, por nao haver garantia de que se repitam no "
-        "proximo periodo - mas merecem atencao separada pelo impacto que tem no caixa do condominio quando "
-        "ocorrem.\n\n"
+        "As receitas extraordinarias/taxas extras e as despesas extraordinarias (marcadas manualmente na "
+        "tela de upload como eventuais, sem recorrencia mensal) ficam de fora do calculo do reajuste acima, "
+        "por nao haver garantia de que se repitam no proximo periodo - mas merecem atencao separada pelo "
+        "impacto que tem no caixa do condominio quando ocorrem.\n\n"
         f"No periodo avaliado, as arrecadacoes extraordinarias somaram {fmt_moeda(receita_extraordinaria)} "
         f"e as despesas extraordinarias somaram {fmt_moeda(despesa_extraordinaria)}."
     )

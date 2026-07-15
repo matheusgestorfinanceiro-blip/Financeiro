@@ -23,13 +23,7 @@ def _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0, outras_rec
         {"categoria": "Rateio Mensal - Taxa de Condomínio", **{m: total_rateio / 12 for m in meses}, "total": total_rateio},
     ]
     if outras_receitas:
-        # Concentrada em só 2 dos 12 meses (não uniforme), para ser classificada
-        # como "extraordinaria" pelo coeficiente de variação (veja src/calculo/analise.py) -
-        # imita o comportamento real de juros/multas, que não ocorrem todo mês.
-        valores_juros = {m: 0.0 for m in meses}
-        valores_juros[meses[0]] = outras_receitas * 0.6
-        valores_juros[meses[1]] = outras_receitas * 0.4
-        receitas.append({"categoria": "Juros", **valores_juros, "total": outras_receitas})
+        receitas.append({"categoria": "Juros", **{m: outras_receitas / 12 for m in meses}, "total": outras_receitas})
     df_receitas = pd.DataFrame(receitas)
     return DadosDemonstrativo(
         condominio="Condomínio Teste",
@@ -107,13 +101,17 @@ def test_reajuste_automatico_ignora_despesas_extraordinarias():
     # Receita total anual = 25 x 10 unidades x 12 = 3000, cobre a despesa
     # ordinaria de 2000 - se a despesa extraordinaria (50000) entrasse na
     # conta, o resultado seria um deficit gigante em vez de 0%.
-    formulario = _formulario(configuracao_rateio=_config_igual(25.0))
+    formulario = _formulario(
+        configuracao_rateio=_config_igual(25.0), despesas_extraordinarias=["Obra Emergencial"],
+    )
     resultado = gerar_previsao(demonstrativo, None, formulario)
     assert resultado.percentual_reajuste_automatico == pytest.approx(0.0)
 
     # Com a receita configurada abaixo da despesa ordinaria, o deficit e
     # calculado só com base nela (2000), não com a despesa total (52000).
-    formulario_rateio_baixo = _formulario(configuracao_rateio=_config_igual(10.0))
+    formulario_rateio_baixo = _formulario(
+        configuracao_rateio=_config_igual(10.0), despesas_extraordinarias=["Obra Emergencial"],
+    )
     resultado_com_deficit = gerar_previsao(demonstrativo, None, formulario_rateio_baixo)
     # Receita total anual = 10 x 10 x 12 = 1200. Despesa ordinaria = 2000.
     # (2000 - 1200) / 1200 = 0.6666...
@@ -160,7 +158,7 @@ def test_fundo_de_reserva_modo_igual():
 
 def test_outras_receitas_nao_afetam_a_receita_de_rateio_configurada():
     demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0, outras_receitas=200.0)
-    formulario = _formulario()
+    formulario = _formulario(receitas_extraordinarias=["Juros"])
     resultado = gerar_previsao(demonstrativo, None, formulario)
     assert resultado.total_outras_receitas_previsto == pytest.approx(200.0)
     # a receita de rateio agora vem diretamente da configuração do usuário (100 x 10 unidades)
