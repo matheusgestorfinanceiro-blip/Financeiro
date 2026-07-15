@@ -58,3 +58,20 @@ def test_percentual_inadimplencia_com_rodape_no_singular(caminho_inadimplentes_s
     assert dados.percentual_inadimplencia == pytest.approx(0.125)
     assert dados.total_principal == pytest.approx(710.0)
     assert dados.total_geral == pytest.approx(949.10)
+
+
+def test_extrai_unidades_com_codigo_lote_e_coluna_de_atualizacao(caminho_inadimplentes_lote):
+    # Regressão: um formato real usa o codigo de unidade "Lote NN" (nao "AP"/
+    # "APTO"/"LOJA"/"SALA" nem so numero), incluindo codigos alfanumericos
+    # ("Lote 07A"), e uma coluna extra de "Atualizacao" entre multa e
+    # honorarios que o formato mais comum nao tem.
+    dados = parse_inadimplentes(caminho_inadimplentes_lote)
+    assert dados.qtd_unidades_inadimplentes == 4
+    assert dados.percentual_inadimplencia == pytest.approx(0.2667)
+    assert not dados.unidades.empty
+    assert dados.unidades["unidade"].nunique() == 4
+    assert (dados.unidades["unidade"].str.startswith("Lote 07A")).sum() == 2
+    assert "atualizacao" in dados.unidades.columns
+    assert (dados.unidades["atualizacao"] == 0.0).all()
+    soma = dados.unidades["total"].sum()
+    assert round(soma, 2) == round(dados.total_geral, 2)
