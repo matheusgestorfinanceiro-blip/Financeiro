@@ -449,7 +449,12 @@ def _calcular_balanco(resultado) -> dict:
     receita_rateio_necessaria, fundo_reserva_valor e cada item de
     outras_arrecadacoes_detalhe sao valores MENSAIS (mesma convencao de
     ConfiguracaoArrecadacao, usada tambem em arrecadacao_prevista_mensal) -
-    por isso sao multiplicados por 12 aqui."""
+    por isso sao multiplicados por 12 aqui.
+
+    O saldo final NAO soma o reajuste sugerido: o Balanco mede se a operacao
+    ordinaria (sem reajuste) fecha em superavit ou deficit. Um deficit aqui e
+    justamente o sinal de que ha reajuste a propor - a pagina/aba de Reajuste
+    e a unica que apresenta o percentual em si."""
     receita_itens = [("Rateio mensal", resultado.receita_rateio_necessaria * 12)]
     if resultado.possui_fundo_reserva:
         receita_itens.append(("Fundo de reserva", resultado.fundo_reserva_valor * 12))
@@ -461,15 +466,13 @@ def _calcular_balanco(resultado) -> dict:
     receita_total = sum(valor for _, valor in receita_itens)
     despesas_total = _total_por_classificacao(resultado.despesas_classificadas)["ordinaria"]
     inadimplencia_valor = resultado.percentual_inadimplencia * receita_total
-    reajuste_valor = resultado.percentual_reajuste_automatico * receita_total
     total_geral = despesas_total + inadimplencia_valor
-    saldo_final = receita_total - total_geral + reajuste_valor
+    saldo_final = receita_total - total_geral
     return {
         "receita_itens": receita_itens,
         "receita_total": receita_total,
         "despesas_total": despesas_total,
         "inadimplencia_valor": inadimplencia_valor,
-        "reajuste_valor": reajuste_valor,
         "total_geral": total_geral,
         "saldo_final": saldo_final,
     }
@@ -684,9 +687,48 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado):
     pdf.set_text_color(0, 0, 0)
 
 
+def _pagina_taxas_reajustadas(pdf: RelatorioPDF, resultado):
+    """Só chamada quando ha reajuste aplicado - mostra as taxas resultantes
+    (rateio + fundo de reserva, ja com o percentual escolhido pelo usuario) e
+    as outras arrecadacoes configuradas, somadas sem reajuste."""
+    pdf.add_page()
+    pdf.titulo_pagina("7. Taxas Reajustadas")
+
+    total_mensal = (
+        resultado.rateio_reajustado + resultado.fundo_reserva_reajustado + resultado.total_outras_arrecadacoes_previsto
+    )
+    itens = [
+        ("Rateio mensal reajustado", fmt_moeda(resultado.rateio_reajustado)),
+        (
+            "Fundo de reserva (reajustado)" if resultado.reajuste_aplicado_ao_fundo_reserva else "Fundo de reserva (mantido)",
+            fmt_moeda(resultado.fundo_reserva_reajustado),
+        ),
+        ("Outras arrecadações", fmt_moeda(resultado.total_outras_arrecadacoes_previsto)),
+        ("Total mensal", fmt_moeda(total_mensal)),
+    ]
+    _cartoes_estatisticas(pdf, itens, colunas=2)
+    pdf.ln(4)
+
+    texto = (
+        f"As taxas acima refletem o percentual de reajuste de {fmt_pct(resultado.percentual_reajuste_aplicado)} "
+        "aplicado ao rateio mensal"
+    )
+    if resultado.reajuste_aplicado_ao_fundo_reserva:
+        texto += " e ao fundo de reserva, "
+    else:
+        texto += ", mantendo o fundo de reserva sem alteração, "
+    texto += (
+        "somadas as outras arrecadações já configuradas (ex: água), que não recebem reajuste. O total mensal "
+        "acima representa a nova taxa condominial resultante, a partir da vigência do reajuste."
+    )
+    _caixa_consideracoes(pdf, texto, titulo="Taxas resultantes após o reajuste")
+
+
 def gerar_pdf_previsao(resultado) -> bytes:
-    """Gera o PDF final de 6 paginas (capa, arrecadacoes, despesas, inadimplencia,
-    balanco consolidado, reajuste) e retorna os bytes prontos para download."""
+    """Gera o PDF final (capa, arrecadacoes, despesas, inadimplencia,
+    balanco consolidado, reajuste, e - quando ha reajuste aplicado - uma
+    pagina extra com as taxas reajustadas) e retorna os bytes prontos para
+    download."""
     pdf = RelatorioPDF()
     pdf.arquivos_temp = []
     try:
@@ -696,6 +738,8 @@ def gerar_pdf_previsao(resultado) -> bytes:
         _pagina_inadimplencia(pdf, resultado)
         _pagina_balanco(pdf, resultado)
         _pagina_reajuste(pdf, resultado)
+        if resultado.percentual_reajuste_aplicado > 0:
+            _pagina_taxas_reajustadas(pdf, resultado)
         return bytes(pdf.output())
     finally:
         import os

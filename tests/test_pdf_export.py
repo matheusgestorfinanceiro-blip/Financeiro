@@ -4,7 +4,7 @@ import pandas as pd
 import pdfplumber
 import pytest
 
-from src.calculo.previsao import gerar_previsao
+from src.calculo.previsao import calcular_taxas_reajustadas, gerar_previsao
 from src.models.schema import ConfiguracaoArrecadacao, DadosFormulario, DadosInadimplencia, LinhaDespesaPrevista
 from src.parsers.demonstrativo_parser import parse_demonstrativo
 from src.parsers.inadimplentes_parser import parse_inadimplentes
@@ -129,6 +129,33 @@ def test_gerar_pdf_padrao_tem_as_paginas_fixas_na_ordem_certa(caminho_demonstrat
         assert titulos.index("4. Inadimplencia") < titulos.index("5. Balanco Orcamentario Consolidado") < titulos.index("6. Reajuste")
 
 
+def test_gerar_pdf_sem_reajuste_aplicado_nao_tem_pagina_de_taxas_reajustadas(caminho_demonstrativo, caminho_inadimplentes):
+    demonstrativo = parse_demonstrativo(caminho_demonstrativo)
+    inadimplencia = parse_inadimplentes(caminho_inadimplentes)
+    resultado = gerar_previsao(demonstrativo, inadimplencia, _formulario())
+
+    pdf_bytes = gerar_pdf_previsao(resultado)
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        titulos = [(pagina.extract_text() or "").splitlines()[1] for pagina in pdf.pages if len((pagina.extract_text() or "").splitlines()) > 1]
+    assert "7. Taxas Reajustadas" not in titulos
+
+
+def test_gerar_pdf_com_reajuste_aplicado_adiciona_pagina_de_taxas_reajustadas(caminho_demonstrativo, caminho_inadimplentes):
+    demonstrativo = parse_demonstrativo(caminho_demonstrativo)
+    inadimplencia = parse_inadimplentes(caminho_inadimplentes)
+    # Rateio baixo o suficiente para forcar deficit (e portanto reajuste automatico > 0).
+    formulario = _formulario(configuracao_rateio=ConfiguracaoArrecadacao(modo="igual", valor_unico=1000.0))
+    resultado_draft = gerar_previsao(demonstrativo, inadimplencia, formulario)
+    assert resultado_draft.percentual_reajuste_automatico > 0
+
+    resultado = calcular_taxas_reajustadas(resultado_draft, percentual_reajuste=0.2, aplicar_ao_fundo_reserva=True)
+
+    pdf_bytes = gerar_pdf_previsao(resultado)
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        titulos = [(pagina.extract_text() or "").splitlines()[1] for pagina in pdf.pages if len((pagina.extract_text() or "").splitlines()) > 1]
+    assert titulos[-1] == "7. Taxas Reajustadas"
+
+
 def test_calcular_balanco_reconhece_superavit_e_deficit():
     class _Resultado:
         def __init__(self, receita_mensal, possui_fundo, fundo_mensal, outras_arrecadacoes, outras_receitas_anual,
@@ -171,3 +198,13 @@ def test_calcular_balanco_reconhece_superavit_e_deficit():
     )
     assert com_extras["receita_total"] == pytest.approx((1000.0 + 100.0 + 50.0) * 12)
     assert [nome for nome, _ in com_extras["receita_itens"]] == ["Rateio mensal", "Fundo de reserva", "Rateio de agua"]
+
+    # Regressao: o reajuste sugerido NAO deve ser somado ao saldo final - um
+    # deficit ordinario (sem reajuste) precisa continuar aparecendo como
+    # deficit, mesmo que o percentual de reajuste automatico seja alto o
+    # suficiente para "tampar o buraco" se fosse somado de volta.
+    deficit_com_reajuste = _calcular_balanco(
+        _Resultado(500.0, False, 0.0, [], 0.0, despesas_anual=6000.0, pct_inadimplencia=0.2, pct_reajuste=0.5)
+    )
+    assert deficit_com_reajuste["saldo_final"] == pytest.approx(deficit["saldo_final"])
+    assert "reajuste_valor" not in deficit_com_reajuste

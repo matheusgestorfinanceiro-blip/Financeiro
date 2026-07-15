@@ -202,15 +202,17 @@ def renderizar_secao_resultado(resultado):
         )
         st.metric("Total das despesas ordinárias (12 meses)", fmt_moeda(despesas_total))
 
-        st.markdown("**Inadimplência, reajuste e saldo final**")
-        col1, col2, col3 = st.columns(3)
+        st.markdown("**Inadimplência e saldo final**")
+        col1, col2 = st.columns(2)
         col1.metric(f"Inadimplência ({fmt_pct(resultado.percentual_inadimplencia)})", fmt_moeda(balanco["inadimplencia_valor"]))
-        col2.metric(f"Reajuste sugerido ({fmt_pct(resultado.percentual_reajuste_automatico)})", fmt_moeda(balanco["reajuste_valor"]))
-        col3.metric("Total geral (despesas + inadimplência)", fmt_moeda(balanco["total_geral"]))
+        col2.metric("Total geral (despesas + inadimplência)", fmt_moeda(balanco["total_geral"]))
         if balanco["saldo_final"] >= 0:
-            st.success(f"A previsão fecha em superávit de {fmt_moeda(balanco['saldo_final'])}.")
+            st.success(f"A previsão fecha em superávit de {fmt_moeda(balanco['saldo_final'])}, sem considerar reajuste.")
         else:
-            st.warning(f"A previsão fecha em déficit de {fmt_moeda(abs(balanco['saldo_final']))}.")
+            st.warning(
+                f"A previsão fecha em déficit de {fmt_moeda(abs(balanco['saldo_final']))}, sem considerar "
+                "reajuste — consulte a aba de Reajuste para o percentual proposto."
+            )
 
     with abas[4]:
         st.metric("Percentual de reajuste apurado", fmt_pct(resultado.percentual_reajuste_automatico))

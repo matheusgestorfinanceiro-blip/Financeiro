@@ -178,3 +178,12 @@ class ResultadoPrevisao:
     # "Isencao do Sindico", "Compensacao de boletos") - deduzida da
     # arrecadacao prevista e da base do reajuste.
     desconto_receita_historico_anual: float = 0.0
+
+    # Percentual de reajuste efetivamente aplicado as taxas (igual a
+    # percentual_reajuste_automatico por padrao; pode ser sobrescrito pelo
+    # usuario na tela de confirmacao do reajuste, quando ha deficit). O
+    # rateio/fundo de reserva reajustados abaixo usam este percentual.
+    percentual_reajuste_aplicado: float = 0.0
+    reajuste_aplicado_ao_fundo_reserva: bool = False
+    rateio_reajustado: float = 0.0
+    fundo_reserva_reajustado: float = 0.0
