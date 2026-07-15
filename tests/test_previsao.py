@@ -165,7 +165,9 @@ def test_outras_receitas_nao_afetam_a_receita_de_rateio_configurada():
     assert resultado.receita_rateio_necessaria == pytest.approx(1000.0)
 
 
-def test_ajuste_por_inadimplencia_infla_o_total_por_unidade():
+def test_total_por_unidade_e_soma_direta_sem_ajuste_de_inadimplencia():
+    # O Total por unidade e exatamente rateio + fundo de reserva + outras
+    # arrecadacoes, sem nenhum ajuste (ex: inflar pela inadimplencia esperada).
     demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
     formulario = _formulario(numero_unidades=10, configuracao_rateio=_config_igual(100.0))
     inadimplencia = DadosInadimplencia(
@@ -177,8 +179,7 @@ def test_ajuste_por_inadimplencia_infla_o_total_por_unidade():
         total_geral=0.0,
     )
     resultado = gerar_previsao(demonstrativo, inadimplencia, formulario)
-    # 100 / (1 - 0.20) = 125
-    assert resultado.valores_por_unidade["total"].iloc[0] == pytest.approx(125.0)
+    assert resultado.valores_por_unidade["total"].iloc[0] == pytest.approx(100.0)
 
 
 def test_rateio_igualitario_divide_entre_as_unidades():
