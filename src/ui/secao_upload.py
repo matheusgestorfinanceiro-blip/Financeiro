@@ -66,6 +66,7 @@ def renderizar_secao_upload():
                 df_receitas_editado = st.data_editor(
                     df_receitas_editavel,
                     use_container_width=True,
+                    hide_index=True,
                     key="tabela_receitas_extraidas",
                     disabled=colunas_travadas,
                     column_config={
@@ -82,9 +83,11 @@ def renderizar_secao_upload():
                 df_despesas_editado = st.data_editor(
                     df_despesas_editavel,
                     use_container_width=True,
+                    hide_index=True,
                     key="tabela_despesas_extraidas",
                     disabled=colunas_travadas,
                     column_config={
+                        "categoria_pai": None,
                         "extraordinaria": st.column_config.CheckboxColumn("Extraordinária?", default=False),
                     },
                 )
