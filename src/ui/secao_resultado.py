@@ -87,6 +87,7 @@ def renderizar_secao_resultado(resultado):
             st.dataframe(
                 resultado.valores_por_unidade[colunas_tabela],
                 use_container_width=True,
+                hide_index=True,
                 column_config=column_config,
             )
 
@@ -116,6 +117,7 @@ def renderizar_secao_resultado(resultado):
         st.dataframe(
             df,
             use_container_width=True,
+            hide_index=True,
             column_config={
                 "Histórico": st.column_config.NumberColumn("Histórico", format="R$ %.2f"),
                 "Previsto": st.column_config.NumberColumn("Previsto", format="R$ %.2f"),
@@ -147,6 +149,7 @@ def renderizar_secao_resultado(resultado):
                     columns={"unidade": "Unidade", "valor_total": "Valor em aberto", "meses_em_atraso": "Meses em atraso"}
                 ),
                 use_container_width=True,
+                hide_index=True,
                 column_config={"Valor em aberto": st.column_config.NumberColumn("Valor em aberto", format="R$ %.2f")},
             )
         else:
@@ -167,6 +170,7 @@ def renderizar_secao_resultado(resultado):
         st.dataframe(
             df_receita,
             use_container_width=True,
+            hide_index=True,
             column_config={
                 "Anual": st.column_config.NumberColumn("Anual", format="R$ %.2f"),
                 "Mensal": st.column_config.NumberColumn("Mensal", format="R$ %.2f"),
@@ -193,6 +197,7 @@ def renderizar_secao_resultado(resultado):
         st.dataframe(
             df_despesas,
             use_container_width=True,
+            hide_index=True,
             column_config={
                 "Anual": st.column_config.NumberColumn("Anual", format="R$ %.2f"),
                 "Mensal": st.column_config.NumberColumn("Mensal", format="R$ %.2f"),

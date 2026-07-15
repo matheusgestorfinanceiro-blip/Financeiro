@@ -199,9 +199,10 @@ def gerar_previsao(
     percentual_inadimplencia = inadimplencia.percentual_inadimplencia if inadimplencia else 0.0
     fator_cobertura = 1 - percentual_inadimplencia
 
+    # Total = soma direta de rateio + fundo de reserva + outras arrecadacoes,
+    # sem nenhum ajuste (ex: inadimplencia) - exatamente o que cada unidade
+    # deve pagar conforme configurado.
     valores_por_unidade["total"] = valores_por_unidade[colunas_valor].sum(axis=1)
-    if fator_cobertura > 0:
-        valores_por_unidade["total"] = valores_por_unidade["total"] / fator_cobertura
 
     receita_rateio_necessaria = float(rateio_df["rateio"].sum())
 
