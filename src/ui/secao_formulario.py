@@ -8,6 +8,7 @@ import pandas as pd
 import streamlit as st
 
 from src.calculo.periodo import limpar_nome_condominio, sugerir_periodo
+from src.calculo.previsao import _resolver_configuracao
 from src.models.schema import AjusteManual, ConfiguracaoArrecadacao, DadosFormulario, TipoUnidade
 from src.parsers.fracoes_parser import parse_fracoes
 from src.ui.arquivos_temp import salvar_temp
@@ -123,6 +124,28 @@ def renderizar_secao_formulario(dados_demonstrativo):
             "Rateio entre unidades", key_prefix="rateio", numero_unidades_sugerido=40
         )
 
+        st.markdown("**Isenção de unidades**")
+        possui_isencao_label = st.radio(
+            "Existe isenção de alguma unidade?", ["Não", "Sim"], horizontal=True, key="isencao_possui"
+        )
+        unidades_isentas = []
+        if possui_isencao_label == "Sim":
+            nomes_unidades = _resolver_configuracao(configuracao_rateio, numero_unidades)["unidade"].tolist()
+            selecao_previa = [u for u in st.session_state.get("isencao_unidades", []) if u in nomes_unidades]
+            unidades_selecionadas = st.multiselect(
+                "Quais unidades são isentas da taxa condominial?", nomes_unidades, default=selecao_previa, key="isencao_unidades"
+            )
+            for unidade in unidades_selecionadas:
+                percentual = st.number_input(
+                    f"Percentual de isenção de {unidade} (%)", min_value=0.0, max_value=100.0, value=100.0, step=5.0,
+                    key=f"isencao_pct_{unidade}",
+                ) / 100
+                unidades_isentas.append((unidade, percentual))
+            st.caption(
+                "A isenção é deduzida do rateio da(s) unidade(s) selecionada(s) antes de calcular a arrecadação "
+                "prevista mensalmente e o percentual de reajuste."
+            )
+
         st.markdown("**Desconto de pontualidade**")
         possui_desconto_pontualidade_label = st.radio(
             "Existe desconto de pontualidade no rateio?", ["Não", "Sim"], horizontal=True, key="desconto_pontualidade_possui"
@@ -229,6 +252,7 @@ def renderizar_secao_formulario(dados_demonstrativo):
             periodo=periodo,
             numero_unidades=int(numero_unidades),
             configuracao_rateio=configuracao_rateio,
+            unidades_isentas=unidades_isentas,
             possui_desconto_pontualidade=possui_desconto_pontualidade,
             desconto_pontualidade_modo=desconto_pontualidade_modo,
             desconto_pontualidade_valor=desconto_pontualidade_valor,

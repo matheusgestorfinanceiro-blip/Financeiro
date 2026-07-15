@@ -390,3 +390,69 @@ def test_inadimplencia_valor_total_e_unidades_vazios_sem_dados_de_inadimplencia(
     resultado = gerar_previsao(demonstrativo, None, formulario)
     assert resultado.inadimplencia_valor_total == pytest.approx(0.0)
     assert resultado.inadimplencia_unidades == []
+
+
+def test_unidade_isenta_100_por_cento_nao_paga_rateio():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    formulario = _formulario(
+        numero_unidades=4, configuracao_rateio=_config_igual(200.0),
+        unidades_isentas=[("Unidade 1", 1.0)],
+    )
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    valores = dict(zip(resultado.valores_por_unidade["unidade"], resultado.valores_por_unidade["rateio"]))
+    assert valores["Unidade 1"] == pytest.approx(0.0)
+    assert valores["Unidade 2"] == pytest.approx(200.0)
+    # 3 unidades pagando integralmente (600) + 1 isenta (0) = 600.
+    assert resultado.receita_rateio_necessaria == pytest.approx(600.0)
+    assert resultado.isencao_total_mensal == pytest.approx(200.0)
+
+
+def test_unidade_isenta_parcialmente_reduz_proporcionalmente():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    formulario = _formulario(
+        numero_unidades=2, configuracao_rateio=_config_igual(200.0),
+        unidades_isentas=[("Unidade 1", 0.5)],
+    )
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    valores = dict(zip(resultado.valores_por_unidade["unidade"], resultado.valores_por_unidade["rateio"]))
+    assert valores["Unidade 1"] == pytest.approx(100.0)
+    assert valores["Unidade 2"] == pytest.approx(200.0)
+    assert resultado.isencao_total_mensal == pytest.approx(100.0)
+
+
+def test_isencao_se_propaga_para_arrecadacao_prevista_e_base_do_reajuste():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    sem_isencao = _formulario(numero_unidades=2, configuracao_rateio=_config_igual(200.0))
+    com_isencao = _formulario(
+        numero_unidades=2, configuracao_rateio=_config_igual(200.0),
+        unidades_isentas=[("Unidade 1", 1.0)],
+    )
+    resultado_sem = gerar_previsao(demonstrativo, None, sem_isencao)
+    resultado_com = gerar_previsao(demonstrativo, None, com_isencao)
+    assert resultado_sem.arrecadacao_prevista_mensal == pytest.approx(400.0)
+    assert resultado_com.arrecadacao_prevista_mensal == pytest.approx(200.0)
+    assert resultado_com.receita_total_anual_base_reajuste == pytest.approx(resultado_sem.receita_total_anual_base_reajuste - 200.0 * 12)
+
+
+def test_desconto_em_linha_de_receita_negativa_reduz_arrecadacao_prevista():
+    meses = [f"Mes{i}" for i in range(1, 13)]
+    df_despesas = pd.DataFrame(
+        [{"categoria_pai": "Categoria A", "subcategoria": "Item 1", **{m: 1000.0 / 12 for m in meses}, "total": 1000.0}]
+    )
+    df_receitas = pd.DataFrame(
+        [
+            {"categoria": "Rateio Mensal - Taxa de Condomínio", **{m: 1000.0 / 12 for m in meses}, "total": 1000.0},
+            {"categoria": "Isenção do Síndico", **{m: -100.0 / 12 for m in meses}, "total": -100.0},
+        ]
+    )
+    demonstrativo = DadosDemonstrativo(
+        condominio="Condomínio Teste", meses=meses, df_receitas=df_receitas, df_despesas=df_despesas,
+        total_receitas=900.0, total_despesas=1000.0,
+    )
+    formulario = _formulario(numero_unidades=10, configuracao_rateio=_config_igual(100.0))
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    # Receita rateio = 1000/mes; desconto historico = 100/ano = 8.33/mes.
+    assert resultado.desconto_receita_historico_anual == pytest.approx(100.0)
+    assert resultado.arrecadacao_prevista_mensal == pytest.approx(1000.0 - 100.0 / 12)
+    # A linha negativa nao deve ser contada em total_outras_receitas_previsto (evita dupla contagem).
+    assert resultado.total_outras_receitas_previsto == pytest.approx(0.0)

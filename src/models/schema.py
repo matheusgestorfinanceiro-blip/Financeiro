@@ -86,6 +86,8 @@ class DadosFormulario:
 
     configuracao_rateio: ConfiguracaoArrecadacao = field(default_factory=ConfiguracaoArrecadacao)
 
+    unidades_isentas: list[tuple[str, float]] = field(default_factory=list)  # (unidade, percentual de isencao 0-1)
+
     possui_desconto_pontualidade: bool = False
     desconto_pontualidade_modo: str = "valor_fixo"  # "valor_fixo" (R$/unidade) ou "percentual" (fração, ex: 0.05)
     desconto_pontualidade_valor: float = 0.0
@@ -160,3 +162,12 @@ class ResultadoPrevisao:
     # (configurados, anualizados) - sem receitas extraordinarias ou taxas
     # extras do historico.
     receita_total_anual_base_reajuste: float = 0.0
+
+    unidades_isentas: list[tuple[str, float]] = field(default_factory=list)  # (unidade, percentual de isencao)
+    isencao_total_mensal: float = 0.0
+
+    # Soma (valor absoluto, anual) das linhas de receita do historico com
+    # total negativo (descontos/deducoes lancados no campo de receita, ex:
+    # "Isencao do Sindico", "Compensacao de boletos") - deduzida da
+    # arrecadacao prevista e da base do reajuste.
+    desconto_receita_historico_anual: float = 0.0

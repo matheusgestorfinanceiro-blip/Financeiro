@@ -71,15 +71,29 @@ def _calcular_outras_receitas_previstas(
 ) -> float:
     """Todas as receitas do histórico classificadas como extraordinárias/eventuais,
     exceto uma eventual linha histórica de 'fundo de reserva' (o fundo de reserva
-    da previsão é definido manualmente pelo usuário, não a partir do histórico)."""
+    da previsão é definido manualmente pelo usuário, não a partir do histórico) e
+    exceto linhas com total negativo (descontos/deduções, tratadas separadamente
+    por `_calcular_desconto_receita_historico`, para não contar duas vezes)."""
     if receitas_classificadas.empty:
         return 0.0
     mascara_fundo_reserva = receitas_classificadas["categoria"].str.contains(
         "fundo de reserva", case=False, na=False
     )
     mascara_ordinaria = receitas_classificadas["classificacao"] == "ordinaria"
-    outras = receitas_classificadas[~mascara_ordinaria & ~mascara_fundo_reserva]["total"].sum()
+    mascara_negativa = receitas_classificadas["total"] < 0
+    outras = receitas_classificadas[~mascara_ordinaria & ~mascara_fundo_reserva & ~mascara_negativa]["total"].sum()
     return float(outras) * (1 + percentual_reajuste)
+
+
+def _calcular_desconto_receita_historico(receitas_classificadas: pd.DataFrame) -> float:
+    """Soma (em valor absoluto) as linhas de receita do histórico com total
+    negativo - descontos/deduções lançados no próprio campo de receita (ex:
+    'Isenção do Síndico', 'Compensação de boletos'), tratadas como uma
+    despesa da receita e deduzidas do valor previsto a ser arrecadado."""
+    if receitas_classificadas.empty:
+        return 0.0
+    negativas = receitas_classificadas[receitas_classificadas["total"] < 0]["total"]
+    return float(-negativas.sum())
 
 
 def _resolver_configuracao(
@@ -138,6 +152,15 @@ def gerar_previsao(
     rateio_df = rateio_df.rename(columns={"valor": "rateio"})
     numero_unidades = len(rateio_df)
 
+    isencao_total_mensal = 0.0
+    if formulario.unidades_isentas:
+        mapa_isencao = dict(formulario.unidades_isentas)
+        rateio_antes_isencao = rateio_df["rateio"].copy()
+        rateio_df["rateio"] = rateio_df.apply(
+            lambda row: row["rateio"] * (1 - mapa_isencao.get(row["unidade"], 0.0)), axis=1
+        )
+        isencao_total_mensal = float((rateio_antes_isencao - rateio_df["rateio"]).sum())
+
     desconto_pontualidade_total_mensal = 0.0
     if formulario.possui_desconto_pontualidade and not rateio_df.empty:
         if formulario.desconto_pontualidade_modo == "valor_fixo":
@@ -181,17 +204,25 @@ def gerar_previsao(
         valores_por_unidade["total"] = valores_por_unidade["total"] / fator_cobertura
 
     receita_rateio_necessaria = float(rateio_df["rateio"].sum())
-    arrecadacao_prevista_mensal = receita_rateio_necessaria
+
+    # Linhas de receita do historico com total negativo (descontos/deducoes
+    # lancadas no proprio campo de receita, ex: "Isencao do Sindico",
+    # "Compensacao de boletos") sao tratadas como uma despesa da receita,
+    # deduzidas do valor previsto a ser arrecadado e da base do reajuste.
+    desconto_receita_historico_anual = _calcular_desconto_receita_historico(receitas_classificadas)
+    arrecadacao_prevista_mensal = receita_rateio_necessaria - desconto_receita_historico_anual / 12
 
     # Reajuste automatico = receita total (rateio + fundo de reserva + outras
     # arrecadacoes configurados, anualizados - sem receitas extraordinarias
-    # ou taxas extras do historico) menos as despesas ORDINARIAS apuradas no
-    # periodo (excluindo despesas extraordinarias/eventuais do historico),
-    # ja descontada a inadimplencia esperada.
+    # ou taxas extras do historico, ja deduzidos os descontos de receita do
+    # historico) menos as despesas ORDINARIAS apuradas no periodo (excluindo
+    # despesas extraordinarias/eventuais do historico), ja descontada a
+    # inadimplencia esperada.
     receita_total_anual = (
         receita_rateio_necessaria * 12
         + fundo_reserva_valor * 12
         + total_outras_arrecadacoes_previsto * 12
+        - desconto_receita_historico_anual
     )
     despesas_ordinarias_historico = (
         despesas_classificadas[despesas_classificadas["classificacao"] == "ordinaria"]["total"].sum()
@@ -262,4 +293,7 @@ def gerar_previsao(
         desconto_pontualidade_valor=formulario.desconto_pontualidade_valor,
         desconto_pontualidade_total_mensal=desconto_pontualidade_total_mensal,
         receita_total_anual_base_reajuste=receita_total_anual,
+        unidades_isentas=formulario.unidades_isentas,
+        isencao_total_mensal=isencao_total_mensal,
+        desconto_receita_historico_anual=desconto_receita_historico_anual,
     )

@@ -1,3 +1,5 @@
+import pytest
+
 from src.parsers.inadimplentes_parser import parse_inadimplentes
 
 
@@ -45,3 +47,14 @@ def test_total_geral_bate_com_soma_dos_lancamentos_formato_horizontal(caminho_in
     dados = parse_inadimplentes(caminho_inadimplentes_horizontal)
     soma = dados.unidades["total"].sum()
     assert round(soma, 2) == round(dados.total_geral, 2)
+
+
+def test_percentual_inadimplencia_com_rodape_no_singular(caminho_inadimplentes_singular):
+    # Regressão: com só 1 unidade inadimplente, o rodapé real do sistema usa
+    # o singular ("1 unidade inadimplente"), não o plural ("unidades
+    # inadimplentes") - o percentual não pode ficar em 0% só por isso.
+    dados = parse_inadimplentes(caminho_inadimplentes_singular)
+    assert dados.qtd_unidades_inadimplentes == 1
+    assert dados.percentual_inadimplencia == pytest.approx(0.125)
+    assert dados.total_principal == pytest.approx(710.0)
+    assert dados.total_geral == pytest.approx(949.10)
