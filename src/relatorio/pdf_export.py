@@ -314,7 +314,7 @@ def _pagina_despesas(pdf: RelatorioPDF, resultado):
         [
             ("Ordinarias (recorrente ou anual)", fmt_moeda(totais["ordinaria"])),
             ("Extraordinarias (total anual)", fmt_moeda(totais["extraordinaria"])),
-            ("Despesas totais previstas para 12 meses", fmt_moeda(resultado.total_despesas_previsto)),
+            ("Total apurado no periodo", fmt_moeda(resultado.total_despesas_historico)),
         ],
         colunas=3,
     )
@@ -537,7 +537,7 @@ def _pagina_balanco(pdf: RelatorioPDF, resultado):
     pdf.ln(2)
 
     despesas_previstas_ordinarias = _despesas_previstas_ordinarias(resultado)
-    despesas_total = sum(l.valor_previsto for l in despesas_previstas_ordinarias)
+    despesas_total = balanco["despesas_total"]
     despesas_por_categoria: dict[str, list] = {}
     for linha_despesa in despesas_previstas_ordinarias:
         despesas_por_categoria.setdefault(linha_despesa.categoria_pai, []).append(linha_despesa)
@@ -547,14 +547,14 @@ def _pagina_balanco(pdf: RelatorioPDF, resultado):
         _linha_ledger(pdf, larguras, [categoria_pai.upper(), "", "", ""], fill=FILL_SUBGRUPO, bold=True)
         subtotal = 0.0
         for linha_despesa in linhas_despesa:
-            pct = linha_despesa.valor_previsto / despesas_total if despesas_total else 0.0
+            pct = linha_despesa.valor_historico / despesas_total if despesas_total else 0.0
             _linha_ledger(
                 pdf, larguras,
-                [linha_despesa.subcategoria, fmt_moeda(linha_despesa.valor_previsto),
-                 fmt_moeda(linha_despesa.valor_previsto / 12), fmt_pct(pct)],
+                [linha_despesa.subcategoria, fmt_moeda(linha_despesa.valor_historico),
+                 fmt_moeda(linha_despesa.valor_historico / 12), fmt_pct(pct)],
                 cor_texto=COR_TEXTO_DESPESA,
             )
-            subtotal += linha_despesa.valor_previsto
+            subtotal += linha_despesa.valor_historico
         pct_subtotal = subtotal / despesas_total if despesas_total else 0.0
         _linha_ledger(
             pdf, larguras,

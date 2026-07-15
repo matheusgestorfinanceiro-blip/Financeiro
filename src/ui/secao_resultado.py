@@ -107,9 +107,6 @@ def renderizar_secao_resultado(resultado):
                     "Categoria": l.categoria_pai,
                     "Subcategoria": l.subcategoria,
                     "Histórico": l.valor_historico,
-                    "Reajuste": fmt_pct(l.percentual_reajuste_aplicado),
-                    "Previsto": l.valor_previsto,
-                    "Ajuste manual": "Sim" if l.ajuste_manual else "",
                 }
                 for l in resultado.despesas_previstas
             ]
@@ -120,7 +117,6 @@ def renderizar_secao_resultado(resultado):
             hide_index=True,
             column_config={
                 "Histórico": st.column_config.NumberColumn("Histórico", format="R$ %.2f"),
-                "Previsto": st.column_config.NumberColumn("Previsto", format="R$ %.2f"),
             },
         )
 
@@ -181,15 +177,15 @@ def renderizar_secao_resultado(resultado):
 
         st.markdown("**Despesas ordinárias por categoria (anual)**")
         despesas_previstas_ordinarias = _despesas_previstas_ordinarias(resultado)
-        despesas_total = sum(l.valor_previsto for l in despesas_previstas_ordinarias)
+        despesas_total = balanco["despesas_total"]
         df_despesas = pd.DataFrame(
             [
                 {
                     "Categoria": l.categoria_pai,
                     "Subcategoria": l.subcategoria,
-                    "Anual": l.valor_previsto,
-                    "Mensal": l.valor_previsto / 12,
-                    "% do total": l.valor_previsto / despesas_total if despesas_total else 0.0,
+                    "Anual": l.valor_historico,
+                    "Mensal": l.valor_historico / 12,
+                    "% do total": l.valor_historico / despesas_total if despesas_total else 0.0,
                 }
                 for l in despesas_previstas_ordinarias
             ]
