@@ -11,18 +11,23 @@ RODAPE_RE = re.compile(
     r"(-?\d{1,3}(?:\.\d{3})*,\d{2})\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})"
 )
 EMAIL_CABECALHO_RE = re.compile(r"^[\w.+-]+@[\w.-]+\.\w+")
-# O codigo da unidade tanto pode vir como "AP 01"/"APTO 01"/"LOJA 01"/"SALA 01"
-# quanto so um numero (ex: "05 - NOME"), dependendo do condominio. O nome pode
-# vir seguido de uma tag de status (ex: "Juridico", "1a Notificacao").
+# O codigo da unidade tanto pode vir como "AP 01"/"APTO 01"/"LOJA 01"/"SALA 01"/
+# "Lote 01" quanto so um numero (ex: "05 - NOME"), dependendo do condominio,
+# com capitalizacao variavel (ex: "Lote" em vez de "LOTE"). O nome pode vir
+# seguido de uma tag de status (ex: "Juridico", "1a Notificacao").
 UNIDADE_RE = re.compile(
-    r"^(\d{1,4}|AP\s*\S+|APTO\s*\S+|LOJA\s*\S+|SALA\s*\S+)\s*-\s*(.+?)"
-    r"(\s+(?:Jur[íi]dico|\d°\s*Notifica[çc][ãa]o))?$"
+    r"^(\d{1,4}|AP\s*\S+|APTO\s*\S+|LOJA\s*\S+|SALA\s*\S+|LOTE\s*\S+)\s*-\s*(.+?)"
+    r"(\s+(?:Jur[íi]dico|\d°\s*Notifica[çc][ãa]o))?$",
+    re.IGNORECASE,
 )
+# Algumas administradoras incluem uma coluna extra de "Atualizacao" (correcao
+# monetaria) entre multa e honorarios - o grupo correspondente e opcional para
+# aceitar tanto esse formato (6 valores) quanto o mais comum (5 valores).
 LANCAMENTO_RE = re.compile(
     r"^(\d{2}/\d{2}/\d{2})\s+(\d{2}/\d{4})\s+(\d+)\s+(\d+)\s+"
     r"(-?\d{1,3}(?:\.\d{3})*,\d{2})\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})\s+"
-    r"(-?\d{1,3}(?:\.\d{3})*,\d{2})\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})\s+"
-    r"(-?\d{1,3}(?:\.\d{3})*,\d{2})$"
+    r"(-?\d{1,3}(?:\.\d{3})*,\d{2})\s+(?:(-?\d{1,3}(?:\.\d{3})*,\d{2})\s+)?"
+    r"(-?\d{1,3}(?:\.\d{3})*,\d{2})\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})$"
 )
 
 
@@ -53,7 +58,7 @@ def parse_inadimplentes(caminho_pdf: str) -> DadosInadimplencia:
             continue
         m_lanc = LANCAMENTO_RE.match(linha)
         if m_lanc and unidade_atual:
-            vencimento, competencia, atraso, codigo, principal, juros, multa, honorarios, total = m_lanc.groups()
+            vencimento, competencia, atraso, codigo, principal, juros, multa, atualizacao, honorarios, total = m_lanc.groups()
             registros.append(
                 {
                     "unidade": unidade_atual,
@@ -64,6 +69,7 @@ def parse_inadimplentes(caminho_pdf: str) -> DadosInadimplencia:
                     "principal": _para_float(principal),
                     "juros": _para_float(juros),
                     "multa": _para_float(multa),
+                    "atualizacao": _para_float(atualizacao) if atualizacao else 0.0,
                     "honorarios": _para_float(honorarios),
                     "total": _para_float(total),
                 }
@@ -77,7 +83,7 @@ def parse_inadimplentes(caminho_pdf: str) -> DadosInadimplencia:
         registros,
         columns=[
             "unidade", "vencimento", "competencia", "atraso_dias", "codigo",
-            "principal", "juros", "multa", "honorarios", "total",
+            "principal", "juros", "multa", "atualizacao", "honorarios", "total",
         ],
     )
 
