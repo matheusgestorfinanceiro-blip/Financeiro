@@ -135,6 +135,28 @@ def test_gerar_pdf_padrao_tem_as_paginas_fixas_na_ordem_certa(caminho_demonstrat
         assert titulos.index("4. Inadimplencia") < titulos.index("5. Balanco Orcamentario Consolidado") < titulos.index("6. Reajuste")
 
 
+def test_bloco_assinatura_nunca_pula_pagina_em_conteudo_cheio(caminho_demonstrativo, caminho_inadimplentes):
+    # Regressao: com varias deducoes configuradas (desconto de pontualidade,
+    # isencao, outra arrecadacao), a caixa de considerações da pagina
+    # "2. Arrecadacoes" fica mais alta, e a assinatura compacta (nao-final)
+    # acabava sendo empurrada para uma pagina nova em vez de ficar na mesma
+    # pagina do conteudo - o usuario espera ve-la sempre junto.
+    demonstrativo = parse_demonstrativo(caminho_demonstrativo)
+    inadimplencia = parse_inadimplentes(caminho_inadimplentes)
+    formulario = _formulario(
+        possui_desconto_pontualidade=True, desconto_pontualidade_modo="percentual", desconto_pontualidade_valor=0.05,
+        unidades_isentas=[("Unidade 1", 0.5)],
+        outras_arrecadacoes=[("Rateio de agua", ConfiguracaoArrecadacao(modo="igual", valor_unico=15.0))],
+    )
+    resultado = gerar_previsao(demonstrativo, inadimplencia, formulario)
+
+    pdf_bytes = gerar_pdf_previsao(resultado)
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        texto_pagina_2 = pdf.pages[1].extract_text() or ""
+    assert "2. Arrecadacoes" in texto_pagina_2
+    assert "Responsavel pela emissao deste relatorio" in texto_pagina_2
+
+
 def test_bloco_assinatura_preserva_b_margin_entre_chamadas():
     # Regressao: pdf.set_auto_page_break(False) do fpdf2 zera pdf.b_margin
     # como efeito colateral (o parametro margin tem default 0), a menos que
