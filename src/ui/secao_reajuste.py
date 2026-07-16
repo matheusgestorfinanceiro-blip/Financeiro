@@ -18,12 +18,14 @@ def renderizar_secao_reajuste(resultado_draft):
         "gerar o relatório final."
     )
 
-    aplicar_ao_fundo_label = st.radio(
-        "O reajuste será aplicado também ao fundo de reserva?",
-        ["Não, só no rateio mensal", "Sim, no rateio e no fundo de reserva"],
-        horizontal=True, key="reajuste_aplicar_fundo",
-    )
-    aplicar_ao_fundo_reserva = aplicar_ao_fundo_label.startswith("Sim")
+    aplicar_ao_fundo_reserva = False
+    if resultado_draft.possui_fundo_reserva:
+        aplicar_ao_fundo_label = st.radio(
+            "O reajuste será aplicado também ao fundo de reserva?",
+            ["Não, só no rateio mensal", "Sim, no rateio e no fundo de reserva"],
+            horizontal=True, key="reajuste_aplicar_fundo",
+        )
+        aplicar_ao_fundo_reserva = aplicar_ao_fundo_label.startswith("Sim")
 
     percentual_label = st.radio(
         "Qual percentual de reajuste deve ser considerado na análise?",
