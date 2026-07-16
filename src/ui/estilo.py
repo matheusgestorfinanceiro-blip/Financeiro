@@ -1,12 +1,48 @@
-"""Identidade visual da Azul Administradora (navy/ciano) aplicada ao Streamlit."""
+"""Identidade visual da Azul Administradora (navy/azul-céu) aplicada ao Streamlit."""
+from pathlib import Path
+
 import streamlit as st
 
-NAVY = "#0A1628"
-NAVY2 = "#102447"
-CARD = "#0F1F3D"
-CYAN = "#00B4D8"
-CYAN2 = "#38BDF8"
-GRAY = "#94A3B8"
+# Paleta baseada na logo da Azul Administradora - estimada visualmente a
+# partir da imagem da logo (o arquivo em si ainda não está disponível no
+# repositório). Mesma paleta usada em src/relatorio/graficos.py, para a tela
+# e o PDF final ficarem visualmente consistentes.
+NAVY = "#0B3049"
+NAVY2 = "#154A66"
+CARD = "#0F3A52"
+CYAN = "#3FA9D4"
+CYAN2 = "#6FC3E0"
+GRAY = "#8FA6B2"
+
+CAMINHO_LOGO = Path(__file__).resolve().parents[2] / "data" / "assets" / "logo_azul.png"
+
+
+def renderizar_logo():
+    """Mostra a logo real (data/assets/logo_azul.png) assim que o arquivo
+    existir no repositório; até lá, usa um wordmark estilizado com a mesma
+    paleta, no mesmo espírito do texto usado como placeholder no PDF."""
+    if CAMINHO_LOGO.exists():
+        col1, col2 = st.columns([1, 5])
+        with col1:
+            st.image(str(CAMINHO_LOGO), width=90)
+        with col2:
+            st.title("Previsão Orçamentária Condominial")
+            st.caption("Azul Administradora de Condomínios")
+        return
+
+    st.markdown(
+        f"""
+        <div style="display:flex; align-items:baseline; gap:14px; margin-bottom:0.5rem;">
+            <span style="font-size:2.2rem; font-weight:800; letter-spacing:1px;">
+                <span style="color:{CYAN};">AZUL</span>
+                <span style="color:#FFFFFF;">ADMINISTRADORA</span>
+            </span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.title("Previsão Orçamentária Condominial")
+    st.caption("Azul Administradora de Condomínios")
 
 
 def aplicar_estilo_azul():

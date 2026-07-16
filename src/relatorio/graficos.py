@@ -5,11 +5,15 @@ import pandas as pd
 
 matplotlib.use("Agg")
 
-NAVY = "#0A1628"
-NAVY2 = "#102447"
-CYAN = "#00B4D8"
-CYAN2 = "#38BDF8"
-GRAY = "#94A3B8"
+# Paleta baseada na logo da Azul Administradora (navy petróleo + azul-céu).
+# Estimada visualmente a partir da imagem da logo (o arquivo em si ainda não
+# está disponível no repositório) - ver CAMINHO_LOGO em pdf_export.py, que já
+# usa o arquivo real automaticamente assim que ele existir.
+NAVY = "#0B3049"
+NAVY2 = "#154A66"
+CYAN = "#3FA9D4"
+CYAN2 = "#6FC3E0"
+GRAY = "#8FA6B2"
 TOMATO = "#F25C54"
 
 CORES_CATEGORICAS = [CYAN, NAVY2, CYAN2, GRAY, "#0A5C73", "#7DB9CC", "#1E3A5F"]

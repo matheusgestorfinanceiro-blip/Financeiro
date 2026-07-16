@@ -1,7 +1,7 @@
-"""Monta o relatório final em PDF: 6 páginas fixas (capa, arrecadações, despesas,
+"""Monta o relatório final em PDF: páginas fixas (capa, arrecadações, despesas,
 inadimplência, balanço orçamentário consolidado, reajuste), com a marca da Azul
-Administradora no canto superior direito de todas as páginas (exceto a capa,
-que já tem identidade visual própria)."""
+Administradora em todas as páginas: maior e no canto superior direito na
+capa, menor e no canto superior esquerdo nas demais."""
 import tempfile
 from pathlib import Path
 
@@ -18,7 +18,10 @@ from src.relatorio.graficos import (
 )
 from src.ui.formatacao import fmt_moeda, fmt_pct
 
-CAMINHO_LOGO = Path(__file__).resolve().parents[2] / "data" / "assets" / "logo_branca.png"
+# Arquivo real da logo (fundo branco, ainda não disponível no repositório) -
+# assim que existir nesse caminho, passa a ser usado automaticamente no
+# lugar do wordmark de texto (ver header() e _pagina_capa() abaixo).
+CAMINHO_LOGO = Path(__file__).resolve().parents[2] / "data" / "assets" / "logo_azul.png"
 
 CARD_BG = "#EEF4FA"
 DESTAQUE_BG = "#E4F5FA"
@@ -72,15 +75,22 @@ class RelatorioPDF(FPDF):
     def header(self):
         if self.page_no() == 1:
             return
+        # Reserva uma faixa fixa no topo esquerdo para a marca (imagem real
+        # ou o wordmark de texto), independente da altura exata da logo,
+        # para o título da página (desenhado logo em seguida por
+        # titulo_pagina) nunca ficar colado ou sobreposto a ela.
         if CAMINHO_LOGO.exists():
-            self.image(str(CAMINHO_LOGO), x=self.w - 32, y=6, w=22)
+            self.image(str(CAMINHO_LOGO), x=self.l_margin, y=6, w=16)
         else:
-            self.set_xy(self.w - 70, 8)
+            self.set_xy(self.l_margin, 9)
             self.set_font("Helvetica", "B", 11)
             self.set_text_color(*_hex_para_rgb(CYAN))
-            self.cell(60, 6, "AZUL ADMINISTRADORA", align="R")
+            self.cell(14, 5, "AZUL")
+            self.set_font("Helvetica", "B", 7)
+            self.set_text_color(*_hex_para_rgb(NAVY))
+            self.cell(40, 5, " ADMINISTRADORA")
             self.set_text_color(0, 0, 0)
-        self.ln(6)
+        self.set_y(26)
 
     def footer(self):
         self.set_y(-15)
@@ -274,12 +284,23 @@ def _pagina_capa(pdf: RelatorioPDF, resultado):
     pdf.rect(0, 0, pdf.w, pdf.h, style="F")
 
     if CAMINHO_LOGO.exists():
-        pdf.image(str(CAMINHO_LOGO), x=pdf.w - 40, y=10, w=28)
+        # A logo real tem fundo branco - um "selo" branco atras dela evita
+        # que esse fundo apareça como um retangulo cru sobre o navy da capa.
+        largura_logo = 46
+        x_logo = pdf.w - 18 - largura_logo
+        y_logo = 12
+        pdf.set_fill_color(255, 255, 255)
+        pdf.rect(x_logo - 5, y_logo - 5, largura_logo + 10, largura_logo + 10, style="F", round_corners=True, corner_radius=4)
+        pdf.image(str(CAMINHO_LOGO), x=x_logo, y=y_logo, w=largura_logo)
     else:
-        pdf.set_xy(pdf.w - 80, 12)
-        pdf.set_font("Helvetica", "B", 12)
+        pdf.set_xy(pdf.w - 90, 12)
+        pdf.set_font("Helvetica", "B", 20)
+        pdf.set_text_color(*_hex_para_rgb(CYAN))
+        pdf.cell(80, 9, "AZUL", align="R", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_xy(pdf.w - 90, 22)
+        pdf.set_font("Helvetica", "B", 11)
         pdf.set_text_color(255, 255, 255)
-        pdf.cell(70, 6, "AZUL ADMINISTRADORA", align="R")
+        pdf.cell(80, 6, "ADMINISTRADORA", align="R")
 
     pdf.set_text_color(*_hex_para_rgb(CYAN))
     pdf.set_font("Helvetica", "B", 12)
