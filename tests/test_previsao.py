@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from src.calculo.previsao import gerar_previsao
+from src.calculo.previsao import calcular_taxas_reajustadas, gerar_previsao
 from src.models.schema import (
     AjusteManual,
     ConfiguracaoArrecadacao,
@@ -56,6 +56,50 @@ def test_sem_reajuste_quando_receita_cobre_a_despesa():
     resultado = gerar_previsao(demonstrativo, None, formulario)
     assert resultado.percentual_reajuste_automatico == pytest.approx(0.0)
     assert resultado.receita_rateio_necessaria == pytest.approx(1000.0)
+
+
+def test_gerar_previsao_nao_aplica_reajuste_por_padrao():
+    # Sem passar pela tela de confirmacao (calcular_taxas_reajustadas), o
+    # resultado nao deve ter nenhum reajuste "aplicado" - rateio_reajustado
+    # e fundo_reserva_reajustado ficam iguais aos valores sem reajuste, e
+    # percentual_reajuste_aplicado fica em 0, mesmo quando ha um reajuste
+    # AUTOMATICO sugerido (deficit) - a pagina de taxas reajustadas so deve
+    # aparecer depois de uma escolha explicita do usuario.
+    demonstrativo = _demonstrativo_simples(total_despesa=1500.0, total_rateio=800.0)
+    formulario = _formulario(configuracao_rateio=_config_igual(10.0))
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    assert resultado.percentual_reajuste_automatico > 0
+    assert resultado.percentual_reajuste_aplicado == pytest.approx(0.0)
+    assert resultado.rateio_reajustado == pytest.approx(resultado.receita_rateio_necessaria)
+    assert resultado.fundo_reserva_reajustado == pytest.approx(resultado.fundo_reserva_valor)
+
+
+def test_calcular_taxas_reajustadas_aplica_so_ao_rateio_por_padrao():
+    demonstrativo = _demonstrativo_simples(total_despesa=1500.0, total_rateio=800.0)
+    formulario = _formulario(configuracao_rateio=_config_igual(10.0))
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+
+    ajustado = calcular_taxas_reajustadas(resultado, percentual_reajuste=0.25, aplicar_ao_fundo_reserva=False)
+    assert ajustado.percentual_reajuste_aplicado == pytest.approx(0.25)
+    assert ajustado.rateio_reajustado == pytest.approx(resultado.receita_rateio_necessaria * 1.25)
+    assert ajustado.fundo_reserva_reajustado == pytest.approx(resultado.fundo_reserva_valor)
+    assert ajustado.reajuste_aplicado_ao_fundo_reserva is False
+
+
+def test_calcular_taxas_reajustadas_aplica_tambem_ao_fundo_de_reserva():
+    demonstrativo = _demonstrativo_simples(total_despesa=1500.0, total_rateio=800.0)
+    formulario = _formulario(
+        configuracao_rateio=_config_igual(10.0),
+        possui_fundo_reserva=True,
+        configuracao_fundo_reserva=_config_igual(2.0),
+    )
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+
+    ajustado = calcular_taxas_reajustadas(resultado, percentual_reajuste=0.1, aplicar_ao_fundo_reserva=True)
+    assert ajustado.fundo_reserva_reajustado == pytest.approx(resultado.fundo_reserva_valor * 1.1)
+    assert ajustado.reajuste_aplicado_ao_fundo_reserva is True
+    # Outras arrecadacoes nunca recebem reajuste.
+    assert ajustado.total_outras_arrecadacoes_previsto == pytest.approx(resultado.total_outras_arrecadacoes_previsto)
 
 
 def test_reajuste_automatico_quando_despesa_maior_que_receita():

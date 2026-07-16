@@ -1,5 +1,6 @@
 """Motor de cálculo da previsão orçamentária. Não depende do Streamlit, então
 pode ser testado isoladamente com números simples (veja tests/test_previsao.py)."""
+from dataclasses import replace
 from datetime import date
 
 import pandas as pd
@@ -297,4 +298,31 @@ def gerar_previsao(
         unidades_isentas=formulario.unidades_isentas,
         isencao_total_mensal=isencao_total_mensal,
         desconto_receita_historico_anual=desconto_receita_historico_anual,
+        percentual_reajuste_aplicado=0.0,
+        reajuste_aplicado_ao_fundo_reserva=False,
+        rateio_reajustado=receita_rateio_necessaria,
+        fundo_reserva_reajustado=fundo_reserva_valor,
+    )
+
+
+def calcular_taxas_reajustadas(
+    resultado: ResultadoPrevisao, percentual_reajuste: float, aplicar_ao_fundo_reserva: bool
+) -> ResultadoPrevisao:
+    """Recalcula rateio/fundo de reserva com o percentual de reajuste
+    escolhido pelo usuario (sugerido ou customizado), aplicado ao rateio
+    mensal e, se pedido, tambem ao fundo de reserva. Outras arrecadacoes
+    (ex: agua) NAO recebem reajuste - somadas como estao. Retorna uma copia
+    de `resultado` com os campos de reajuste aplicado atualizados."""
+    rateio_reajustado = resultado.receita_rateio_necessaria * (1 + percentual_reajuste)
+    fundo_reajustado = (
+        resultado.fundo_reserva_valor * (1 + percentual_reajuste)
+        if aplicar_ao_fundo_reserva
+        else resultado.fundo_reserva_valor
+    )
+    return replace(
+        resultado,
+        percentual_reajuste_aplicado=percentual_reajuste,
+        reajuste_aplicado_ao_fundo_reserva=aplicar_ao_fundo_reserva,
+        rateio_reajustado=rateio_reajustado,
+        fundo_reserva_reajustado=fundo_reajustado,
     )
