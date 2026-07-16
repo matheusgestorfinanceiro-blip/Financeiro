@@ -23,10 +23,10 @@ def _total_por_classificacao(df) -> dict:
 
 
 def renderizar_secao_resultado(resultado):
-    st.header("3. Previsão orçamentária — resultado final")
+    st.header("📊 3. Previsão orçamentária — resultado final")
     st.caption(f"Relatório gerado em {resultado.data_geracao}")
 
-    abas = st.tabs(["1. Arrecadações", "2. Despesas", "3. Inadimplência", "4. Balanço", "5. Reajuste"])
+    abas = st.tabs(["💰 1. Arrecadações", "🧾 2. Despesas", "⚠️ 3. Inadimplência", "⚖️ 4. Balanço", "📈 5. Reajuste"])
 
     with abas[0]:
         totais = _total_por_classificacao(resultado.receitas_classificadas)
@@ -60,6 +60,9 @@ def renderizar_secao_resultado(resultado):
                 "bancárias)."
             )
         st.pyplot(grafico_receitas_ordinaria_x_extraordinaria(resultado))
+        col_legenda1, col_legenda2, _ = st.columns([1, 1, 4])
+        col_legenda1.badge("Ordinária", icon="🔵", color="blue")
+        col_legenda2.badge("Extraordinária", icon="⚪", color="gray")
         st.caption(
             "Classificação definida manualmente pelo usuário na tela de upload dos documentos: receitas "
             "marcadas como extraordinárias entram nesse grupo; as demais, não marcadas, são tratadas "
@@ -67,13 +70,13 @@ def renderizar_secao_resultado(resultado):
         )
 
         if resultado.outras_arrecadacoes_detalhe:
-            st.markdown("**Outras arrecadações configuradas**")
+            st.markdown("💧 **Outras arrecadações configuradas**")
             cols = st.columns(len(resultado.outras_arrecadacoes_detalhe))
             for col, (nome, valor) in zip(cols, resultado.outras_arrecadacoes_detalhe):
                 col.metric(nome, fmt_moeda(valor))
 
         if resultado.valores_por_unidade is not None and not resultado.valores_por_unidade.empty:
-            st.markdown("**Valores por unidade**")
+            st.markdown("🏠 **Valores por unidade**")
             nomes_outras_arrecadacoes = [nome for nome, _ in resultado.outras_arrecadacoes_detalhe]
             colunas_tabela = ["unidade", "rateio", "fundo_reserva", *nomes_outras_arrecadacoes, "total"]
             column_config = {
@@ -98,6 +101,9 @@ def renderizar_secao_resultado(resultado):
         col2.metric("Extraordinárias (eventuais)", fmt_moeda(totais["extraordinaria"]))
         col3.metric("Total apurado no período", fmt_moeda(resultado.total_despesas_historico))
         st.pyplot(grafico_despesas_ordinaria_x_extraordinaria(resultado))
+        col_legenda1, col_legenda2, _ = st.columns([1, 1, 4])
+        col_legenda1.badge("Ordinária", icon="🔵", color="blue")
+        col_legenda2.badge("Extraordinária", icon="⚪", color="gray")
 
         import pandas as pd
 
@@ -139,7 +145,7 @@ def renderizar_secao_resultado(resultado):
             )
 
         if tem_unidades:
-            st.markdown("**Unidades inadimplentes**")
+            st.markdown("📋 **Unidades inadimplentes**")
             st.dataframe(
                 resultado.inadimplencia_valor_por_unidade.rename(
                     columns={"unidade": "Unidade", "valor_total": "Valor em aberto", "meses_em_atraso": "Meses em atraso"}
@@ -156,7 +162,7 @@ def renderizar_secao_resultado(resultado):
 
         balanco = _calcular_balanco(resultado)
 
-        st.markdown("**Receita (anual)**")
+        st.markdown("💰 **Receita (anual)**")
         df_receita = pd.DataFrame(
             [
                 {"Item": nome, "Anual": valor, "Mensal": valor / 12, "% do total": valor / balanco["receita_total"] if balanco["receita_total"] else 0.0}
@@ -175,7 +181,7 @@ def renderizar_secao_resultado(resultado):
         )
         st.metric("Total da receita (12 meses)", fmt_moeda(balanco["receita_total"]))
 
-        st.markdown("**Despesas ordinárias por categoria (anual)**")
+        st.markdown("🧾 **Despesas ordinárias por categoria (anual)**")
         despesas_previstas_ordinarias = _despesas_previstas_ordinarias(resultado)
         despesas_total = balanco["despesas_total"]
         df_despesas = pd.DataFrame(
@@ -202,19 +208,26 @@ def renderizar_secao_resultado(resultado):
         )
         st.metric("Total das despesas ordinárias (12 meses)", fmt_moeda(despesas_total))
 
-        st.markdown("**Inadimplência e saldo final**")
+        st.markdown("⚖️ **Inadimplência e saldo final**")
         col1, col2 = st.columns(2)
         col1.metric(f"Inadimplência ({fmt_pct(resultado.percentual_inadimplencia)})", fmt_moeda(balanco["inadimplencia_valor"]))
         col2.metric("Total geral (despesas + inadimplência)", fmt_moeda(balanco["total_geral"]))
         if balanco["saldo_final"] >= 0:
-            st.success(f"A previsão fecha em superávit de {fmt_moeda(balanco['saldo_final'])}, sem considerar reajuste.")
+            st.badge("Superávit", icon="✅", color="green")
+            st.success(f"A previsão fecha em superávit de {fmt_moeda(balanco['saldo_final'])}, sem considerar reajuste.", icon="✅")
         else:
+            st.badge("Déficit", icon="⚠️", color="orange")
             st.warning(
                 f"A previsão fecha em déficit de {fmt_moeda(abs(balanco['saldo_final']))}, sem considerar "
-                "reajuste — consulte a aba de Reajuste para o percentual proposto."
+                "reajuste — consulte a aba de Reajuste para o percentual proposto.",
+                icon="⚠️",
             )
 
     with abas[4]:
+        if resultado.percentual_reajuste_automatico > 0:
+            st.badge("Reajuste necessário", icon="📈", color="orange")
+        else:
+            st.badge("Sem reajuste necessário", icon="✅", color="green")
         st.metric("Percentual de reajuste apurado", fmt_pct(resultado.percentual_reajuste_automatico))
         st.caption(
             "Calculado comparando a receita total prevista (rateio + fundo de reserva + outras "
@@ -223,13 +236,13 @@ def renderizar_secao_resultado(resultado):
             "do período."
         )
         if resultado.observacoes:
-            st.markdown("**Observações**")
+            st.markdown("📝 **Observações**")
             st.write(escapar_markdown(resultado.observacoes))
 
     st.divider()
     pdf_bytes = gerar_pdf_previsao(resultado)
     st.download_button(
-        "Baixar relatório completo em PDF",
+        "📄 Baixar relatório completo em PDF",
         data=pdf_bytes,
         file_name=f"previsao_orcamentaria_{resultado.nome_condominio}.pdf".replace(" ", "_"),
         mime="application/pdf",

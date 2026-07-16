@@ -106,13 +106,13 @@ def _bloco_configuracao_arrecadacao(
 
 
 def renderizar_secao_formulario(dados_demonstrativo):
-    st.header("2. Dados da previsão orçamentária")
+    st.header("🧮 2. Dados da previsão orçamentária")
 
     nome_padrao = limpar_nome_condominio(dados_demonstrativo.condominio) if dados_demonstrativo else ""
     periodo_padrao = sugerir_periodo(dados_demonstrativo.meses) if dados_demonstrativo else ""
 
     with st.container(border=True):
-        st.subheader("Dados obrigatórios")
+        st.subheader("📋 Dados obrigatórios")
 
         col1, col2 = st.columns(2)
         nome_condominio = col1.text_input("Nome do condomínio", value=nome_padrao)
@@ -121,10 +121,10 @@ def renderizar_secao_formulario(dados_demonstrativo):
         st.caption("O reajuste das despesas é calculado automaticamente a partir do Demonstrativo de Receitas e Despesas.")
 
         configuracao_rateio, numero_unidades = _bloco_configuracao_arrecadacao(
-            "Rateio entre unidades", key_prefix="rateio", numero_unidades_sugerido=40
+            "🏠 Rateio entre unidades", key_prefix="rateio", numero_unidades_sugerido=40
         )
 
-        st.markdown("**Isenção de unidades**")
+        st.markdown("🏷️ **Isenção de unidades**")
         possui_isencao_label = st.radio(
             "Existe isenção de alguma unidade?", ["Não", "Sim"], horizontal=True, key="isencao_possui"
         )
@@ -146,7 +146,7 @@ def renderizar_secao_formulario(dados_demonstrativo):
                 "prevista mensalmente e o percentual de reajuste."
             )
 
-        st.markdown("**Desconto de pontualidade**")
+        st.markdown("💸 **Desconto de pontualidade**")
         possui_desconto_pontualidade_label = st.radio(
             "Existe desconto de pontualidade no rateio?", ["Não", "Sim"], horizontal=True, key="desconto_pontualidade_possui"
         )
@@ -172,19 +172,19 @@ def renderizar_secao_formulario(dados_demonstrativo):
                 "(não afeta o fundo de reserva nem outras arrecadações)."
             )
 
-        st.markdown("**Fundo de reserva**")
+        st.markdown("🏦 **Fundo de reserva**")
         possui_fundo_reserva_label = st.radio("O condomínio possui fundo de reserva?", ["Não", "Sim"], horizontal=True)
         possui_fundo_reserva = possui_fundo_reserva_label == "Sim"
         configuracao_fundo_reserva = None
         if possui_fundo_reserva:
             configuracao_fundo_reserva, _ = _bloco_configuracao_arrecadacao(
-                "Como o fundo de reserva é dividido entre as unidades",
+                "🏦 Como o fundo de reserva é dividido entre as unidades",
                 key_prefix="fundo_reserva",
                 numero_unidades_sugerido=numero_unidades,
                 permitir_definir_numero_unidades=False,
             )
 
-        st.markdown("**Outras arrecadações**")
+        st.markdown("💧 **Outras arrecadações**")
         quer_outras_arrecadacoes = st.radio(
             "Haverá outras arrecadações (ex: rateio de água, rateio extra anual)?", ["Não", "Sim"], horizontal=True
         )
@@ -199,7 +199,7 @@ def renderizar_secao_formulario(dados_demonstrativo):
                         f"Nome da arrecadação #{i + 1}", value=f"Arrecadação {i + 1}", key=f"outra_arrecadacao_nome_{i}"
                     )
                     config_outra, _ = _bloco_configuracao_arrecadacao(
-                        f"Como '{nome_arrecadacao}' é dividida entre as unidades",
+                        f"💧 Como '{nome_arrecadacao}' é dividida entre as unidades",
                         key_prefix=f"outra_arrecadacao_{i}",
                         numero_unidades_sugerido=numero_unidades,
                         permitir_definir_numero_unidades=False,
@@ -207,7 +207,7 @@ def renderizar_secao_formulario(dados_demonstrativo):
                     outras_arrecadacoes.append((nome_arrecadacao, config_outra))
 
     with st.container(border=True):
-        st.subheader("Ambiente de análise (opcional)")
+        st.subheader("🔍 Ambiente de análise (opcional)")
         observacoes = st.text_area("Observações para o resumo executivo")
 
         quer_ajustes = st.checkbox(
@@ -237,7 +237,7 @@ def renderizar_secao_formulario(dados_demonstrativo):
             )
 
     with st.container(border=True):
-        st.subheader("Assinatura do relatório")
+        st.subheader("✍️ Assinatura do relatório")
         emitido_pelo_responsavel_label = st.radio(
             f"Você é {RESPONSAVEL_TECNICO_NOME}, responsável técnico pelo sistema?",
             ["Sim", "Não"], horizontal=True, key="emitido_pelo_responsavel_tecnico",
@@ -251,7 +251,7 @@ def renderizar_secao_formulario(dados_demonstrativo):
                 f"{RESPONSAVEL_TECNICO_NOME} pela construção e formatação do sistema."
             )
 
-    enviado = st.button("Confirmar dados", type="primary")
+    enviado = st.button("✅ Confirmar dados", type="primary")
 
     if enviado:
         receitas_extraordinarias = st.session_state.get("receitas_extraordinarias_marcadas", [])
@@ -259,10 +259,11 @@ def renderizar_secao_formulario(dados_demonstrativo):
         if not receitas_extraordinarias or not despesas_extraordinarias:
             st.error(
                 "Marque pelo menos 1 receita e pelo menos 1 despesa como extraordinária (tela 1, tabelas "
-                "'Ver e marcar receitas/despesas extraídas') antes de confirmar os dados."
+                "'Ver e marcar receitas/despesas extraídas') antes de confirmar os dados.",
+                icon="⚠️",
             )
         elif not emitido_pelo_responsavel_tecnico and not nome_emissor.strip():
-            st.error("Informe o nome de quem está emitindo este relatório antes de confirmar os dados.")
+            st.error("Informe o nome de quem está emitindo este relatório antes de confirmar os dados.", icon="⚠️")
         else:
             ajustes_manuais = []
             if ajustes_tabela is not None:
