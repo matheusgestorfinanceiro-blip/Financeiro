@@ -3,6 +3,12 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
+# Responsável técnico pela construção e formatação do próprio sistema de
+# previsão orçamentária (não necessariamente quem emite cada relatório
+# individual, já que o link é público e qualquer pessoa pode gerar um).
+RESPONSAVEL_TECNICO_NOME = "Matheus Rodrigues Costa"
+RESPONSAVEL_TECNICO_REGISTROS = "CRA-BA 2-01714 | CRECI-BA 20719"
+
 
 @dataclass
 class DadosInadimplencia:
@@ -107,6 +113,15 @@ class DadosFormulario:
     observacoes: str = ""
     ajustes_manuais: list[AjusteManual] = field(default_factory=list)
 
+    # Quem esta emitindo este relatorio - define a assinatura que aparece no
+    # rodape de cada pagina (ver RESPONSAVEL_TECNICO_NOME/REGISTROS acima).
+    # Se for o proprio responsavel tecnico, a assinatura tecnica completa
+    # (nome + registros) e usada; caso contrario, usa-se o nome informado em
+    # `nome_emissor`, com um credito ao responsavel tecnico pela construcao
+    # do sistema.
+    emitido_pelo_responsavel_tecnico: bool = True
+    nome_emissor: str = ""
+
 
 @dataclass
 class LinhaDespesaPrevista:
@@ -193,3 +208,14 @@ class ResultadoPrevisao:
     # aplicado). "fracao" e o peso/participacao da unidade no rateio total
     # (0 a 1), a mesma proporcao ja usada para dividir o rateio hoje.
     taxas_reajustadas_por_unidade: pd.DataFrame | None = None
+
+    # Assinatura exibida no rodape de cada pagina do PDF (a partir da pagina
+    # 2). Quando quem emite o relatorio e o proprio responsavel tecnico,
+    # `assinatura_registro` traz os registros profissionais e
+    # `assinatura_credito` fica vazio; caso contrario, `assinatura_nome` e
+    # quem emitiu o relatorio, `assinatura_registro` fica vazio, e
+    # `assinatura_credito` credita o responsavel tecnico pela construcao do
+    # sistema (nao pelo conteudo deste relatorio especifico).
+    assinatura_nome: str = RESPONSAVEL_TECNICO_NOME
+    assinatura_registro: str = RESPONSAVEL_TECNICO_REGISTROS
+    assinatura_credito: str = ""

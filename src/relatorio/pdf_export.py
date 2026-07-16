@@ -23,9 +23,6 @@ CAMINHO_LOGO = Path(__file__).resolve().parents[2] / "data" / "assets" / "logo_b
 CARD_BG = "#EEF4FA"
 DESTAQUE_BG = "#E4F5FA"
 
-RESPONSAVEL_TECNICO_NOME = "Matheus Rodrigues Costa"
-RESPONSAVEL_TECNICO_REGISTROS = "CRA-BA 2-01714 | CRECI-BA 20719"
-
 
 def _hex_para_rgb(cor_hex: str) -> tuple[int, int, int]:
     cor_hex = cor_hex.lstrip("#")
@@ -184,6 +181,78 @@ def _caixa_consideracoes(pdf: RelatorioPDF, texto: str, titulo: str = "Considera
     pdf.set_xy(pdf.l_margin, y + altura_caixa + 8)
 
 
+def _bloco_assinatura(pdf: RelatorioPDF, resultado, final: bool = False):
+    """Assinatura de quem emitiu o relatorio, ancorada no rodape da pagina -
+    a partir da pagina 2. Nas paginas normais e uma linha unica e compacta
+    (as paginas de conteudo costumam usar quase todo o espaco disponivel, sem
+    sobra para um bloco maior sem invadir a faixa do rodape). Na ultima
+    pagina do relatorio (`final=True`) a assinatura fecha o documento
+    formalmente: bloco maior, centralizado, com todos os detalhes (registro
+    profissional e credito, quando existirem).
+
+    Desliga a quebra automatica de pagina para este bloco (e dai em diante),
+    pois ele e sempre o ultimo conteudo desenhado na pagina - o resto do
+    relatorio ja usa checagens manuais de espaco (_caixa_consideracoes,
+    _linha_ledger), entao isso nao afeta nenhum outro conteudo. Se nem o
+    bloco compacto couber antes do rodape, vai para uma pagina nova (perto do
+    topo, nao do rodape), em vez de arriscar sobrepor o numero da pagina."""
+    # fpdf2's set_auto_page_break(auto) tem margin=0 como padrao e SEMPRE
+    # sobrescreve pdf.b_margin com esse valor, mesmo quando so queremos
+    # desligar a quebra automatica - sem preservar o valor atual aqui,
+    # pdf.b_margin viraria 0 permanentemente, quebrando as checagens de
+    # espaco de _caixa_consideracoes/_linha_ledger em todas as paginas
+    # seguintes (que tambem leem pdf.b_margin).
+    pdf.set_auto_page_break(False, margin=pdf.b_margin)
+    largura_util = _largura_util(pdf)
+    altura_bloco = 34 if final else 5
+
+    limite_inferior = pdf.h - pdf.b_margin  # abaixo disso e a faixa do rodape
+    y_ancora = limite_inferior - altura_bloco
+    gap_topo = 10 if final else 2
+    if pdf.get_y() + gap_topo + altura_bloco > limite_inferior:
+        # Nao sobra espaco suficiente antes do rodape - comeca uma pagina
+        # nova (perto do topo, nao do rodape) so para a assinatura, em vez de
+        # arriscar sobrepor o numero da pagina.
+        pdf.add_page()
+        pdf.set_y(pdf.t_margin + (8 if final else 4))
+    else:
+        pdf.set_y(max(pdf.get_y() + gap_topo, y_ancora))
+
+    if final:
+        pdf.set_draw_color(*_hex_para_rgb(GRAY))
+        x_linha_inicio = pdf.l_margin + largura_util * 0.3
+        pdf.line(x_linha_inicio, pdf.get_y(), x_linha_inicio + largura_util * 0.4, pdf.get_y())
+        pdf.ln(4)
+        pdf.set_font("Helvetica", "B", 15)
+        pdf.set_text_color(*_hex_para_rgb(NAVY))
+        pdf.cell(largura_util, 8, resultado.assinatura_nome, align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", size=10)
+        pdf.set_text_color(*_hex_para_rgb(GRAY))
+        if resultado.assinatura_registro:
+            pdf.cell(largura_util, 5.5, resultado.assinatura_registro, align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(largura_util, 5.5, "Responsavel pela emissao deste relatorio", align="C", new_x="LMARGIN", new_y="NEXT")
+        if resultado.assinatura_credito:
+            pdf.ln(3)
+            pdf.set_font("Helvetica", "I", 8)
+            pdf.multi_cell(largura_util, 4, resultado.assinatura_credito, align="C")
+        pdf.set_text_color(0, 0, 0)
+    else:
+        # Linha unica e compacta: nome (+ registro, se houver) em negrito,
+        # seguido de "Responsavel pela emissao deste relatorio" - cabe no
+        # pouco espaco que sobra mesmo em paginas quase cheias.
+        pdf.set_font("Helvetica", "B", 7.5)
+        pdf.set_text_color(*_hex_para_rgb(NAVY))
+        nome_texto = resultado.assinatura_nome
+        if resultado.assinatura_registro:
+            nome_texto += f" ({resultado.assinatura_registro})"
+        largura_nome = pdf.get_string_width(nome_texto) + 2
+        pdf.cell(largura_nome, 4, nome_texto)
+        pdf.set_font("Helvetica", size=7.5)
+        pdf.set_text_color(*_hex_para_rgb(GRAY))
+        pdf.cell(0, 4, "- Responsavel pela emissao deste relatorio", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_text_color(0, 0, 0)
+
+
 def _pagina_capa(pdf: RelatorioPDF, resultado):
     pdf.add_page()
     pdf.set_fill_color(*_hex_para_rgb(NAVY))
@@ -298,6 +367,7 @@ def _pagina_arrecadacoes(pdf: RelatorioPDF, resultado):
     else:
         texto = "Nao ha dados de receita suficientes no historico para esta analise."
     _caixa_consideracoes(pdf, texto)
+    _bloco_assinatura(pdf, resultado)
 
 
 def _pagina_despesas(pdf: RelatorioPDF, resultado):
@@ -350,6 +420,7 @@ def _pagina_despesas(pdf: RelatorioPDF, resultado):
         texto = "Nao ha dados de despesa suficientes no historico para esta analise."
 
     _caixa_consideracoes(pdf, texto)
+    _bloco_assinatura(pdf, resultado)
 
 
 def _pagina_inadimplencia(pdf: RelatorioPDF, resultado):
@@ -431,6 +502,8 @@ def _pagina_inadimplencia(pdf: RelatorioPDF, resultado):
                 pdf, larguras,
                 [str(linha_unidade["unidade"]), fmt_moeda(linha_unidade["valor_total"]), str(int(linha_unidade["meses_em_atraso"]))],
             )
+
+    _bloco_assinatura(pdf, resultado)
 
 
 FILL_RECEITA = "#2E5496"
@@ -575,9 +648,11 @@ def _pagina_balanco(pdf: RelatorioPDF, resultado):
         ["DESPESAS TOTAIS", fmt_moeda(despesas_total), fmt_moeda(despesas_total / 12), fmt_pct(1.0 if despesas_total else 0.0)],
         fill=FILL_TOTAL_GERAL, cor_texto="#FFFFFF", bold=True,
     )
+    pdf.ln(6)
+    _bloco_assinatura(pdf, resultado)
 
 
-def _pagina_reajuste(pdf: RelatorioPDF, resultado):
+def _pagina_reajuste(pdf: RelatorioPDF, resultado, ultima_pagina: bool = True):
     pdf.add_page()
     pdf.titulo_pagina("6. Reajuste")
 
@@ -674,23 +749,7 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado):
 
     _caixa_consideracoes(pdf, texto_atencao, titulo="Pontos de atencao: extraordinarias e impacto no caixa")
 
-    # Assinatura sempre ancorada no rodape da pagina, mesmo que o conteudo
-    # acima varie de tamanho - por isso a quebra automatica fica desligada
-    # só para este bloco (é o ultimo conteudo desta pagina, então não há
-    # risco de "perder" a quebra automática para o resto do relatório).
-    pdf.set_auto_page_break(False)
-    pdf.set_y(max(pdf.get_y() + 6, pdf.h - 42))
-    pdf.set_draw_color(*_hex_para_rgb(GRAY))
-    pdf.line(pdf.l_margin, pdf.get_y(), pdf.l_margin + 80, pdf.get_y())
-    pdf.ln(2)
-    pdf.set_font("Helvetica", "B", 10)
-    pdf.set_text_color(*_hex_para_rgb(NAVY))
-    pdf.cell(0, 5, RESPONSAVEL_TECNICO_NOME, new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", size=9)
-    pdf.set_text_color(*_hex_para_rgb(GRAY))
-    pdf.cell(0, 5, RESPONSAVEL_TECNICO_REGISTROS, new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 5, "Responsavel tecnico pela previsao orcamentaria", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_text_color(0, 0, 0)
+    _bloco_assinatura(pdf, resultado, final=ultima_pagina)
 
 
 def _pagina_taxas_reajustadas(pdf: RelatorioPDF, resultado):
@@ -744,6 +803,9 @@ def _pagina_taxas_reajustadas(pdf: RelatorioPDF, resultado):
                 [str(linha["unidade"]), fmt_pct(linha["fracao"]), fmt_moeda(linha["valor_taxa"])],
             )
 
+    pdf.ln(6)
+    _bloco_assinatura(pdf, resultado, final=True)
+
 
 def gerar_pdf_previsao(resultado) -> bytes:
     """Gera o PDF final (capa, arrecadacoes, despesas, inadimplencia,
@@ -753,13 +815,14 @@ def gerar_pdf_previsao(resultado) -> bytes:
     pdf = RelatorioPDF()
     pdf.arquivos_temp = []
     try:
+        ha_taxas_reajustadas = resultado.percentual_reajuste_aplicado > 0
         _pagina_capa(pdf, resultado)
         _pagina_arrecadacoes(pdf, resultado)
         _pagina_despesas(pdf, resultado)
         _pagina_inadimplencia(pdf, resultado)
         _pagina_balanco(pdf, resultado)
-        _pagina_reajuste(pdf, resultado)
-        if resultado.percentual_reajuste_aplicado > 0:
+        _pagina_reajuste(pdf, resultado, ultima_pagina=not ha_taxas_reajustadas)
+        if ha_taxas_reajustadas:
             _pagina_taxas_reajustadas(pdf, resultado)
         return bytes(pdf.output())
     finally:

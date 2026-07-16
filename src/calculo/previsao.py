@@ -13,6 +13,8 @@ from src.calculo.analise import (
     valor_por_unidade_inadimplente,
 )
 from src.models.schema import (
+    RESPONSAVEL_TECNICO_NOME,
+    RESPONSAVEL_TECNICO_REGISTROS,
     AjusteManual,
     ConfiguracaoArrecadacao,
     DadosDemonstrativo,
@@ -262,6 +264,17 @@ def gerar_previsao(
         else []
     )
 
+    if formulario.emitido_pelo_responsavel_tecnico:
+        assinatura_nome = RESPONSAVEL_TECNICO_NOME
+        assinatura_registro = RESPONSAVEL_TECNICO_REGISTROS
+        assinatura_credito = ""
+    else:
+        assinatura_nome = formulario.nome_emissor.strip() or "Emitente nao identificado"
+        assinatura_registro = ""
+        assinatura_credito = (
+            f"Relatorio construido e formatado por {RESPONSAVEL_TECNICO_NOME}, {RESPONSAVEL_TECNICO_REGISTROS}."
+        )
+
     return ResultadoPrevisao(
         nome_condominio=formulario.nome_condominio,
         periodo=formulario.periodo,
@@ -302,6 +315,9 @@ def gerar_previsao(
         reajuste_aplicado_ao_fundo_reserva=False,
         rateio_reajustado=receita_rateio_necessaria,
         fundo_reserva_reajustado=fundo_reserva_valor,
+        assinatura_nome=assinatura_nome,
+        assinatura_registro=assinatura_registro,
+        assinatura_credito=assinatura_credito,
     )
 
 

@@ -8,7 +8,7 @@ from src.calculo.previsao import calcular_taxas_reajustadas, gerar_previsao
 from src.models.schema import ConfiguracaoArrecadacao, DadosFormulario, DadosInadimplencia, LinhaDespesaPrevista
 from src.parsers.demonstrativo_parser import parse_demonstrativo
 from src.parsers.inadimplentes_parser import parse_inadimplentes
-from src.relatorio.pdf_export import _calcular_balanco, gerar_pdf_previsao
+from src.relatorio.pdf_export import RelatorioPDF, _bloco_assinatura, _calcular_balanco, gerar_pdf_previsao
 
 
 def _formulario(**kwargs):
@@ -49,7 +49,13 @@ def test_gerar_pdf_inadimplencia_formato_horizontal_lista_unidades(caminho_demon
 
     pdf_bytes = gerar_pdf_previsao(resultado)
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-        texto_pagina_4 = pdf.pages[3].extract_text() or ""
+        # A pagina de inadimplencia é localizada pelo título, não por índice
+        # fixo - a assinatura em todas as páginas (a partir da 2) pode empurrar
+        # uma página cheia de conteúdo para uma página extra, deslocando a
+        # numeração física.
+        texto_pagina_4 = next(
+            (p.extract_text() or "") for p in pdf.pages if "4. Inadimplencia" in (p.extract_text() or "")
+        )
     assert "nao ha unidades inadimplentes" not in texto_pagina_4.lower()
     assert "16" in texto_pagina_4
     assert "Meses em atraso" in texto_pagina_4
@@ -127,6 +133,31 @@ def test_gerar_pdf_padrao_tem_as_paginas_fixas_na_ordem_certa(caminho_demonstrat
         assert titulos[-1] == "6. Reajuste"
         assert titulos.index("2. Arrecadacoes") < titulos.index("3. Despesas") < titulos.index("4. Inadimplencia")
         assert titulos.index("4. Inadimplencia") < titulos.index("5. Balanco Orcamentario Consolidado") < titulos.index("6. Reajuste")
+
+
+def test_bloco_assinatura_preserva_b_margin_entre_chamadas():
+    # Regressao: pdf.set_auto_page_break(False) do fpdf2 zera pdf.b_margin
+    # como efeito colateral (o parametro margin tem default 0), a menos que
+    # o valor atual seja passado de volta explicitamente. Sem isso, a partir
+    # da segunda chamada de _bloco_assinatura (uma por pagina, a partir da
+    # pagina 2) o calculo do limite inferior da pagina passaria a usar
+    # b_margin=0 - quebrando tambem as checagens de espaco de
+    # _caixa_consideracoes/_linha_ledger em todas as paginas seguintes, que
+    # leem o mesmo pdf.b_margin.
+    demonstrativo = parse_demonstrativo("data/fixtures/exemplo_demonstrativo.pdf")
+    inadimplencia = parse_inadimplentes("data/fixtures/exemplo_inadimplentes.pdf")
+    resultado = gerar_previsao(demonstrativo, inadimplencia, _formulario())
+
+    pdf = RelatorioPDF()
+    pdf.arquivos_temp = []
+    pdf.add_page()
+    b_margin_original = pdf.b_margin
+    assert b_margin_original > 0
+
+    for _ in range(3):
+        _bloco_assinatura(pdf, resultado)
+        assert pdf.b_margin == b_margin_original
+        pdf.add_page()
 
 
 def test_gerar_pdf_inadimplencia_com_grafico_cabe_numa_unica_pagina(caminho_demonstrativo, caminho_inadimplentes):

@@ -3,6 +3,8 @@ import pytest
 
 from src.calculo.previsao import calcular_taxas_reajustadas, gerar_previsao
 from src.models.schema import (
+    RESPONSAVEL_TECNICO_NOME,
+    RESPONSAVEL_TECNICO_REGISTROS,
     AjusteManual,
     ConfiguracaoArrecadacao,
     DadosDemonstrativo,
@@ -56,6 +58,24 @@ def test_sem_reajuste_quando_receita_cobre_a_despesa():
     resultado = gerar_previsao(demonstrativo, None, formulario)
     assert resultado.percentual_reajuste_automatico == pytest.approx(0.0)
     assert resultado.receita_rateio_necessaria == pytest.approx(1000.0)
+
+
+def test_assinatura_usa_dados_do_responsavel_tecnico_por_padrao():
+    demonstrativo = _demonstrativo_simples()
+    resultado = gerar_previsao(demonstrativo, None, _formulario())
+    assert resultado.assinatura_nome == RESPONSAVEL_TECNICO_NOME
+    assert resultado.assinatura_registro == RESPONSAVEL_TECNICO_REGISTROS
+    assert resultado.assinatura_credito == ""
+
+
+def test_assinatura_usa_nome_do_emissor_quando_nao_e_o_responsavel_tecnico():
+    demonstrativo = _demonstrativo_simples()
+    formulario = _formulario(emitido_pelo_responsavel_tecnico=False, nome_emissor="Sindico Fulano")
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    assert resultado.assinatura_nome == "Sindico Fulano"
+    assert resultado.assinatura_registro == ""
+    assert RESPONSAVEL_TECNICO_NOME in resultado.assinatura_credito
+    assert RESPONSAVEL_TECNICO_REGISTROS in resultado.assinatura_credito
 
 
 def test_gerar_previsao_nao_aplica_reajuste_por_padrao():
