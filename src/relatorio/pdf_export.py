@@ -138,7 +138,7 @@ class RelatorioPDF(FPDF):
             self.cell(diametro, diametro, icone, align="C")
             self.set_text_color(0, 0, 0)
         self.set_xy(self.l_margin + diametro + 3, y_topo)
-        self.set_font("Helvetica", "B", 15)
+        self.set_font("Helvetica", "B", 16)
         self.set_text_color(*_hex_para_rgb(NAVY))
         self.cell(0, 10, titulo, new_x="LMARGIN", new_y="NEXT")
         self.set_text_color(0, 0, 0)
@@ -157,11 +157,16 @@ def _largura_util(pdf: RelatorioPDF) -> float:
 
 def _cartoes_estatisticas(pdf: RelatorioPDF, itens: list[tuple[str, str]], colunas: int = 2):
     """Desenha uma grade de "cartões" (N por linha) com um rótulo pequeno e um
-    valor grande em destaque, no lugar de simples linhas de texto."""
+    valor grande em destaque, no lugar de simples linhas de texto. Cada
+    cartão tem cantos arredondados e uma barra de destaque colorida à
+    esquerda (mesmo raio dos cantos, para os dois elementos se alinharem
+    visualmente)."""
     largura_util = _largura_util(pdf)
     gap = 8
     largura_cartao = (largura_util - gap * (colunas - 1)) / colunas
     altura_cartao = 28
+    raio = 2.5
+    largura_barra = 2.2
     x_inicial = pdf.l_margin
     y_inicial = pdf.get_y()
 
@@ -172,17 +177,22 @@ def _cartoes_estatisticas(pdf: RelatorioPDF, itens: list[tuple[str, str]], colun
         y = y_inicial + linha * (altura_cartao + gap)
 
         pdf.set_fill_color(*_hex_para_rgb(CARD_BG))
-        pdf.rect(x, y, largura_cartao, altura_cartao, style="F")
+        pdf.rect(x, y, largura_cartao, altura_cartao, style="F", round_corners=True, corner_radius=raio)
+        pdf.set_fill_color(*_hex_para_rgb(CYAN))
+        pdf.rect(
+            x, y, largura_barra, altura_cartao, style="F",
+            round_corners=("TOP_LEFT", "BOTTOM_LEFT"), corner_radius=raio,
+        )
 
-        pdf.set_xy(x + 4, y + 4)
-        pdf.set_font("Helvetica", size=8.5)
+        pdf.set_xy(x + 6, y + 5)
+        pdf.set_font("Helvetica", size=8)
         pdf.set_text_color(*_hex_para_rgb(GRAY))
-        pdf.multi_cell(largura_cartao - 8, 4, rotulo)
+        pdf.multi_cell(largura_cartao - 10, 4, rotulo)
 
-        pdf.set_xy(x + 4, y + 15)
-        pdf.set_font("Helvetica", "B", 14)
+        pdf.set_xy(x + 6, y + 16)
+        pdf.set_font("Helvetica", "B", 15)
         pdf.set_text_color(*_hex_para_rgb(NAVY))
-        pdf.cell(largura_cartao - 8, 8, valor)
+        pdf.cell(largura_cartao - 10, 8, valor)
         pdf.set_text_color(0, 0, 0)
 
     linhas_de_cartoes = (len(itens) + colunas - 1) // colunas
@@ -195,7 +205,7 @@ def _caixa_consideracoes(pdf: RelatorioPDF, texto: str, titulo: str = "Considera
     largura_util = _largura_util(pdf)
     padding = 4
 
-    pdf.set_font("Helvetica", "B", 10)
+    pdf.set_font("Helvetica", "B", 10.5)
     altura_titulo = 6 if titulo else 0
 
     pdf.set_font("Helvetica", size=10)
@@ -213,11 +223,11 @@ def _caixa_consideracoes(pdf: RelatorioPDF, texto: str, titulo: str = "Considera
     y = pdf.get_y()
 
     pdf.set_fill_color(*_hex_para_rgb(DESTAQUE_BG))
-    pdf.rect(x, y, largura_util, altura_caixa, style="F")
+    pdf.rect(x, y, largura_util, altura_caixa, style="F", round_corners=True, corner_radius=2.5)
 
     pdf.set_xy(x + padding, y + padding)
     if titulo:
-        pdf.set_font("Helvetica", "B", 10)
+        pdf.set_font("Helvetica", "B", 10.5)
         pdf.set_text_color(*_hex_para_rgb(NAVY))
         pdf.cell(largura_util - 2 * padding, 6, titulo, new_x="LMARGIN", new_y="NEXT")
         pdf.set_x(x + padding)
@@ -382,12 +392,13 @@ def _pagina_capa(pdf: RelatorioPDF, resultado):
         pdf.cell(80, 6, "ADMINISTRADORA", align="R")
 
     pdf.set_text_color(*_hex_para_rgb(CYAN))
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.set_xy(20, 100)
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.set_xy(20, 98)
     pdf.cell(0, 8, "PREVISAO ORCAMENTARIA CONDOMINIAL", new_x="LMARGIN", new_y="NEXT")
 
+    pdf.set_y(pdf.get_y() + 4)
     pdf.set_text_color(255, 255, 255)
-    pdf.set_font("Helvetica", "B", 26)
+    pdf.set_font("Helvetica", "B", 28)
     pdf.set_x(20)
     pdf.multi_cell(pdf.w - 40, 14, resultado.nome_condominio, align="L")
 
@@ -775,7 +786,7 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado, ultima_pagina: bool = True):
     pdf.set_fill_color(*_hex_para_rgb(NAVY))
     altura_destaque = 40
     y_destaque = pdf.get_y()
-    pdf.rect(pdf.l_margin, y_destaque, largura_util, altura_destaque, style="F")
+    pdf.rect(pdf.l_margin, y_destaque, largura_util, altura_destaque, style="F", round_corners=True, corner_radius=4)
 
     pdf.set_xy(pdf.l_margin, y_destaque + 6)
     pdf.set_font("Helvetica", size=10)
