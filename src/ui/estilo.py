@@ -67,12 +67,25 @@ def aplicar_estilo_azul():
         }}
         h1 {{
             border-bottom: none;
+            font-weight: 800 !important;
+            letter-spacing: -0.5px;
+        }}
+        h2, h3 {{
+            font-weight: 700 !important;
+            letter-spacing: -0.2px;
+            padding-bottom: 0.35rem;
+            border-bottom: 2px solid {CYAN};
         }}
         [data-testid="stHeader"] {{
             background-color: transparent;
         }}
-        p, span, label, .stMarkdown, .stCaption {{
+        p, span, .stMarkdown, .stCaption {{
             color: #E2E8F0;
+        }}
+        label {{
+            color: #E2E8F0;
+            font-weight: 500;
+            font-size: 0.92rem;
         }}
         [data-testid="stCaptionContainer"] {{
             color: {GRAY} !important;
@@ -84,8 +97,9 @@ def aplicar_estilo_azul():
         div[data-testid="stVerticalBlockBorderWrapper"] {{
             background-color: {CARD};
             border: 1px solid #1E3A5F;
-            border-radius: 14px;
-            padding: 0.5rem 0.25rem;
+            border-radius: 18px;
+            padding: 1.25rem 1rem;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
         }}
 
         /* Botões */
@@ -95,6 +109,8 @@ def aplicar_estilo_azul():
             border: none;
             border-radius: 8px;
             font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            transition: background-color 0.15s ease;
         }}
         .stButton > button:hover, .stFormSubmitButton > button:hover, .stDownloadButton > button:hover {{
             background-color: {CYAN2};
@@ -105,16 +121,17 @@ def aplicar_estilo_azul():
         input, textarea, .stNumberInput input, .stTextInput input {{
             background-color: {NAVY2} !important;
             color: #FFFFFF !important;
-            border-radius: 8px !important;
+            border-radius: 10px !important;
         }}
         div[data-baseweb="select"] > div {{
             background-color: {NAVY2} !important;
-            border-radius: 8px !important;
+            border-radius: 10px !important;
         }}
 
         /* Radio e checkbox: texto legível */
         [data-testid="stRadio"] label, [data-testid="stCheckbox"] label {{
             color: #FFFFFF !important;
+            font-weight: 500;
         }}
 
         /* Upload de arquivos */
@@ -163,9 +180,13 @@ def aplicar_estilo_azul():
         /* Métricas */
         [data-testid="stMetricValue"] {{
             color: {CYAN2};
+            font-weight: 700;
         }}
         [data-testid="stMetricLabel"] {{
             color: {GRAY};
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.78rem;
         }}
 
         /* Mensagens (info/warning/success) mantêm contraste sobre fundo escuro */
