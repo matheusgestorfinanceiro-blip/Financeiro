@@ -1,4 +1,5 @@
 import io
+import re
 
 import pandas as pd
 import pdfplumber
@@ -125,7 +126,17 @@ def test_gerar_pdf_padrao_tem_as_paginas_fixas_na_ordem_certa(caminho_demonstrat
         # (uma linha por subcategoria de despesa do demonstrativo enviado),
         # então o total de páginas não é mais fixo - mas a ordem dos títulos
         # das páginas fixas continua sendo sempre a mesma.
-        titulos = [(pagina.extract_text() or "").splitlines()[1] for pagina in pdf.pages if len((pagina.extract_text() or "").splitlines()) > 1]
+        # A assinatura final pode acabar numa pagina propria (quase em
+        # branco, so com o nome de quem emitiu o relatorio) quando a pagina
+        # de Reajuste ja estiver cheia - por isso os titulos sao filtrados
+        # para conter só linhas que realmente parecem título de seção
+        # ("N. Nome da secao"), ignorando esse tipo de página.
+        titulos = [
+            (pagina.extract_text() or "").splitlines()[1]
+            for pagina in pdf.pages
+            if len((pagina.extract_text() or "").splitlines()) > 1
+            and re.match(r"^\d+\. ", (pagina.extract_text() or "").splitlines()[1])
+        ]
         assert "2. Arrecadacoes" in titulos
         assert "3. Despesas" in titulos
         assert "4. Inadimplencia" in titulos
