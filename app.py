@@ -19,21 +19,21 @@ renderizar_logo()
 dados_inadimplencia, dados_demonstrativo = renderizar_secao_upload()
 
 if dados_demonstrativo is None:
-    st.info("Envie ao menos o Demonstrativo de Receitas e Despesas para continuar.")
+    st.info("Envie ao menos o Demonstrativo de Receitas e Despesas para continuar.", icon="ℹ️")
     st.stop()
 
 st.divider()
 formulario = renderizar_secao_formulario(dados_demonstrativo)
 
 if formulario is None:
-    st.info("Preencha o formulário acima e clique em 'Confirmar dados' para gerar a previsão.")
+    st.info("Preencha o formulário acima e clique em 'Confirmar dados' para gerar a previsão.", icon="ℹ️")
     st.stop()
 
 st.divider()
 try:
     resultado_draft = gerar_previsao(dados_demonstrativo, dados_inadimplencia, formulario)
 except ValueError as e:
-    st.error(str(e))
+    st.error(str(e), icon="⚠️")
     st.stop()
 
 if resultado_draft.percentual_reajuste_automatico > 0:

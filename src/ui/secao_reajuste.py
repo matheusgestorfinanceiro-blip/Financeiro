@@ -11,11 +11,12 @@ def renderizar_secao_reajuste(resultado_draft):
     """Recebe o resultado "rascunho" (já calculado, mas ainda sem as taxas
     reajustadas resolvidas) e devolve (percentual_reajuste, aplicar_ao_fundo_reserva)
     depois que o usuário confirmar, ou None enquanto aguarda a confirmação."""
-    st.header("A previsão indica necessidade de reajuste")
+    st.header("📈 A previsão indica necessidade de reajuste")
     st.info(
         f"Com base na receita e despesa ordinárias apuradas, o percentual de reajuste sugerido é "
         f"**{fmt_pct(resultado_draft.percentual_reajuste_automatico)}**. Responda as perguntas abaixo antes de "
-        "gerar o relatório final."
+        "gerar o relatório final.",
+        icon="ℹ️",
     )
 
     aplicar_ao_fundo_reserva = False
@@ -43,7 +44,7 @@ def renderizar_secao_reajuste(resultado_draft):
     else:
         percentual_reajuste = resultado_draft.percentual_reajuste_automatico
 
-    confirmado = st.button("Confirmar e gerar relatório", type="primary")
+    confirmado = st.button("✅ Confirmar e gerar relatório", type="primary")
     if confirmado:
         st.session_state["reajuste_confirmado"] = (percentual_reajuste, aplicar_ao_fundo_reserva)
 

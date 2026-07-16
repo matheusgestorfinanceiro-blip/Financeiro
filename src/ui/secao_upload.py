@@ -8,7 +8,7 @@ from src.ui.formatacao import escapar_markdown, fmt_moeda, fmt_pct
 
 
 def renderizar_secao_upload():
-    st.header("1. Envie os 2 arquivos do condomínio")
+    st.header("📤 1. Envie os 2 arquivos do condomínio")
     st.caption(
         "Envie o relatório de **Inadimplentes** e o **Demonstrativo de Receitas e Despesas** "
         "(mesmo formato gerado pelo sistema de gestão condominial)."
@@ -32,7 +32,8 @@ def renderizar_secao_upload():
                     f"Inadimplentes lido: {dados.condominio} — "
                     f"{dados.qtd_unidades_inadimplentes} unidades inadimplentes "
                     f"({fmt_pct(dados.percentual_inadimplencia)})"
-                )
+                ),
+                icon="✅",
             )
             usar_percentual_pdf = st.radio(
                 f"Usar o percentual de inadimplência informado no PDF ({fmt_pct(dados.percentual_inadimplencia)})?",
@@ -50,10 +51,10 @@ def renderizar_secao_upload():
                     f"Será considerado {fmt_pct(dados.percentual_inadimplencia)} de inadimplência em todo "
                     "o formulário e no relatório, no lugar do percentual lido do PDF."
                 )
-            with st.expander("Ver unidades inadimplentes extraídas"):
+            with st.expander("🔎 Ver unidades inadimplentes extraídas"):
                 st.dataframe(dados.unidades, use_container_width=True, key="tabela_unidades_inadimplentes")
         except Exception as e:
-            st.error(f"Não consegui ler o arquivo de inadimplentes: {e}")
+            st.error(f"Não consegui ler o arquivo de inadimplentes: {e}", icon="⚠️")
             st.session_state.pop("dados_inadimplencia", None)
 
     if arquivo_demonstrativo is not None:
@@ -65,7 +66,8 @@ def renderizar_secao_upload():
                 escapar_markdown(
                     f"Demonstrativo lido: {dados.condominio} — "
                     f"receitas {fmt_moeda(dados.total_receitas)} / despesas {fmt_moeda(dados.total_despesas)}"
-                )
+                ),
+                icon="✅",
             )
             st.caption(
                 "Marque abaixo as receitas e despesas que são **extraordinárias** (eventuais, sem "
@@ -75,7 +77,7 @@ def renderizar_secao_upload():
                 "de Arrecadações, Despesas e Reajuste do relatório final. É necessário marcar pelo menos "
                 "1 receita e pelo menos 1 despesa como extraordinária para gerar o relatório."
             )
-            with st.expander("Ver e marcar receitas extraídas", expanded=True):
+            with st.expander("💵 Ver e marcar receitas extraídas", expanded=True):
                 df_receitas_editavel = dados.df_receitas.copy()
                 df_receitas_editavel["extraordinaria"] = False
                 colunas_travadas = [c for c in df_receitas_editavel.columns if c != "extraordinaria"]
@@ -92,7 +94,7 @@ def renderizar_secao_upload():
                 st.session_state["receitas_extraordinarias_marcadas"] = (
                     df_receitas_editado[df_receitas_editado["extraordinaria"]]["categoria"].tolist()
                 )
-            with st.expander("Ver e marcar despesas extraídas", expanded=True):
+            with st.expander("🧾 Ver e marcar despesas extraídas", expanded=True):
                 df_despesas_editavel = dados.df_despesas.copy()
                 df_despesas_editavel["extraordinaria"] = False
                 colunas_travadas = [c for c in df_despesas_editavel.columns if c != "extraordinaria"]
@@ -111,7 +113,7 @@ def renderizar_secao_upload():
                     df_despesas_editado[df_despesas_editado["extraordinaria"]]["subcategoria"].tolist()
                 )
         except Exception as e:
-            st.error(f"Não consegui ler o demonstrativo: {e}")
+            st.error(f"Não consegui ler o demonstrativo: {e}", icon="⚠️")
             st.session_state.pop("dados_demonstrativo", None)
 
     return (

@@ -98,7 +98,16 @@ class RelatorioPDF(FPDF):
         self.cell(0, 10, f"Pagina {self.page_no()}", align="C")
         self.set_text_color(0, 0, 0)
 
-    def titulo_pagina(self, titulo: str):
+    def titulo_pagina(self, titulo: str, cor_indicador: str = None):
+        """Título de seção com uma bolinha colorida à esquerda (indicador
+        visual "moderno" no lugar de um emoji, que as fontes core do fpdf2
+        não conseguem renderizar)."""
+        cor_indicador = cor_indicador or CYAN
+        diametro = 4
+        y_bolinha = self.get_y() + 3.5
+        self.set_fill_color(*_hex_para_rgb(cor_indicador))
+        self.ellipse(self.l_margin, y_bolinha, diametro, diametro, style="F")
+        self.set_xy(self.l_margin + diametro + 3, self.get_y())
         self.set_font("Helvetica", "B", 15)
         self.set_text_color(*_hex_para_rgb(NAVY))
         self.cell(0, 10, titulo, new_x="LMARGIN", new_y="NEXT")
@@ -188,6 +197,28 @@ def _caixa_consideracoes(pdf: RelatorioPDF, texto: str, titulo: str = "Considera
     pdf.multi_cell(largura_util - 2 * padding, 5.5, texto)
 
     pdf.set_xy(pdf.l_margin, y + altura_caixa + 8)
+
+
+def _badge(pdf: RelatorioPDF, texto: str, cor_fundo: str, x: float = None, y: float = None, cor_texto: str = "#FFFFFF") -> float:
+    """Desenha um selo (retângulo arredondado colorido com texto curto
+    dentro) - mesmo espírito visual do selo branco usado atrás da logo na
+    capa. Usado no lugar de emoji (as fontes core do fpdf2 não suportam) para
+    marcar visualmente classificações/status. Retorna a largura usada, para
+    posicionar badges lado a lado sem sobrepor."""
+    x = pdf.l_margin if x is None else x
+    y = pdf.get_y() if y is None else y
+    pdf.set_font("Helvetica", "B", 8)
+    padding = 3
+    largura = pdf.get_string_width(texto) + 2 * padding
+    altura = 6
+    pdf.set_fill_color(*_hex_para_rgb(cor_fundo))
+    pdf.rect(x, y, largura, altura, style="F", round_corners=True, corner_radius=altura / 2)
+    pdf.set_xy(x, y + 1)
+    pdf.set_text_color(*_hex_para_rgb(cor_texto))
+    pdf.cell(largura, altura - 2, texto, align="C")
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_xy(x, y)
+    return largura
 
 
 def _bloco_assinatura(pdf: RelatorioPDF, resultado, final: bool = False):
@@ -709,6 +740,11 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado, ultima_pagina: bool = True):
     pdf.set_text_color(0, 0, 0)
 
     pdf.set_xy(pdf.l_margin, y_destaque + altura_destaque + 8)
+    if resultado.percentual_reajuste_automatico > 0:
+        _badge(pdf, "REAJUSTE NECESSARIO", "#F25C54")
+    else:
+        _badge(pdf, "SEM REAJUSTE NECESSARIO", "#2E7D5B")
+    pdf.ln(10)
 
     totais_receitas = _total_por_classificacao(resultado.receitas_classificadas)
     totais_despesas = _total_por_classificacao(resultado.despesas_classificadas)
