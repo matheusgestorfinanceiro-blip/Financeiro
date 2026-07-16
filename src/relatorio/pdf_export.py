@@ -18,9 +18,8 @@ from src.relatorio.graficos import (
 )
 from src.ui.formatacao import fmt_moeda, fmt_pct
 
-# Arquivo real da logo (fundo branco, ainda não disponível no repositório) -
-# assim que existir nesse caminho, passa a ser usado automaticamente no
-# lugar do wordmark de texto (ver header() e _pagina_capa() abaixo).
+# Arquivo real da logo (fundo branco) - usado automaticamente no lugar do
+# wordmark de texto (ver header() e _pagina_capa() abaixo) quando presente.
 CAMINHO_LOGO = Path(__file__).resolve().parents[2] / "data" / "assets" / "logo_azul.png"
 
 CARD_BG = "#EEF4FA"

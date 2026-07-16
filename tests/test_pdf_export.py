@@ -128,14 +128,16 @@ def test_gerar_pdf_padrao_tem_as_paginas_fixas_na_ordem_certa(caminho_demonstrat
         # das páginas fixas continua sendo sempre a mesma.
         # A assinatura final pode acabar numa pagina propria (quase em
         # branco, so com o nome de quem emitiu o relatorio) quando a pagina
-        # de Reajuste ja estiver cheia - por isso os titulos sao filtrados
-        # para conter só linhas que realmente parecem título de seção
-        # ("N. Nome da secao"), ignorando esse tipo de página.
+        # de Reajuste ja estiver cheia, e a posicao da linha de titulo varia
+        # conforme a logo (imagem real nao gera texto extraivel, o wordmark
+        # de texto gera) - por isso os titulos sao localizados por padrao
+        # ("N. Nome da secao") em qualquer linha da pagina, nao por indice
+        # fixo.
         titulos = [
-            (pagina.extract_text() or "").splitlines()[1]
+            linha
             for pagina in pdf.pages
-            if len((pagina.extract_text() or "").splitlines()) > 1
-            and re.match(r"^\d+\. ", (pagina.extract_text() or "").splitlines()[1])
+            for linha in (pagina.extract_text() or "").splitlines()
+            if re.match(r"^\d+\. ", linha)
         ]
         assert "2. Arrecadacoes" in titulos
         assert "3. Despesas" in titulos
@@ -219,8 +221,8 @@ def test_gerar_pdf_sem_reajuste_aplicado_nao_tem_pagina_de_taxas_reajustadas(cam
 
     pdf_bytes = gerar_pdf_previsao(resultado)
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-        titulos = [(pagina.extract_text() or "").splitlines()[1] for pagina in pdf.pages if len((pagina.extract_text() or "").splitlines()) > 1]
-    assert "7. Taxas Reajustadas" not in titulos
+        paginas_texto = [pagina.extract_text() or "" for pagina in pdf.pages]
+    assert not any("7. Taxas Reajustadas" in t for t in paginas_texto)
 
 
 def test_gerar_pdf_com_reajuste_aplicado_adiciona_pagina_de_taxas_reajustadas(caminho_demonstrativo, caminho_inadimplentes):
@@ -235,8 +237,8 @@ def test_gerar_pdf_com_reajuste_aplicado_adiciona_pagina_de_taxas_reajustadas(ca
 
     pdf_bytes = gerar_pdf_previsao(resultado)
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-        titulos = [(pagina.extract_text() or "").splitlines()[1] for pagina in pdf.pages if len((pagina.extract_text() or "").splitlines()) > 1]
-    assert titulos[-1] == "7. Taxas Reajustadas"
+        paginas_texto = [pagina.extract_text() or "" for pagina in pdf.pages]
+    assert any("7. Taxas Reajustadas" in t for t in paginas_texto)
 
 
 def test_calcular_balanco_reconhece_superavit_e_deficit():

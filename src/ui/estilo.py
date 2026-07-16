@@ -1,16 +1,18 @@
 """Identidade visual da Azul Administradora (navy/azul-céu) aplicada ao Streamlit."""
+import base64
 from pathlib import Path
 
 import streamlit as st
 
-# Paleta baseada na logo da Azul Administradora - estimada visualmente a
-# partir da imagem da logo (o arquivo em si ainda não está disponível no
-# repositório). Mesma paleta usada em src/relatorio/graficos.py, para a tela
-# e o PDF final ficarem visualmente consistentes.
-NAVY = "#0B3049"
-NAVY2 = "#154A66"
-CARD = "#0F3A52"
-CYAN = "#3FA9D4"
+# Paleta da Azul Administradora (navy petróleo + azul-céu). NAVY e CYAN são
+# as cores exatas extraídas da logo (data/assets/logo_azul.png), amostradas
+# por pixel: navy = RGB(0,84,116), ciano = RGB(65,171,211). Mesma paleta
+# usada em src/relatorio/graficos.py, para a tela e o PDF final ficarem
+# visualmente consistentes.
+NAVY = "#005474"
+NAVY2 = "#0A6E93"
+CARD = "#073B50"
+CYAN = "#41ABD3"
 CYAN2 = "#6FC3E0"
 GRAY = "#8FA6B2"
 
@@ -22,12 +24,19 @@ def renderizar_logo():
     existir no repositório; até lá, usa um wordmark estilizado com a mesma
     paleta, no mesmo espírito do texto usado como placeholder no PDF."""
     if CAMINHO_LOGO.exists():
-        col1, col2 = st.columns([1, 5])
-        with col1:
-            st.image(str(CAMINHO_LOGO), width=90)
-        with col2:
-            st.title("Previsão Orçamentária Condominial")
-            st.caption("Azul Administradora de Condomínios")
+        logo_base64 = base64.b64encode(CAMINHO_LOGO.read_bytes()).decode()
+        st.markdown(
+            f"""
+            <div style="display:flex; align-items:center; gap:18px; margin-bottom:0.5rem;">
+                <div style="background:#FFFFFF; border-radius:12px; padding:8px; display:inline-block;">
+                    <img src="data:image/png;base64,{logo_base64}" width="70" />
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.title("Previsão Orçamentária Condominial")
+        st.caption("Azul Administradora de Condomínios")
         return
 
     st.markdown(
