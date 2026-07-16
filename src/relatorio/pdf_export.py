@@ -378,22 +378,14 @@ def _pagina_inadimplencia(pdf: RelatorioPDF, resultado):
     pdf.ln(2)
 
     if tem_grafico:
-        pdf.imagem_temporaria(grafico_evolucao_inadimplencia(resultado), w=_largura_util(pdf))
-        pdf.ln(3)
-
-    if tem_unidades:
-        largura_util = _largura_util(pdf)
-        larguras = [largura_util * 0.55, largura_util * 0.25, largura_util * 0.20]
-        _linha_ledger(
-            pdf, larguras, ["Unidade", "Valor em aberto", "Meses em atraso"],
-            fill=NAVY, cor_texto="#FFFFFF", bold=True,
+        # Largura reduzida (nao a pagina toda) para sobrar espaco vertical
+        # para a caixa de considerações e a tabela por unidade, que também
+        # precisam caber na mesma página sempre que possível.
+        largura_grafico = _largura_util(pdf) * 0.65
+        pdf.imagem_temporaria(
+            grafico_evolucao_inadimplencia(resultado), w=largura_grafico, x=pdf.l_margin + (_largura_util(pdf) - largura_grafico) / 2
         )
-        for _, linha_unidade in resultado.inadimplencia_valor_por_unidade.iterrows():
-            _linha_ledger(
-                pdf, larguras,
-                [str(linha_unidade["unidade"]), fmt_moeda(linha_unidade["valor_total"]), str(int(linha_unidade["meses_em_atraso"]))],
-            )
-        pdf.ln(5)
+        pdf.ln(3)
 
     partes_texto = [
         f"O condominio apresenta {fmt_pct(resultado.percentual_inadimplencia)} de inadimplencia apurada, "
@@ -421,10 +413,24 @@ def _pagina_inadimplencia(pdf: RelatorioPDF, resultado):
                 "dificuldade financeira concentrada em um periodo, etc.)."
             )
         partes_texto.append(
-            "A tabela acima detalha o valor total em aberto e a quantidade de meses em atraso de cada unidade."
+            "A tabela abaixo detalha o valor total em aberto e a quantidade de meses em atraso de cada unidade."
         )
 
     _caixa_consideracoes(pdf, " ".join(partes_texto))
+
+    if tem_unidades:
+        pdf.ln(4)
+        largura_util = _largura_util(pdf)
+        larguras = [largura_util * 0.55, largura_util * 0.25, largura_util * 0.20]
+        _linha_ledger(
+            pdf, larguras, ["Unidade", "Valor em aberto", "Meses em atraso"],
+            fill=NAVY, cor_texto="#FFFFFF", bold=True,
+        )
+        for _, linha_unidade in resultado.inadimplencia_valor_por_unidade.iterrows():
+            _linha_ledger(
+                pdf, larguras,
+                [str(linha_unidade["unidade"]), fmt_moeda(linha_unidade["valor_total"]), str(int(linha_unidade["meses_em_atraso"]))],
+            )
 
 
 FILL_RECEITA = "#2E5496"
@@ -722,6 +728,21 @@ def _pagina_taxas_reajustadas(pdf: RelatorioPDF, resultado):
         "acima representa a nova taxa condominial resultante, a partir da vigência do reajuste."
     )
     _caixa_consideracoes(pdf, texto, titulo="Taxas resultantes após o reajuste")
+
+    taxas_por_unidade = resultado.taxas_reajustadas_por_unidade
+    if taxas_por_unidade is not None and not taxas_por_unidade.empty:
+        pdf.ln(4)
+        largura_util = _largura_util(pdf)
+        larguras = [largura_util * 0.4, largura_util * 0.3, largura_util * 0.3]
+        _linha_ledger(
+            pdf, larguras, ["Unidade", "Fração", "Valor da taxa"],
+            fill=NAVY, cor_texto="#FFFFFF", bold=True,
+        )
+        for _, linha in taxas_por_unidade.iterrows():
+            _linha_ledger(
+                pdf, larguras,
+                [str(linha["unidade"]), fmt_pct(linha["fracao"]), fmt_moeda(linha["valor_taxa"])],
+            )
 
 
 def gerar_pdf_previsao(resultado) -> bytes:

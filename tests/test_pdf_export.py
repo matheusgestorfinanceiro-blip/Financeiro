@@ -129,6 +129,25 @@ def test_gerar_pdf_padrao_tem_as_paginas_fixas_na_ordem_certa(caminho_demonstrat
         assert titulos.index("4. Inadimplencia") < titulos.index("5. Balanco Orcamentario Consolidado") < titulos.index("6. Reajuste")
 
 
+def test_gerar_pdf_inadimplencia_com_grafico_cabe_numa_unica_pagina(caminho_demonstrativo, caminho_inadimplentes):
+    # Regressao: o grafico de evolucao da inadimplencia (largura cheia da
+    # pagina) deixava pouco espaco vertical para a caixa de considerações e
+    # a tabela por unidade, empurrando parte da tabela para uma pagina extra
+    # sem titulo, logo antes do "5. Balanco..." - a pagina de inadimplencia
+    # (com grafico) precisa caber inteira numa unica pagina no cenario comum.
+    demonstrativo = parse_demonstrativo(caminho_demonstrativo)
+    inadimplencia = parse_inadimplentes(caminho_inadimplentes)
+    resultado = gerar_previsao(demonstrativo, inadimplencia, _formulario())
+    assert not resultado.concentracao_inadimplencia.empty
+
+    pdf_bytes = gerar_pdf_previsao(resultado)
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        paginas_texto = [pagina.extract_text() or "" for pagina in pdf.pages]
+        idx_inadimplencia = next(i for i, t in enumerate(paginas_texto) if "4. Inadimplencia" in t)
+        idx_balanco = next(i for i, t in enumerate(paginas_texto) if "5. Balanco Orcamentario Consolidado" in t)
+    assert idx_balanco == idx_inadimplencia + 1
+
+
 def test_gerar_pdf_sem_reajuste_aplicado_nao_tem_pagina_de_taxas_reajustadas(caminho_demonstrativo, caminho_inadimplentes):
     demonstrativo = parse_demonstrativo(caminho_demonstrativo)
     inadimplencia = parse_inadimplentes(caminho_inadimplentes)

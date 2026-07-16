@@ -187,3 +187,9 @@ class ResultadoPrevisao:
     reajuste_aplicado_ao_fundo_reserva: bool = False
     rateio_reajustado: float = 0.0
     fundo_reserva_reajustado: float = 0.0
+
+    # Taxa reajustada por unidade (colunas: unidade, fracao, valor_taxa) -
+    # so preenchida quando calcular_taxas_reajustadas e chamada (ha reajuste
+    # aplicado). "fracao" e o peso/participacao da unidade no rateio total
+    # (0 a 1), a mesma proporcao ja usada para dividir o rateio hoje.
+    taxas_reajustadas_por_unidade: pd.DataFrame | None = None

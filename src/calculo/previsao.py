@@ -312,17 +312,42 @@ def calcular_taxas_reajustadas(
     escolhido pelo usuario (sugerido ou customizado), aplicado ao rateio
     mensal e, se pedido, tambem ao fundo de reserva. Outras arrecadacoes
     (ex: agua) NAO recebem reajuste - somadas como estao. Retorna uma copia
-    de `resultado` com os campos de reajuste aplicado atualizados."""
+    de `resultado` com os campos de reajuste aplicado atualizados, incluindo
+    a taxa reajustada de cada unidade (mesma fracao/peso que cada unidade ja
+    tinha no rateio, aplicada ao novo total)."""
     rateio_reajustado = resultado.receita_rateio_necessaria * (1 + percentual_reajuste)
     fundo_reajustado = (
         resultado.fundo_reserva_valor * (1 + percentual_reajuste)
         if aplicar_ao_fundo_reserva
         else resultado.fundo_reserva_valor
     )
+
+    taxas_por_unidade = None
+    valores = resultado.valores_por_unidade
+    if valores is not None and not valores.empty:
+        total_rateio = valores["rateio"].sum()
+        fracao = valores["rateio"] / total_rateio if total_rateio else 0.0
+        rateio_reajustado_unidade = valores["rateio"] * (1 + percentual_reajuste)
+        fundo_reajustado_unidade = (
+            valores["fundo_reserva"] * (1 + percentual_reajuste)
+            if aplicar_ao_fundo_reserva
+            else valores["fundo_reserva"]
+        )
+        colunas_outras = [c for c in valores.columns if c not in ("unidade", "rateio", "fundo_reserva", "total")]
+        outras_unidade = valores[colunas_outras].sum(axis=1) if colunas_outras else 0.0
+        taxas_por_unidade = pd.DataFrame(
+            {
+                "unidade": valores["unidade"],
+                "fracao": fracao,
+                "valor_taxa": rateio_reajustado_unidade + fundo_reajustado_unidade + outras_unidade,
+            }
+        )
+
     return replace(
         resultado,
         percentual_reajuste_aplicado=percentual_reajuste,
         reajuste_aplicado_ao_fundo_reserva=aplicar_ao_fundo_reserva,
         rateio_reajustado=rateio_reajustado,
         fundo_reserva_reajustado=fundo_reajustado,
+        taxas_reajustadas_por_unidade=taxas_por_unidade,
     )
