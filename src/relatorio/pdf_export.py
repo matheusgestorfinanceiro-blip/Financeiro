@@ -22,6 +22,24 @@ from src.ui.formatacao import fmt_moeda, fmt_pct
 # wordmark de texto (ver header() e _pagina_capa() abaixo) quando presente.
 CAMINHO_LOGO = Path(__file__).resolve().parents[2] / "data" / "assets" / "logo_azul.png"
 
+# Fonte DejaVu Sans (licença livre, ver data/assets/fonts/LICENSE-DejaVuSans.txt)
+# embutida no PDF para desenhar simbolos Unicode (✓ ⚠ ▲ € ⚖ etc.) que as
+# fontes core do fpdf2 (Helvetica) nao suportam - nao inclui emoji colorido
+# de verdade (esses usam um formato de fonte que o fpdf2 nao le), mas cobre
+# um bom conjunto de simbolos/dingbats para servir de "icone" vetorial.
+CAMINHO_FONTE_ICONES = Path(__file__).resolve().parents[2] / "data" / "assets" / "fonts" / "DejaVuSans.ttf"
+FONTE_ICONES = "DejaVuSans"
+
+# Icones (caracteres Unicode da fonte acima) usados como indicador de cada
+# pagina/badge do relatorio - nomes descritivos para facilitar a leitura do
+# codigo que os usa.
+ICONE_ARRECADACOES = "€"  # €
+ICONE_DESPESAS = "▼"  # ▼
+ICONE_INADIMPLENCIA = "⚠"  # ⚠
+ICONE_BALANCO = "⚖"  # ⚖
+ICONE_REAJUSTE = "▲"  # ▲
+ICONE_CHECK = "✓"  # ✓
+
 CARD_BG = "#EEF4FA"
 DESTAQUE_BG = "#E4F5FA"
 
@@ -71,6 +89,11 @@ def _top_despesas_extraordinarias(resultado, n: int = 3) -> list[tuple[str, str,
 class RelatorioPDF(FPDF):
     arquivos_temp: list[str]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if CAMINHO_FONTE_ICONES.exists():
+            self.add_font(FONTE_ICONES, "", str(CAMINHO_FONTE_ICONES))
+
     def header(self):
         if self.page_no() == 1:
             return
@@ -98,16 +121,23 @@ class RelatorioPDF(FPDF):
         self.cell(0, 10, f"Pagina {self.page_no()}", align="C")
         self.set_text_color(0, 0, 0)
 
-    def titulo_pagina(self, titulo: str, cor_indicador: str = None):
-        """Título de seção com uma bolinha colorida à esquerda (indicador
-        visual "moderno" no lugar de um emoji, que as fontes core do fpdf2
-        não conseguem renderizar)."""
+    def titulo_pagina(self, titulo: str, cor_indicador: str = None, icone: str = None):
+        """Título de seção com uma bolinha colorida à esquerda - com um
+        símbolo Unicode (fonte DejaVu Sans embutida, ver CAMINHO_FONTE_ICONES)
+        dentro quando `icone` é informado, ou só a bolinha lisa quando não
+        (fallback caso a fonte não esteja disponível)."""
         cor_indicador = cor_indicador or CYAN
-        diametro = 4
-        y_bolinha = self.get_y() + 3.5
+        diametro = 5.5
+        y_topo = self.get_y()
         self.set_fill_color(*_hex_para_rgb(cor_indicador))
-        self.ellipse(self.l_margin, y_bolinha, diametro, diametro, style="F")
-        self.set_xy(self.l_margin + diametro + 3, self.get_y())
+        self.ellipse(self.l_margin, y_topo + 2, diametro, diametro, style="F")
+        if icone and CAMINHO_FONTE_ICONES.exists():
+            self.set_font(FONTE_ICONES, size=7)
+            self.set_text_color(255, 255, 255)
+            self.set_xy(self.l_margin, y_topo + 2)
+            self.cell(diametro, diametro, icone, align="C")
+            self.set_text_color(0, 0, 0)
+        self.set_xy(self.l_margin + diametro + 3, y_topo)
         self.set_font("Helvetica", "B", 15)
         self.set_text_color(*_hex_para_rgb(NAVY))
         self.cell(0, 10, titulo, new_x="LMARGIN", new_y="NEXT")
@@ -199,23 +229,42 @@ def _caixa_consideracoes(pdf: RelatorioPDF, texto: str, titulo: str = "Considera
     pdf.set_xy(pdf.l_margin, y + altura_caixa + 8)
 
 
-def _badge(pdf: RelatorioPDF, texto: str, cor_fundo: str, x: float = None, y: float = None, cor_texto: str = "#FFFFFF") -> float:
+def _badge(
+    pdf: RelatorioPDF, texto: str, cor_fundo: str, x: float = None, y: float = None,
+    cor_texto: str = "#FFFFFF", icone: str = None,
+) -> float:
     """Desenha um selo (retângulo arredondado colorido com texto curto
-    dentro) - mesmo espírito visual do selo branco usado atrás da logo na
-    capa. Usado no lugar de emoji (as fontes core do fpdf2 não suportam) para
-    marcar visualmente classificações/status. Retorna a largura usada, para
-    posicionar badges lado a lado sem sobrepor."""
+    dentro, com um símbolo Unicode opcional à esquerda - fonte DejaVu Sans
+    embutida, ver CAMINHO_FONTE_ICONES) - mesmo espírito visual do selo
+    branco usado atrás da logo na capa. Usado no lugar de emoji (as fontes
+    core do fpdf2 não suportam) para marcar visualmente classificações/
+    status. Retorna a largura usada, para posicionar badges lado a lado sem
+    sobrepor."""
     x = pdf.l_margin if x is None else x
     y = pdf.get_y() if y is None else y
-    pdf.set_font("Helvetica", "B", 8)
     padding = 3
-    largura = pdf.get_string_width(texto) + 2 * padding
     altura = 6
+
+    tem_icone = bool(icone) and CAMINHO_FONTE_ICONES.exists()
+    largura_icone = 4.5 if tem_icone else 0
+
+    pdf.set_font("Helvetica", "B", 8)
+    largura = pdf.get_string_width(texto) + 2 * padding + largura_icone
     pdf.set_fill_color(*_hex_para_rgb(cor_fundo))
     pdf.rect(x, y, largura, altura, style="F", round_corners=True, corner_radius=altura / 2)
-    pdf.set_xy(x, y + 1)
+
+    x_cursor = x + padding
+    if tem_icone:
+        pdf.set_font(FONTE_ICONES, size=7)
+        pdf.set_text_color(*_hex_para_rgb(cor_texto))
+        pdf.set_xy(x_cursor, y + 1)
+        pdf.cell(largura_icone, altura - 2, icone, align="L")
+        x_cursor += largura_icone
+
+    pdf.set_font("Helvetica", "B", 8)
+    pdf.set_xy(x_cursor, y + 1)
     pdf.set_text_color(*_hex_para_rgb(cor_texto))
-    pdf.cell(largura, altura - 2, texto, align="C")
+    pdf.cell(largura - (x_cursor - x) - padding, altura - 2, texto, align="L")
     pdf.set_text_color(0, 0, 0)
     pdf.set_xy(x, y)
     return largura
@@ -357,7 +406,7 @@ def _pagina_capa(pdf: RelatorioPDF, resultado):
 
 def _pagina_arrecadacoes(pdf: RelatorioPDF, resultado):
     pdf.add_page()
-    pdf.titulo_pagina("2. Arrecadacoes")
+    pdf.titulo_pagina("2. Arrecadacoes", icone=ICONE_ARRECADACOES)
 
     totais = _total_por_classificacao(resultado.receitas_classificadas)
     total_historico = totais["ordinaria"] + totais["extraordinaria"]
@@ -438,7 +487,7 @@ def _pagina_arrecadacoes(pdf: RelatorioPDF, resultado):
 
 def _pagina_despesas(pdf: RelatorioPDF, resultado):
     pdf.add_page()
-    pdf.titulo_pagina("3. Despesas")
+    pdf.titulo_pagina("3. Despesas", icone=ICONE_DESPESAS)
 
     totais = _total_por_classificacao(resultado.despesas_classificadas)
     total_historico = totais["ordinaria"] + totais["extraordinaria"]
@@ -491,7 +540,7 @@ def _pagina_despesas(pdf: RelatorioPDF, resultado):
 
 def _pagina_inadimplencia(pdf: RelatorioPDF, resultado):
     pdf.add_page()
-    pdf.titulo_pagina("4. Inadimplencia")
+    pdf.titulo_pagina("4. Inadimplencia", icone=ICONE_INADIMPLENCIA)
 
     tem_unidades = (
         resultado.inadimplencia_valor_por_unidade is not None
@@ -664,7 +713,7 @@ def _pagina_balanco(pdf: RelatorioPDF, resultado):
     configuracao do formulario. Inadimplencia, reajuste e saldo final ja tem
     paginas proprias no relatorio, entao nao sao repetidos aqui."""
     pdf.add_page()
-    pdf.titulo_pagina("5. Balanco Orcamentario Consolidado")
+    pdf.titulo_pagina("5. Balanco Orcamentario Consolidado", icone=ICONE_BALANCO)
 
     largura_util = _largura_util(pdf)
     larguras = [largura_util * 0.46, largura_util * 0.18, largura_util * 0.18, largura_util * 0.18]
@@ -720,7 +769,7 @@ def _pagina_balanco(pdf: RelatorioPDF, resultado):
 
 def _pagina_reajuste(pdf: RelatorioPDF, resultado, ultima_pagina: bool = True):
     pdf.add_page()
-    pdf.titulo_pagina("6. Reajuste")
+    pdf.titulo_pagina("6. Reajuste", icone=ICONE_REAJUSTE)
 
     largura_util = _largura_util(pdf)
     pdf.set_fill_color(*_hex_para_rgb(NAVY))
@@ -741,9 +790,9 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado, ultima_pagina: bool = True):
 
     pdf.set_xy(pdf.l_margin, y_destaque + altura_destaque + 8)
     if resultado.percentual_reajuste_automatico > 0:
-        _badge(pdf, "REAJUSTE NECESSARIO", "#F25C54")
+        _badge(pdf, "REAJUSTE NECESSARIO", "#F25C54", icone=ICONE_INADIMPLENCIA)
     else:
-        _badge(pdf, "SEM REAJUSTE NECESSARIO", "#2E7D5B")
+        _badge(pdf, "SEM REAJUSTE NECESSARIO", "#2E7D5B", icone=ICONE_CHECK)
     pdf.ln(10)
 
     totais_receitas = _total_por_classificacao(resultado.receitas_classificadas)
@@ -828,7 +877,7 @@ def _pagina_taxas_reajustadas(pdf: RelatorioPDF, resultado):
     (rateio + fundo de reserva, ja com o percentual escolhido pelo usuario) e
     as outras arrecadacoes configuradas, somadas sem reajuste."""
     pdf.add_page()
-    pdf.titulo_pagina("7. Taxas Reajustadas")
+    pdf.titulo_pagina("7. Taxas Reajustadas", icone=ICONE_REAJUSTE)
 
     total_mensal = (
         resultado.rateio_reajustado + resultado.fundo_reserva_reajustado + resultado.total_outras_arrecadacoes_previsto
