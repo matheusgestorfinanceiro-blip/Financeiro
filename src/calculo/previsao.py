@@ -13,6 +13,8 @@ from src.calculo.analise import (
     valor_por_unidade_inadimplente,
 )
 from src.models.schema import (
+    RESPONSAVEL_TECNICO_NOME,
+    RESPONSAVEL_TECNICO_REGISTROS,
     AjusteManual,
     ConfiguracaoArrecadacao,
     DadosDemonstrativo,
@@ -262,6 +264,17 @@ def gerar_previsao(
         else []
     )
 
+    if formulario.emitido_pelo_responsavel_tecnico:
+        assinatura_nome = RESPONSAVEL_TECNICO_NOME
+        assinatura_registro = RESPONSAVEL_TECNICO_REGISTROS
+        assinatura_credito = ""
+    else:
+        assinatura_nome = formulario.nome_emissor.strip() or "Emitente nao identificado"
+        assinatura_registro = ""
+        assinatura_credito = (
+            f"Relatorio construido e formatado por {RESPONSAVEL_TECNICO_NOME}, {RESPONSAVEL_TECNICO_REGISTROS}."
+        )
+
     return ResultadoPrevisao(
         nome_condominio=formulario.nome_condominio,
         periodo=formulario.periodo,
@@ -302,6 +315,9 @@ def gerar_previsao(
         reajuste_aplicado_ao_fundo_reserva=False,
         rateio_reajustado=receita_rateio_necessaria,
         fundo_reserva_reajustado=fundo_reserva_valor,
+        assinatura_nome=assinatura_nome,
+        assinatura_registro=assinatura_registro,
+        assinatura_credito=assinatura_credito,
     )
 
 
@@ -312,17 +328,42 @@ def calcular_taxas_reajustadas(
     escolhido pelo usuario (sugerido ou customizado), aplicado ao rateio
     mensal e, se pedido, tambem ao fundo de reserva. Outras arrecadacoes
     (ex: agua) NAO recebem reajuste - somadas como estao. Retorna uma copia
-    de `resultado` com os campos de reajuste aplicado atualizados."""
+    de `resultado` com os campos de reajuste aplicado atualizados, incluindo
+    a taxa reajustada de cada unidade (mesma fracao/peso que cada unidade ja
+    tinha no rateio, aplicada ao novo total)."""
     rateio_reajustado = resultado.receita_rateio_necessaria * (1 + percentual_reajuste)
     fundo_reajustado = (
         resultado.fundo_reserva_valor * (1 + percentual_reajuste)
         if aplicar_ao_fundo_reserva
         else resultado.fundo_reserva_valor
     )
+
+    taxas_por_unidade = None
+    valores = resultado.valores_por_unidade
+    if valores is not None and not valores.empty:
+        total_rateio = valores["rateio"].sum()
+        fracao = valores["rateio"] / total_rateio if total_rateio else 0.0
+        rateio_reajustado_unidade = valores["rateio"] * (1 + percentual_reajuste)
+        fundo_reajustado_unidade = (
+            valores["fundo_reserva"] * (1 + percentual_reajuste)
+            if aplicar_ao_fundo_reserva
+            else valores["fundo_reserva"]
+        )
+        colunas_outras = [c for c in valores.columns if c not in ("unidade", "rateio", "fundo_reserva", "total")]
+        outras_unidade = valores[colunas_outras].sum(axis=1) if colunas_outras else 0.0
+        taxas_por_unidade = pd.DataFrame(
+            {
+                "unidade": valores["unidade"],
+                "fracao": fracao,
+                "valor_taxa": rateio_reajustado_unidade + fundo_reajustado_unidade + outras_unidade,
+            }
+        )
+
     return replace(
         resultado,
         percentual_reajuste_aplicado=percentual_reajuste,
         reajuste_aplicado_ao_fundo_reserva=aplicar_ao_fundo_reserva,
         rateio_reajustado=rateio_reajustado,
         fundo_reserva_reajustado=fundo_reajustado,
+        taxas_reajustadas_por_unidade=taxas_por_unidade,
     )

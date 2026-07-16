@@ -3,6 +3,8 @@ import pytest
 
 from src.calculo.previsao import calcular_taxas_reajustadas, gerar_previsao
 from src.models.schema import (
+    RESPONSAVEL_TECNICO_NOME,
+    RESPONSAVEL_TECNICO_REGISTROS,
     AjusteManual,
     ConfiguracaoArrecadacao,
     DadosDemonstrativo,
@@ -58,6 +60,24 @@ def test_sem_reajuste_quando_receita_cobre_a_despesa():
     assert resultado.receita_rateio_necessaria == pytest.approx(1000.0)
 
 
+def test_assinatura_usa_dados_do_responsavel_tecnico_por_padrao():
+    demonstrativo = _demonstrativo_simples()
+    resultado = gerar_previsao(demonstrativo, None, _formulario())
+    assert resultado.assinatura_nome == RESPONSAVEL_TECNICO_NOME
+    assert resultado.assinatura_registro == RESPONSAVEL_TECNICO_REGISTROS
+    assert resultado.assinatura_credito == ""
+
+
+def test_assinatura_usa_nome_do_emissor_quando_nao_e_o_responsavel_tecnico():
+    demonstrativo = _demonstrativo_simples()
+    formulario = _formulario(emitido_pelo_responsavel_tecnico=False, nome_emissor="Sindico Fulano")
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    assert resultado.assinatura_nome == "Sindico Fulano"
+    assert resultado.assinatura_registro == ""
+    assert RESPONSAVEL_TECNICO_NOME in resultado.assinatura_credito
+    assert RESPONSAVEL_TECNICO_REGISTROS in resultado.assinatura_credito
+
+
 def test_gerar_previsao_nao_aplica_reajuste_por_padrao():
     # Sem passar pela tela de confirmacao (calcular_taxas_reajustadas), o
     # resultado nao deve ter nenhum reajuste "aplicado" - rateio_reajustado
@@ -84,6 +104,24 @@ def test_calcular_taxas_reajustadas_aplica_so_ao_rateio_por_padrao():
     assert ajustado.rateio_reajustado == pytest.approx(resultado.receita_rateio_necessaria * 1.25)
     assert ajustado.fundo_reserva_reajustado == pytest.approx(resultado.fundo_reserva_valor)
     assert ajustado.reajuste_aplicado_ao_fundo_reserva is False
+
+
+def test_calcular_taxas_reajustadas_preenche_tabela_por_unidade():
+    # Regressao: a pagina "Taxas Reajustadas" do PDF precisa de uma linha por
+    # unidade com a fracao (peso da unidade no rateio) e o valor da taxa ja
+    # reajustada - nao so os totais agregados.
+    demonstrativo = _demonstrativo_simples(total_despesa=1500.0, total_rateio=800.0)
+    formulario = _formulario(configuracao_rateio=_config_igual(10.0))  # 10 unidades, R$10 cada = R$100/mes
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+
+    ajustado = calcular_taxas_reajustadas(resultado, percentual_reajuste=0.25, aplicar_ao_fundo_reserva=False)
+    tabela = ajustado.taxas_reajustadas_por_unidade
+    assert tabela is not None
+    assert len(tabela) == 10
+    # Rateio igualitario -> cada unidade tem a mesma fracao (1/10) e a mesma
+    # taxa reajustada (R$10 x 1.25 = R$12.50).
+    assert tabela["fracao"].round(4).unique().tolist() == [0.1]
+    assert tabela["valor_taxa"].round(2).unique().tolist() == [12.5]
 
 
 def test_calcular_taxas_reajustadas_aplica_tambem_ao_fundo_de_reserva():

@@ -9,7 +9,7 @@ import streamlit as st
 
 from src.calculo.periodo import limpar_nome_condominio, sugerir_periodo
 from src.calculo.previsao import _resolver_configuracao
-from src.models.schema import AjusteManual, ConfiguracaoArrecadacao, DadosFormulario, TipoUnidade
+from src.models.schema import RESPONSAVEL_TECNICO_NOME, AjusteManual, ConfiguracaoArrecadacao, DadosFormulario, TipoUnidade
 from src.parsers.fracoes_parser import parse_fracoes
 from src.ui.arquivos_temp import salvar_temp
 
@@ -236,6 +236,21 @@ def renderizar_secao_formulario(dados_demonstrativo):
                 },
             )
 
+    with st.container(border=True):
+        st.subheader("Assinatura do relatório")
+        emitido_pelo_responsavel_label = st.radio(
+            f"Você é {RESPONSAVEL_TECNICO_NOME}, responsável técnico pelo sistema?",
+            ["Sim", "Não"], horizontal=True, key="emitido_pelo_responsavel_tecnico",
+        )
+        emitido_pelo_responsavel_tecnico = emitido_pelo_responsavel_label == "Sim"
+        nome_emissor = ""
+        if not emitido_pelo_responsavel_tecnico:
+            nome_emissor = st.text_input("Nome de quem está emitindo este relatório")
+            st.caption(
+                f"O relatório será assinado com o nome informado acima, com um rodapé creditando "
+                f"{RESPONSAVEL_TECNICO_NOME} pela construção e formatação do sistema."
+            )
+
     enviado = st.button("Confirmar dados", type="primary")
 
     if enviado:
@@ -246,6 +261,8 @@ def renderizar_secao_formulario(dados_demonstrativo):
                 "Marque pelo menos 1 receita e pelo menos 1 despesa como extraordinária (tela 1, tabelas "
                 "'Ver e marcar receitas/despesas extraídas') antes de confirmar os dados."
             )
+        elif not emitido_pelo_responsavel_tecnico and not nome_emissor.strip():
+            st.error("Informe o nome de quem está emitindo este relatório antes de confirmar os dados.")
         else:
             ajustes_manuais = []
             if ajustes_tabela is not None:
@@ -271,6 +288,8 @@ def renderizar_secao_formulario(dados_demonstrativo):
                 outras_arrecadacoes=outras_arrecadacoes,
                 observacoes=observacoes,
                 ajustes_manuais=ajustes_manuais,
+                emitido_pelo_responsavel_tecnico=emitido_pelo_responsavel_tecnico,
+                nome_emissor=nome_emissor,
             )
             st.session_state["dados_formulario"] = formulario
 
