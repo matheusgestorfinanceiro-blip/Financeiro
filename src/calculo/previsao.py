@@ -155,6 +155,15 @@ def gerar_previsao(
     rateio_df = rateio_df.rename(columns={"valor": "rateio"})
     numero_unidades = len(rateio_df)
 
+    # Base do calculo de "arrecadacao prevista mensalmente" (ver mais abaixo):
+    # numero de unidades x valor da taxa por unidade nos modos "igual"/
+    # "tipos"; nos modos "fracao_ideal"/"indexador" a soma resolvida aqui ja
+    # e exatamente o valor total mensal informado (_resolver_configuracao
+    # divide cada fracao pela soma das fracoes antes de multiplicar pelo
+    # valor total, entao a soma bate com ele) - por isso um unico calculo
+    # cobre os dois casos, sem precisar ramificar por modo.
+    rateio_bruto_total = float(rateio_df["rateio"].sum())
+
     isencao_total_mensal = 0.0
     if formulario.unidades_isentas:
         mapa_isencao = dict(formulario.unidades_isentas)
@@ -214,7 +223,6 @@ def gerar_previsao(
     # "Compensacao de boletos") sao tratadas como uma despesa da receita,
     # deduzidas do valor previsto a ser arrecadado e da base do reajuste.
     desconto_receita_historico_anual = _calcular_desconto_receita_historico(receitas_classificadas)
-    arrecadacao_prevista_mensal = receita_rateio_necessaria - desconto_receita_historico_anual / 12
 
     # Reajuste automatico = receita total (rateio + fundo de reserva + outras
     # arrecadacoes configurados, anualizados - sem receitas extraordinarias
@@ -242,6 +250,20 @@ def gerar_previsao(
 
     total_outras_receitas_previsto = _calcular_outras_receitas_previstas(
         receitas_classificadas, percentual_reajuste_automatico
+    )
+
+    # Arrecadacao prevista mensalmente = base do rateio (numero de unidades x
+    # valor da taxa por unidade nos modos "igual"/"tipos", ou o valor total
+    # mensal informado nos modos "fracao_ideal"/"indexador" - ver
+    # rateio_bruto_total acima) + fundo de reserva - desconto de pontualidade
+    # - outros descontos (isencao de unidades + descontos identificados no
+    # historico de receitas) + outras receitas identificadas no historico.
+    arrecadacao_prevista_mensal = (
+        rateio_bruto_total
+        + fundo_reserva_valor
+        - desconto_pontualidade_total_mensal
+        - (isencao_total_mensal + desconto_receita_historico_anual / 12)
+        + total_outras_receitas_previsto
     )
 
     total_despesas_historico_por_mes = {
