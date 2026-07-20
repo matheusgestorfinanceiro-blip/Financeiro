@@ -26,6 +26,15 @@ RODAPE_OU_CABECALHO_RE = re.compile(
     r"^[\w.+-]+@[\w.-]+\.\w+|^\d+\s+de\s+\d+$|^CONDOMINIO\b|Tel:|^AVENIDA\b|^RUA\b|^AV\.\b"
 )
 
+# Alguns relatorios reais repetem a cidade/UF do imovel (ex: "PORTO SEGURO /
+# BA") como parte do cabecalho de cada pagina, colada sem espaco a outro
+# texto quando a quebra de pagina cai no meio de um rotulo - mesmo problema
+# do cabecalho "email em data" (ver CABECALHO_INLINE_RE em pdf_utils.py), so
+# que o texto da cidade/UF nao e conhecido de antemao. Palavras em maiusculas
+# seguidas de "/ UF" no fim (ou seguidas de espaco) sao removidas de onde
+# aparecerem, do mesmo jeito.
+CIDADE_UF_RE = re.compile(r"\b[A-ZÀ-Ý][A-ZÀ-Ý ]*/\s*[A-Z]{2}\b")
+
 CABECALHOS_CONHECIDOS = {
     "com pessoal", "mensais", "manutenção", "diversas",
     "manutenções preventivas", "serviços tercerizados",
@@ -33,14 +42,31 @@ CABECALHOS_CONHECIDOS = {
 
 
 def _linhas_do_pdf(caminho_pdf: str) -> list[str]:
+    """Le o texto de cada pagina e remove o ruido de cabecalho/rodape.
+
+    Alem do padrao fixo "email em data" (removido em qualquer posicao da
+    linha, ver remover_cabecalho_inline), o sistema de gestao tambem repete a
+    linha de identificacao do imovel (codigo + nome + numero entre
+    parenteses) no topo de toda pagina - essa linha so e conhecida depois de
+    ler a primeira ocorrencia (a mesma usada por _extrair_condominio), entao
+    qualquer ocorrencia SEGUINTE dela (inteira ou colada no meio de outra
+    linha, no mesmo problema de quebra de pagina) e tratada como ruido e
+    removida de onde aparecer.
+    """
     linhas: list[str] = []
+    condominio_linha = None
     with pdfplumber.open(caminho_pdf) as pdf:
         for pagina in pdf.pages:
             texto = pagina.extract_text() or ""
             for linha in texto.split("\n"):
                 linha = remover_cabecalho_inline(linha)
+                linha = CIDADE_UF_RE.sub("", linha).strip()
+                if condominio_linha:
+                    linha = linha.replace(condominio_linha, "").strip()
                 if not linha or RODAPE_OU_CABECALHO_RE.search(linha):
                     continue
+                if condominio_linha is None:
+                    condominio_linha = linha
                 linhas.append(linha)
     return linhas
 
