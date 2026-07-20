@@ -351,6 +351,39 @@ def test_arrecadacao_prevista_mensal_e_a_soma_do_rateio_configurado():
     assert resultado.arrecadacao_prevista_mensal == pytest.approx(1500.0)
 
 
+def test_fundo_de_reserva_soma_na_arrecadacao_prevista_mensal():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    formulario = _formulario(
+        numero_unidades=10, configuracao_rateio=_config_igual(100.0),
+        possui_fundo_reserva=True, configuracao_fundo_reserva=_config_igual(10.0),
+    )
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    # (100 x 10) + (10 x 10) = 1100
+    assert resultado.arrecadacao_prevista_mensal == pytest.approx(1100.0)
+
+
+def test_outras_receitas_extraordinarias_somam_na_arrecadacao_prevista_mensal():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0, outras_receitas=500.0)
+    formulario = _formulario(
+        numero_unidades=10, configuracao_rateio=_config_igual(100.0),
+        receitas_extraordinarias=["Juros"],
+    )
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    assert resultado.percentual_reajuste_automatico == pytest.approx(0.0)
+    assert resultado.total_outras_receitas_previsto == pytest.approx(500.0)
+    # (100 x 10) + 500 (outras receitas extraordinarias do historico) = 1500
+    assert resultado.arrecadacao_prevista_mensal == pytest.approx(1500.0)
+
+
+def test_arrecadacao_prevista_mensal_usa_valor_total_mensal_no_rateio_por_fracao_ideal():
+    demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
+    fracoes = pd.DataFrame({"unidade": ["AP01", "AP02"], "fracao": [0.6, 0.4]})
+    config_rateio = ConfiguracaoArrecadacao(modo="fracao_ideal", valor_total_mensal=1000.0, fracoes=fracoes)
+    formulario = _formulario(numero_unidades=2, configuracao_rateio=config_rateio)
+    resultado = gerar_previsao(demonstrativo, None, formulario)
+    assert resultado.arrecadacao_prevista_mensal == pytest.approx(1000.0)
+
+
 def test_desconto_pontualidade_valor_fixo_reduz_arrecadacao_prevista():
     demonstrativo = _demonstrativo_simples(total_despesa=1000.0, total_rateio=1000.0)
     formulario = _formulario(
