@@ -155,6 +155,13 @@ class ResultadoPrevisao:
     numero_unidades: int
     percentual_inadimplencia: float
 
+    # Modo do rateio configurado no formulario ("igual", "tipos",
+    # "fracao_ideal" ou "indexador") - usado para decidir se a coluna
+    # "Fracao" da pagina de Taxas Reajustadas faz sentido: nos modos "igual"
+    # e "tipos" a fracao e apenas o peso derivado (1/N ou por tipo), nao uma
+    # fracao ideal de verdade configurada pelo condominio.
+    rateio_modo: str = "igual"
+
     total_outras_arrecadacoes_previsto: float = 0.0
     outras_arrecadacoes_detalhe: list[tuple[str, float]] = field(default_factory=list)
 

@@ -16,7 +16,16 @@ CYAN2 = "#6FC3E0"
 GRAY = "#8FA6B2"
 TOMATO = "#F25C54"
 
-CORES_CATEGORICAS = [CYAN, NAVY2, CYAN2, GRAY, "#0A5C73", "#7DB9CC", "#1E3A5F"]
+# Paleta vívida para gráficos com várias categorias (pizza/barras) - cores bem
+# distintas entre si (não apenas variações de azul), para as fatias/barras
+# pequenas continuarem legíveis mesmo quando várias categorias têm valores
+# próximos ou baixos.
+AMARELO = "#F2A93B"
+VERDE = "#3DBE7A"
+ROXO = "#8B5FBF"
+ROSA = "#E0559B"
+
+CORES_CATEGORICAS = [CYAN, TOMATO, AMARELO, VERDE, ROXO, NAVY, ROSA]
 
 
 def _aplicar_estilo_figura(fig, ax):
@@ -112,25 +121,42 @@ def _total_por_classificacao(df: pd.DataFrame) -> dict:
     }
 
 
-def grafico_receitas_ordinaria_x_extraordinaria(resultado):
-    totais = _total_por_classificacao(resultado.receitas_classificadas)
-    fig, ax = plt.subplots(figsize=(5, 5))
-    ax.pie(
-        [totais["ordinaria"], totais["extraordinaria"]],
-        labels=["Ordinária (recorrente)", "Extraordinária/eventual"],
-        autopct="%1.1f%%",
-        colors=[CYAN, GRAY],
-    )
-    ax.set_title("Receitas: ordinárias x extraordinárias")
-    ax.title.set_color(NAVY)
+def _grafico_ordinaria_x_extraordinaria(totais: dict, titulo: str):
+    """Barras horizontais (em vez de pizza) para as 2 categorias
+    ordinária/extraordinária - evita o corte de rótulo que a pizza sofria
+    quando uma fatia era muito maior que a outra (rótulo posicionado perto
+    da borda da figura)."""
+    fig, ax = plt.subplots(figsize=(8, 3))
+    categorias = ["Ordinária (recorrente)", "Extraordinária/eventual"]
+    valores = [totais["ordinaria"], totais["extraordinaria"]]
+    total = sum(valores) or 1
+    barras = ax.barh(categorias, valores, color=[CYAN, TOMATO], height=0.55)
+    for barra, valor in zip(barras, valores):
+        pct = valor / total * 100
+        ax.text(
+            barra.get_width() + total * 0.015, barra.get_y() + barra.get_height() / 2,
+            f"{pct:.1f}%", va="center", ha="left", color=NAVY, fontweight="bold",
+        )
+    ax.set_xlim(0, total * 1.2)
+    ax.invert_yaxis()
+    ax.set_xlabel("R$")
+    ax.set_title(titulo)
+    _aplicar_estilo_figura(fig, ax)
     fig.tight_layout()
     return fig
 
 
+def grafico_receitas_ordinaria_x_extraordinaria(resultado):
+    totais = _total_por_classificacao(resultado.receitas_classificadas)
+    return _grafico_ordinaria_x_extraordinaria(totais, "Receitas: ordinárias x extraordinárias")
+
+
 def grafico_despesas_por_categoria_pai(resultado):
     """Percentual das despesas apuradas por categoria (Com Pessoal, Mensais,
-    Manutenção, Diversas, Serviços Terceirizados etc.)."""
-    fig, ax = plt.subplots(figsize=(6, 6))
+    Manutenção, Diversas, Serviços Terceirizados etc.) - barras horizontais
+    (em vez de pizza) para as categorias pequenas nao terem seus rotulos/
+    percentuais sobrepostos, o que acontecia com muitas fatias pequenas."""
+    fig, ax = plt.subplots(figsize=(8, 4.5))
     if not resultado.despesas_previstas:
         ax.text(0.5, 0.5, "Sem despesas no período", ha="center", va="center", color=GRAY)
         ax.set_xticks([])
@@ -141,29 +167,28 @@ def grafico_despesas_por_categoria_pai(resultado):
     df = pd.DataFrame(
         [{"categoria_pai": l.categoria_pai, "valor": l.valor_historico} for l in resultado.despesas_previstas]
     )
-    agrupado = df.groupby("categoria_pai", as_index=False)["valor"].sum().sort_values("valor", ascending=False)
+    agrupado = df.groupby("categoria_pai", as_index=False)["valor"].sum().sort_values("valor", ascending=True)
+    total = agrupado["valor"].sum() or 1
     cores = [CORES_CATEGORICAS[i % len(CORES_CATEGORICAS)] for i in range(len(agrupado))]
 
-    ax.pie(agrupado["valor"], labels=agrupado["categoria_pai"], autopct="%1.1f%%", colors=cores)
+    barras = ax.barh(agrupado["categoria_pai"], agrupado["valor"], color=cores, height=0.6)
+    for barra, valor in zip(barras, agrupado["valor"]):
+        pct = valor / total * 100
+        ax.text(
+            barra.get_width() + total * 0.015, barra.get_y() + barra.get_height() / 2,
+            f"{pct:.1f}%", va="center", ha="left", color=NAVY, fontweight="bold", fontsize=9,
+        )
+    ax.set_xlim(0, total * 1.18)
+    ax.set_xlabel("R$")
     ax.set_title("Despesas por categoria")
-    ax.title.set_color(NAVY)
+    _aplicar_estilo_figura(fig, ax)
     fig.tight_layout()
     return fig
 
 
 def grafico_despesas_ordinaria_x_extraordinaria(resultado):
     totais = _total_por_classificacao(resultado.despesas_classificadas)
-    fig, ax = plt.subplots(figsize=(5, 5))
-    ax.pie(
-        [totais["ordinaria"], totais["extraordinaria"]],
-        labels=["Ordinária (recorrente)", "Extraordinária/eventual"],
-        autopct="%1.1f%%",
-        colors=[NAVY2, GRAY],
-    )
-    ax.set_title("Despesas: ordinárias x extraordinárias")
-    ax.title.set_color(NAVY)
-    fig.tight_layout()
-    return fig
+    return _grafico_ordinaria_x_extraordinaria(totais, "Despesas: ordinárias x extraordinárias")
 
 
 def grafico_evolucao_inadimplencia(resultado):
@@ -174,8 +199,8 @@ def grafico_evolucao_inadimplencia(resultado):
         ax.set_xticks([])
         ax.set_yticks([])
     else:
-        ax.plot(df["competencia"], df["valor_total"], color=NAVY2, linewidth=2, marker="o", markersize=5)
-        ax.fill_between(range(len(df)), df["valor_total"], color=CYAN2, alpha=0.15)
+        ax.plot(df["competencia"], df["valor_total"], color=NAVY, linewidth=2.5, marker="o", markersize=6)
+        ax.fill_between(range(len(df)), df["valor_total"], color=CYAN, alpha=0.3)
         if resultado.mes_pico_inadimplencia in set(df["competencia"]):
             idx_pico = df.index[df["competencia"] == resultado.mes_pico_inadimplencia][0]
             ax.plot(

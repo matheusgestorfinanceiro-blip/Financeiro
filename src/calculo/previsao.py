@@ -289,6 +289,7 @@ def gerar_previsao(
         receita_rateio_necessaria=receita_rateio_necessaria,
         numero_unidades=numero_unidades,
         percentual_inadimplencia=percentual_inadimplencia,
+        rateio_modo=formulario.configuracao_rateio.modo,
         total_outras_arrecadacoes_previsto=total_outras_arrecadacoes_previsto,
         outras_arrecadacoes_detalhe=outras_arrecadacoes_detalhe,
         valores_por_unidade=valores_por_unidade,

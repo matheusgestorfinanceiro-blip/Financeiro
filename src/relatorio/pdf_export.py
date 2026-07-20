@@ -14,6 +14,7 @@ from src.relatorio.graficos import (
     NAVY,
     grafico_despesas_por_categoria_pai,
     grafico_evolucao_inadimplencia,
+    grafico_indicador_inadimplencia,
     grafico_receitas_ordinaria_x_extraordinaria,
 )
 from src.ui.formatacao import fmt_moeda, fmt_pct
@@ -239,6 +240,54 @@ def _caixa_consideracoes(pdf: RelatorioPDF, texto: str, titulo: str = "Considera
     pdf.set_xy(pdf.l_margin, y + altura_caixa + 8)
 
 
+def _caixas_lado_a_lado(pdf: RelatorioPDF, caixas: list[tuple[str, str]]):
+    """Como _caixa_consideracoes, mas desenha N caixas lado a lado (mesma
+    altura, a maior necessária entre elas) em vez de empilhadas - usado
+    quando 2 blocos de texto relacionados devem ficar sempre na mesma
+    página: lado a lado, a altura total consumida é a da caixa mais alta,
+    não a soma das duas, o que aumenta a chance de caberem juntas."""
+    n = len(caixas)
+    largura_util = _largura_util(pdf)
+    gap = 8
+    padding = 4
+    largura_caixa = (largura_util - gap * (n - 1)) / n
+    largura_texto = largura_caixa - 2 * padding
+
+    alturas = []
+    for titulo, texto in caixas:
+        pdf.set_font("Helvetica", "B", 10.5)
+        linhas_titulo = pdf.multi_cell(largura_texto, 6, titulo, dry_run=True, output="LINES") if titulo else []
+        pdf.set_font("Helvetica", size=10)
+        linhas_texto = pdf.multi_cell(largura_texto, 5.5, texto, dry_run=True, output="LINES")
+        alturas.append(len(linhas_titulo) * 6 + len(linhas_texto) * 5.5 + 2 * padding)
+    altura_linha = max(alturas)
+
+    # Mesma logica de _caixa_consideracoes: se a linha inteira nao couber no
+    # espaco restante, comeca uma pagina nova para as duas caixas juntas.
+    if pdf.get_y() + altura_linha > pdf.h - pdf.b_margin:
+        pdf.add_page()
+
+    x_inicial = pdf.l_margin
+    y = pdf.get_y()
+    for i, (titulo, texto) in enumerate(caixas):
+        x = x_inicial + i * (largura_caixa + gap)
+        pdf.set_fill_color(*_hex_para_rgb(DESTAQUE_BG))
+        pdf.rect(x, y, largura_caixa, altura_linha, style="F", round_corners=True, corner_radius=2.5)
+
+        pdf.set_xy(x + padding, y + padding)
+        if titulo:
+            pdf.set_font("Helvetica", "B", 10.5)
+            pdf.set_text_color(*_hex_para_rgb(NAVY))
+            pdf.multi_cell(largura_texto, 6, titulo)
+            pdf.set_x(x + padding)
+
+        pdf.set_font("Helvetica", size=10)
+        pdf.set_text_color(0, 0, 0)
+        pdf.multi_cell(largura_texto, 5.5, texto)
+
+    pdf.set_xy(pdf.l_margin, y + altura_linha + 8)
+
+
 def _badge(
     pdf: RelatorioPDF, texto: str, cor_fundo: str, x: float = None, y: float = None,
     cor_texto: str = "#FFFFFF", icone: str = None,
@@ -444,12 +493,13 @@ def _pagina_arrecadacoes(pdf: RelatorioPDF, resultado):
         )
         pdf.ln(2)
 
-    # O grafico e menor quando ha outras arrecadacoes ocupando espaco acima,
-    # para sempre caber com folga antes das considerações.
-    largura_grafico = 80 if resultado.outras_arrecadacoes_detalhe else 130
+    # Grafico em barras horizontais (baixo e largo) - ocupa a largura util da
+    # pagina sem custar muita altura, diferente da pizza anterior (quadrada),
+    # que empurrava a caixa de considerações para uma pagina extra.
+    largura_grafico = _largura_util(pdf)
     pdf.imagem_temporaria(
         grafico_receitas_ordinaria_x_extraordinaria(resultado),
-        x=(pdf.w - largura_grafico) / 2,
+        x=pdf.l_margin,
         w=largura_grafico,
     )
     pdf.ln(3)
@@ -516,10 +566,13 @@ def _pagina_despesas(pdf: RelatorioPDF, resultado):
     )
 
     pdf.ln(2)
-    largura_grafico = 130
+    # Grafico em barras horizontais (em vez de pizza) - categorias pequenas
+    # nao tem mais o rotulo/percentual sobreposto, e a altura da imagem fica
+    # bem menor que a pizza quadrada anterior.
+    largura_grafico = _largura_util(pdf)
     pdf.imagem_temporaria(
         grafico_despesas_por_categoria_pai(resultado),
-        x=(pdf.w - largura_grafico) / 2,
+        x=pdf.l_margin,
         w=largura_grafico,
     )
     pdf.ln(3)
@@ -564,6 +617,11 @@ def _pagina_inadimplencia(pdf: RelatorioPDF, resultado):
     # competencia em atraso (em alguma unidade) ou mais de uma unidade
     # inadimplente - com 1 unidade e 1 mes, um grafico de 1 barra nao ajuda.
     tem_grafico = tem_concentracao and (max_meses_atraso > 1 or qtd_unidades > 1)
+    # Quando nao ha dados suficientes para o grafico de evolucao por
+    # competencia (ex: relatorio de inadimplentes sem lista de unidades, so
+    # com o percentual geral), ainda mostra um indicador visual simples do
+    # percentual apurado, em vez de deixar a pagina sem nenhum grafico.
+    tem_grafico_indicador = not tem_grafico and resultado.percentual_inadimplencia > 0
 
     _cartoes_estatisticas(
         pdf,
@@ -583,6 +641,12 @@ def _pagina_inadimplencia(pdf: RelatorioPDF, resultado):
             grafico_evolucao_inadimplencia(resultado), w=largura_grafico, x=pdf.l_margin + (_largura_util(pdf) - largura_grafico) / 2
         )
         pdf.ln(3)
+    elif tem_grafico_indicador:
+        largura_grafico = _largura_util(pdf) * 0.65
+        pdf.imagem_temporaria(
+            grafico_indicador_inadimplencia(resultado), w=largura_grafico, x=pdf.l_margin + (_largura_util(pdf) - largura_grafico) / 2
+        )
+        pdf.ln(3)
 
     partes_texto = [
         f"O condominio apresenta {fmt_pct(resultado.percentual_inadimplencia)} de inadimplencia apurada, "
@@ -593,6 +657,11 @@ def _pagina_inadimplencia(pdf: RelatorioPDF, resultado):
         partes_texto.append(
             "Nao ha unidades inadimplentes identificadas no relatorio de inadimplentes enviado."
         )
+        if tem_grafico_indicador:
+            partes_texto.append(
+                "O grafico acima ilustra esse percentual em relacao ao total - nao ha dados suficientes no "
+                "relatorio de inadimplentes enviado para detalhar a concentracao por mes de competencia."
+            )
     else:
         partes_texto.append(f"Ao todo, {qtd_unidades} unidade(s) estao inadimplentes atualmente.")
         if max_meses_atraso > 1:
@@ -840,8 +909,6 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado, ultima_pagina: bool = True):
             "despesas ordinarias e a inadimplencia esperada sem sobra nem falta, equilibrando a operacao "
             "recorrente do condominio."
         )
-    _caixa_consideracoes(pdf, texto_reajuste, titulo="Como o reajuste foi apurado")
-
     receita_extraordinaria = totais_receitas["extraordinaria"]
     despesa_extraordinaria = totais_despesas["extraordinaria"]
     texto_atencao = (
@@ -878,7 +945,16 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado, ultima_pagina: bool = True):
         for categoria_pai, subcategoria, total in top_extraordinarias:
             texto_atencao += f"\n- {categoria_pai} / {subcategoria}: {fmt_moeda(total)}"
 
-    _caixa_consideracoes(pdf, texto_atencao, titulo="Pontos de atencao: extraordinarias e impacto no caixa")
+    # Lado a lado (nao empilhadas) para as duas caixas ficarem sempre juntas
+    # na mesma pagina - a altura total consumida passa a ser a da caixa mais
+    # alta, nao a soma das duas.
+    _caixas_lado_a_lado(
+        pdf,
+        [
+            ("Como o reajuste foi apurado", texto_reajuste),
+            ("Pontos de atencao: extraordinarias e impacto no caixa", texto_atencao),
+        ],
+    )
 
     _bloco_assinatura(pdf, resultado, final=ultima_pagina)
 
@@ -923,16 +999,34 @@ def _pagina_taxas_reajustadas(pdf: RelatorioPDF, resultado):
     if taxas_por_unidade is not None and not taxas_por_unidade.empty:
         pdf.ln(4)
         largura_util = _largura_util(pdf)
-        larguras = [largura_util * 0.4, largura_util * 0.3, largura_util * 0.3]
-        _linha_ledger(
-            pdf, larguras, ["Unidade", "Fração", "Valor da taxa"],
-            fill=NAVY, cor_texto="#FFFFFF", bold=True,
-        )
-        for _, linha in taxas_por_unidade.iterrows():
+        # A coluna "Fracao" so faz sentido quando o rateio foi configurado
+        # por fracao ideal ou indexador - nos modos "igual"/"tipos" a fracao
+        # e so o peso derivado (1/N ou por tipo), nao uma informacao que o
+        # condominio configurou de verdade, entao a tabela mostra so
+        # unidade e valor da taxa nesses modos.
+        mostrar_fracao = resultado.rateio_modo in ("fracao_ideal", "indexador")
+        if mostrar_fracao:
+            larguras = [largura_util * 0.4, largura_util * 0.3, largura_util * 0.3]
             _linha_ledger(
-                pdf, larguras,
-                [str(linha["unidade"]), fmt_pct(linha["fracao"]), fmt_moeda(linha["valor_taxa"])],
+                pdf, larguras, ["Unidade", "Fração", "Valor da taxa"],
+                fill=NAVY, cor_texto="#FFFFFF", bold=True,
             )
+            for _, linha in taxas_por_unidade.iterrows():
+                _linha_ledger(
+                    pdf, larguras,
+                    [str(linha["unidade"]), fmt_pct(linha["fracao"]), fmt_moeda(linha["valor_taxa"])],
+                )
+        else:
+            larguras = [largura_util * 0.6, largura_util * 0.4]
+            _linha_ledger(
+                pdf, larguras, ["Unidade", "Valor da taxa"],
+                fill=NAVY, cor_texto="#FFFFFF", bold=True,
+            )
+            for _, linha in taxas_por_unidade.iterrows():
+                _linha_ledger(
+                    pdf, larguras,
+                    [str(linha["unidade"]), fmt_moeda(linha["valor_taxa"])],
+                )
 
     pdf.ln(6)
     _bloco_assinatura(pdf, resultado, final=True)
