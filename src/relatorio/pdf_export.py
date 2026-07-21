@@ -334,16 +334,19 @@ def _bloco_assinatura(pdf: RelatorioPDF, resultado, final: bool = False):
     a partir da pagina 2. Nas paginas normais e uma linha unica e compacta
     (as paginas de conteudo costumam usar quase todo o espaco disponivel, sem
     sobra para um bloco maior sem invadir a faixa do rodape). Na ultima
-    pagina do relatorio (`final=True`) a assinatura fecha o documento
-    formalmente: bloco maior, centralizado, com todos os detalhes (registro
-    profissional e credito, quando existirem).
+    pagina do relatorio (`final=True`), quando sobra espaco, a assinatura
+    fecha o documento formalmente: bloco maior, centralizado, com todos os
+    detalhes (registro profissional e credito, quando existirem).
 
     Desliga a quebra automatica de pagina para este bloco (e dai em diante),
     pois ele e sempre o ultimo conteudo desenhado na pagina - o resto do
     relatorio ja usa checagens manuais de espaco (_caixa_consideracoes,
-    _linha_ledger), entao isso nao afeta nenhum outro conteudo. Se nem o
-    bloco compacto couber antes do rodape, vai para uma pagina nova (perto do
-    topo, nao do rodape), em vez de arriscar sobrepor o numero da pagina."""
+    _linha_ledger), entao isso nao afeta nenhum outro conteudo. NUNCA cria
+    uma pagina nova so para a assinatura (nem na versao final) - o relatorio
+    deve sempre terminar na mesma pagina do ultimo conteudo, sem pagina em
+    branco/quase em branco no fim: quando nao sobra espaco para o bloco
+    grande da assinatura final, usa a mesma versao compacta (uma linha) das
+    paginas normais, que sempre cabe."""
     # fpdf2's set_auto_page_break(auto) tem margin=0 como padrao e SEMPRE
     # sobrescreve pdf.b_margin com esse valor, mesmo quando so queremos
     # desligar a quebra automatica - sem preservar o valor atual aqui,
@@ -352,36 +355,35 @@ def _bloco_assinatura(pdf: RelatorioPDF, resultado, final: bool = False):
     # seguintes (que tambem leem pdf.b_margin).
     pdf.set_auto_page_break(False, margin=pdf.b_margin)
     largura_util = _largura_util(pdf)
+    limite_inferior = pdf.h - pdf.b_margin  # abaixo disso e a faixa do rodape
 
+    bloco_grande = False
     if final:
         altura_bloco = 34
         gap_topo = 10
-        limite_inferior = pdf.h - pdf.b_margin  # abaixo disso e a faixa do rodape
-        y_ancora = limite_inferior - altura_bloco
-        if pdf.get_y() + gap_topo + altura_bloco > limite_inferior:
-            # Nao sobra espaco suficiente antes do rodape - comeca uma pagina
-            # nova (perto do topo, nao do rodape) so para a assinatura, em
-            # vez de arriscar sobrepor o numero da pagina. Aceitavel aqui:
-            # essa e a ultima pagina do relatorio, uma pagina final quase em
-            # branco so com a assinatura de fechamento e um resultado comum
-            # em documentos formais.
-            pdf.add_page()
-            pdf.set_y(pdf.t_margin + 8)
-        else:
+        if pdf.get_y() + gap_topo + altura_bloco <= limite_inferior:
+            bloco_grande = True
+            y_ancora = limite_inferior - altura_bloco
             pdf.set_y(max(pdf.get_y() + gap_topo, y_ancora))
-    else:
-        # Nas paginas normais NUNCA pula para uma pagina nova so pela
-        # assinatura (o usuario espera ve-la sempre na mesma pagina do
-        # conteudo) - o bloco e minimo (uma linha), entao ainda sobra folga
-        # real antes do texto "Pagina N" (desenhado bem mais embaixo, em
-        # pdf.h - 15) mesmo quando o conteudo da pagina esta quase cheio.
+        else:
+            # Nao sobra espaco para o bloco grande - cai para a versao
+            # compacta abaixo (mesmo clamp de seguranca das paginas normais),
+            # em vez de criar uma pagina nova so para a assinatura.
+            pdf.set_y(pdf.get_y() + 2)
+
+    if not bloco_grande:
+        # Nas paginas normais (e no final sem espaco para o bloco grande)
+        # NUNCA pula para uma pagina nova so pela assinatura - o bloco e
+        # minimo (uma linha), entao ainda sobra folga real antes do texto
+        # "Pagina N" (desenhado bem mais embaixo, em pdf.h - 15) mesmo quando
+        # o conteudo da pagina esta quase cheio.
         altura_bloco = 5
         gap_topo = 2
-        y_padrao = (pdf.h - pdf.b_margin) - altura_bloco  # posicao "ideal" quando sobra espaco
+        y_padrao = limite_inferior - altura_bloco  # posicao "ideal" quando sobra espaco
         y_maximo_seguro = (pdf.h - 17) - altura_bloco  # nunca ultrapassa isso, mesmo com pouco espaco
         pdf.set_y(min(max(pdf.get_y() + gap_topo, y_padrao), y_maximo_seguro))
 
-    if final:
+    if bloco_grande:
         pdf.set_draw_color(*_hex_para_rgb(GRAY))
         x_linha_inicio = pdf.l_margin + largura_util * 0.3
         pdf.line(x_linha_inicio, pdf.get_y(), x_linha_inicio + largura_util * 0.4, pdf.get_y())
