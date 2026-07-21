@@ -153,9 +153,11 @@ def grafico_receitas_ordinaria_x_extraordinaria(resultado):
 
 def grafico_despesas_por_categoria_pai(resultado):
     """Percentual das despesas apuradas por categoria (Com Pessoal, Mensais,
-    Manutenção, Diversas, Serviços Terceirizados etc.) - barras horizontais
-    (em vez de pizza) para as categorias pequenas nao terem seus rotulos/
-    percentuais sobrepostos, o que acontecia com muitas fatias pequenas."""
+    Manutenção, Diversas, Serviços Terceirizados etc.) - barras verticais,
+    com o nome de cada categoria inclinado no eixo X para caber mesmo quando
+    o nome e longo. A altura da figura fica fixa (nao cresce com o numero de
+    categorias - so a largura de cada barra encolhe), entao o espaco
+    reservado para o grafico no PDF (ver _pagina_despesas) nunca varia."""
     fig, ax = plt.subplots(figsize=(8, 4.5))
     if not resultado.despesas_previstas:
         ax.text(0.5, 0.5, "Sem despesas no período", ha="center", va="center", color=GRAY)
@@ -167,20 +169,23 @@ def grafico_despesas_por_categoria_pai(resultado):
     df = pd.DataFrame(
         [{"categoria_pai": l.categoria_pai, "valor": l.valor_historico} for l in resultado.despesas_previstas]
     )
-    agrupado = df.groupby("categoria_pai", as_index=False)["valor"].sum().sort_values("valor", ascending=True)
+    agrupado = df.groupby("categoria_pai", as_index=False)["valor"].sum().sort_values("valor", ascending=False)
     total = agrupado["valor"].sum() or 1
     cores = [CORES_CATEGORICAS[i % len(CORES_CATEGORICAS)] for i in range(len(agrupado))]
 
-    barras = ax.barh(agrupado["categoria_pai"], agrupado["valor"], color=cores, height=0.6)
+    barras = ax.bar(agrupado["categoria_pai"], agrupado["valor"], color=cores, width=0.6)
     for barra, valor in zip(barras, agrupado["valor"]):
         pct = valor / total * 100
         ax.text(
-            barra.get_width() + total * 0.015, barra.get_y() + barra.get_height() / 2,
-            f"{pct:.1f}%", va="center", ha="left", color=NAVY, fontweight="bold", fontsize=9,
+            barra.get_x() + barra.get_width() / 2, barra.get_height() + total * 0.02,
+            f"{pct:.1f}%", ha="center", va="bottom", color=NAVY, fontweight="bold", fontsize=9,
         )
-    ax.set_xlim(0, total * 1.18)
-    ax.set_xlabel("R$")
+    ax.set_ylim(0, total * 1.2)
+    ax.set_ylabel("R$")
     ax.set_title("Despesas por categoria")
+    ax.tick_params(axis="x", rotation=30)
+    for rotulo in ax.get_xticklabels():
+        rotulo.set_ha("right")
     _aplicar_estilo_figura(fig, ax)
     fig.tight_layout()
     return fig

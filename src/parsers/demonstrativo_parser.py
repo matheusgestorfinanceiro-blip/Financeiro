@@ -41,32 +41,68 @@ CABECALHOS_CONHECIDOS = {
 }
 
 
+def _detectar_cabecalhos_repetidos(paginas_linhas: list[list[str]]) -> list[str]:
+    """Descobre quais linhas se repetem literalmente no topo de toda pagina
+    (identificacao do imovel, endereco, cidade/UF, CEP etc.) comparando o
+    inicio de cada pagina entre si - sem depender de saber de antemao o
+    formato exato do endereco (rua, avenida, praca, travessa...) ou de uma
+    lista fixa de palavras: qualquer linha que apareca, igual, no comeco de
+    mais de uma pagina e cabecalho, nao conteudo. Usa a intersecao das linhas
+    iniciais de TODAS as paginas com conteudo (nao so as 2 primeiras), para
+    nao se confundir caso uma pagina especifica comece de forma diferente."""
+    paginas_com_conteudo = [p for p in paginas_linhas if p]
+    if len(paginas_com_conteudo) < 2:
+        return []
+    comuns = paginas_com_conteudo[0]
+    for pagina in paginas_com_conteudo[1:]:
+        nova_comum = []
+        for a, b in zip(comuns, pagina):
+            if a != b:
+                break
+            nova_comum.append(a)
+        comuns = nova_comum
+        if not comuns:
+            break
+    # Linhas muito curtas (poucos caracteres) nao valem a pena remover
+    # (baixo risco de coincidencia com conteudo real, mas tambem baixo
+    # beneficio) - evita remover algo trivial por coincidencia.
+    return [c for c in comuns if len(c) >= 4]
+
+
 def _linhas_do_pdf(caminho_pdf: str) -> list[str]:
     """Le o texto de cada pagina e remove o ruido de cabecalho/rodape.
 
     Alem do padrao fixo "email em data" (removido em qualquer posicao da
-    linha, ver remover_cabecalho_inline), o sistema de gestao tambem repete a
-    linha de identificacao do imovel (codigo + nome + numero entre
-    parenteses) no topo de toda pagina - essa linha so e conhecida depois de
-    ler a primeira ocorrencia (a mesma usada por _extrair_condominio), entao
-    qualquer ocorrencia SEGUINTE dela (inteira ou colada no meio de outra
-    linha, no mesmo problema de quebra de pagina) e tratada como ruido e
-    removida de onde aparecer.
+    linha, ver remover_cabecalho_inline) e do padrao de cidade/UF
+    (CIDADE_UF_RE), o sistema de gestao tambem repete um pequeno bloco de
+    linhas (identificacao do imovel, endereco completo etc.) no topo de toda
+    pagina - esse bloco e descoberto dinamicamente comparando as paginas
+    entre si (ver _detectar_cabecalhos_repetidos), entao funciona qualquer
+    que seja o formato do endereco. Qualquer ocorrencia dessas linhas
+    (inteira ou colada no meio de outra linha, quando a quebra de pagina cai
+    bem ali) e removida de onde aparecer.
     """
-    linhas: list[str] = []
-    condominio_linha = None
     with pdfplumber.open(caminho_pdf) as pdf:
+        paginas_linhas = []
         for pagina in pdf.pages:
             texto = pagina.extract_text() or ""
+            linhas_pagina = []
             for linha in texto.split("\n"):
                 linha = remover_cabecalho_inline(linha)
                 linha = CIDADE_UF_RE.sub("", linha).strip()
-                if condominio_linha:
-                    linha = linha.replace(condominio_linha, "").strip()
                 if not linha or RODAPE_OU_CABECALHO_RE.search(linha):
                     continue
-                if condominio_linha is None:
-                    condominio_linha = linha
+                linhas_pagina.append(linha)
+            paginas_linhas.append(linhas_pagina)
+
+    cabecalhos_repetidos = _detectar_cabecalhos_repetidos(paginas_linhas)
+
+    linhas: list[str] = []
+    for linhas_pagina in paginas_linhas:
+        for linha in linhas_pagina:
+            for cabecalho in cabecalhos_repetidos:
+                linha = linha.replace(cabecalho, "").strip()
+            if linha:
                 linhas.append(linha)
     return linhas
 

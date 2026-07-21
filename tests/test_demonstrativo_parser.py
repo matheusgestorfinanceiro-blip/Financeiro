@@ -1,4 +1,5 @@
 from src.parsers.demonstrativo_parser import (
+    _detectar_cabecalhos_repetidos,
     _e_transferencia_entre_contas,
     _extrair_condominio,
     parse_demonstrativo,
@@ -53,3 +54,86 @@ def test_e_transferencia_entre_contas_nao_marca_categoria_normal():
     assert not _e_transferencia_entre_contas("Rateio Mensal - Taxa de Condomínio")
     assert not _e_transferencia_entre_contas("Sistema de Segurança")
     assert not _e_transferencia_entre_contas("Conservação e Limpeza em Geral")
+
+
+def test_detectar_cabecalhos_repetidos_encontra_bloco_comum():
+    # Regressao: o endereco do imovel repete no topo de cada pagina, em
+    # formatos variados (rua, avenida, praca, com CEP etc.) que uma lista
+    # fixa de palavras nunca cobre por completo - a deteccao por repeticao
+    # entre paginas funciona para qualquer formato de endereco.
+    paginas = [
+        ["W099X SOCIEDADE TESTE (99)", "PRACA SAO JOAO, 151, 151 , TRANCOSO CEP. 45818000", "Receitas"],
+        ["W099X SOCIEDADE TESTE (99)", "PRACA SAO JOAO, 151, 151 , TRANCOSO CEP. 45818000", "Despesas"],
+        ["W099X SOCIEDADE TESTE (99)", "PRACA SAO JOAO, 151, 151 , TRANCOSO CEP. 45818000", "Total de Receitas"],
+    ]
+    assert _detectar_cabecalhos_repetidos(paginas) == [
+        "W099X SOCIEDADE TESTE (99)",
+        "PRACA SAO JOAO, 151, 151 , TRANCOSO CEP. 45818000",
+    ]
+
+
+def test_detectar_cabecalhos_repetidos_para_no_primeiro_conteudo_diferente():
+    paginas = [
+        ["Cabecalho comum", "Conteudo da pagina 1"],
+        ["Cabecalho comum", "Conteudo da pagina 2"],
+    ]
+    assert _detectar_cabecalhos_repetidos(paginas) == ["Cabecalho comum"]
+
+
+def test_detectar_cabecalhos_repetidos_vazio_com_menos_de_2_paginas():
+    assert _detectar_cabecalhos_repetidos([["Unica pagina"]]) == []
+    assert _detectar_cabecalhos_repetidos([]) == []
+
+
+def test_endereco_colado_no_meio_de_categoria_e_removido():
+    # Regressao real: quando a quebra de pagina cai no meio de uma linha de
+    # categoria, o endereco (repetido no topo de cada pagina) podia colar no
+    # texto sem espaco, corrompendo o nome da categoria/subcategoria - tanto
+    # no grafico quanto no "livro-razao" da pagina de Balanco.
+    meses = [f"Mes{i}" for i in range(1, 13)]
+    cabecalho1 = "W099X SOCIEDADE TESTE (99)"
+    cabecalho2 = "PRACA SAO JOAO, 151, 151 , TRANCOSO CEP. 45818000"
+
+    def pagina(linhas):
+        return "\n".join([cabecalho1, cabecalho2, *linhas])
+
+    class _PaginaFalsa:
+        def __init__(self, texto):
+            self._texto = texto
+
+        def extract_text(self):
+            return self._texto
+
+    class _PdfFalso:
+        def __init__(self, paginas):
+            self.pages = paginas
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    valores = " ".join(f"{100.0:.2f}".replace(".", ",") for _ in meses)
+    linha_receita = f"Rateio Mensal - Taxa de Condomínio {valores} 1.200,00"
+    # A subcategoria corrompida: o rotulo colado direto ao cabecalho repetido
+    # (sem espaco), simulando exatamente o bug relatado.
+    linha_despesa = f"{cabecalho1}{cabecalho2}Servicos Tercerizados {valores} 1.200,00"
+
+    paginas = [
+        _PaginaFalsa(pagina(["Receitas", linha_receita, "Despesas", "Com Pessoal"])),
+        _PaginaFalsa(pagina([linha_despesa, "Total de Despesas 1.200,00", "Total de Receitas 1.200,00"])),
+    ]
+
+    import src.parsers.demonstrativo_parser as demonstrativo_parser
+
+    original_open = demonstrativo_parser.pdfplumber.open
+    demonstrativo_parser.pdfplumber.open = lambda _: _PdfFalso(paginas)
+    try:
+        dados = parse_demonstrativo("caminho-fake.pdf")
+    finally:
+        demonstrativo_parser.pdfplumber.open = original_open
+
+    subcategorias = dados.df_despesas["subcategoria"].tolist()
+    assert any(s.strip() == "Servicos Tercerizados" for s in subcategorias)
+    assert not any("PRACA" in s or "CEP" in s for s in subcategorias)

@@ -126,13 +126,10 @@ def test_gerar_pdf_padrao_tem_as_paginas_fixas_na_ordem_certa(caminho_demonstrat
         # (uma linha por subcategoria de despesa do demonstrativo enviado),
         # então o total de páginas não é mais fixo - mas a ordem dos títulos
         # das páginas fixas continua sendo sempre a mesma.
-        # A assinatura final pode acabar numa pagina propria (quase em
-        # branco, so com o nome de quem emitiu o relatorio) quando a pagina
-        # de Reajuste ja estiver cheia, e a posicao da linha de titulo varia
-        # conforme a logo (imagem real nao gera texto extraivel, o wordmark
-        # de texto gera) - por isso os titulos sao localizados por padrao
-        # ("N. Nome da secao") em qualquer linha da pagina, nao por indice
-        # fixo.
+        # A posicao da linha de titulo varia conforme a logo (imagem real
+        # nao gera texto extraivel, o wordmark de texto gera) - por isso os
+        # titulos sao localizados por padrao ("N. Nome da secao") em
+        # qualquer linha da pagina, nao por indice fixo.
         titulos = [
             linha
             for pagina in pdf.pages
@@ -193,6 +190,29 @@ def test_bloco_assinatura_preserva_b_margin_entre_chamadas():
         _bloco_assinatura(pdf, resultado)
         assert pdf.b_margin == b_margin_original
         pdf.add_page()
+
+
+def test_bloco_assinatura_final_nunca_cria_pagina_nova(caminho_demonstrativo, caminho_inadimplentes):
+    # Regressao: quando a pagina de Reajuste ficava cheia (ex: as 2 caixas
+    # lado a lado ocupando quase todo o espaco), a assinatura final
+    # ("final=True") criava uma pagina nova so para ela - as vezes quase em
+    # branco. O relatorio deve sempre terminar na mesma pagina do ultimo
+    # conteudo, mesmo quando nao sobra espaco para o bloco grande.
+    demonstrativo = parse_demonstrativo(caminho_demonstrativo)
+    inadimplencia = parse_inadimplentes(caminho_inadimplentes)
+    resultado = gerar_previsao(demonstrativo, inadimplencia, _formulario())
+
+    pdf = RelatorioPDF()
+    pdf.arquivos_temp = []
+    pdf.add_page()
+    # Simula o conteudo tendo preenchido quase toda a pagina, sem sobrar
+    # espaco para o bloco grande (34mm + 10mm de respiro) antes do rodape.
+    pdf.set_y(pdf.h - pdf.b_margin - 5)
+    pagina_antes = pdf.page_no()
+
+    _bloco_assinatura(pdf, resultado, final=True)
+
+    assert pdf.page_no() == pagina_antes
 
 
 def test_gerar_pdf_inadimplencia_com_grafico_cabe_numa_unica_pagina(caminho_demonstrativo, caminho_inadimplentes):
