@@ -240,31 +240,42 @@ def _caixa_consideracoes(pdf: RelatorioPDF, texto: str, titulo: str = "Considera
     pdf.set_xy(pdf.l_margin, y + altura_caixa + 8)
 
 
-def _caixas_lado_a_lado(pdf: RelatorioPDF, caixas: list[tuple[str, str]]):
+def _caixas_lado_a_lado(
+    pdf: RelatorioPDF, caixas: list[tuple[str, str]],
+    font_size: float = 10, line_height: float = 5.5, reserva_inferior: float = 0,
+):
     """Como _caixa_consideracoes, mas desenha N caixas lado a lado (mesma
     altura, a maior necessária entre elas) em vez de empilhadas - usado
     quando 2 blocos de texto relacionados devem ficar sempre na mesma
     página: lado a lado, a altura total consumida é a da caixa mais alta,
-    não a soma das duas, o que aumenta a chance de caberem juntas."""
+    não a soma das duas, o que aumenta a chance de caberem juntas.
+
+    `font_size`/`line_height` permitem reduzir o texto quando a página é
+    apertada (ex: página de Reajuste, que ainda precisa de espaço para o
+    bloco grande de assinatura no rodapé). `reserva_inferior` reserva uma
+    faixa no fim da página (ex: para a assinatura) que a caixa não deve
+    invadir ao decidir se cabe."""
     n = len(caixas)
     largura_util = _largura_util(pdf)
     gap = 8
     padding = 4
+    altura_titulo_linha = font_size * 0.6
     largura_caixa = (largura_util - gap * (n - 1)) / n
     largura_texto = largura_caixa - 2 * padding
 
     alturas = []
     for titulo, texto in caixas:
-        pdf.set_font("Helvetica", "B", 10.5)
-        linhas_titulo = pdf.multi_cell(largura_texto, 6, titulo, dry_run=True, output="LINES") if titulo else []
-        pdf.set_font("Helvetica", size=10)
-        linhas_texto = pdf.multi_cell(largura_texto, 5.5, texto, dry_run=True, output="LINES")
-        alturas.append(len(linhas_titulo) * 6 + len(linhas_texto) * 5.5 + 2 * padding)
+        pdf.set_font("Helvetica", "B", font_size + 0.5)
+        linhas_titulo = pdf.multi_cell(largura_texto, altura_titulo_linha, titulo, dry_run=True, output="LINES") if titulo else []
+        pdf.set_font("Helvetica", size=font_size)
+        linhas_texto = pdf.multi_cell(largura_texto, line_height, texto, dry_run=True, output="LINES")
+        alturas.append(len(linhas_titulo) * altura_titulo_linha + len(linhas_texto) * line_height + 2 * padding)
     altura_linha = max(alturas)
 
     # Mesma logica de _caixa_consideracoes: se a linha inteira nao couber no
-    # espaco restante, comeca uma pagina nova para as duas caixas juntas.
-    if pdf.get_y() + altura_linha > pdf.h - pdf.b_margin:
+    # espaco restante (ja descontada a reserva do rodape), comeca uma pagina
+    # nova para as duas caixas juntas.
+    if pdf.get_y() + altura_linha > pdf.h - pdf.b_margin - reserva_inferior:
         pdf.add_page()
 
     x_inicial = pdf.l_margin
@@ -276,14 +287,14 @@ def _caixas_lado_a_lado(pdf: RelatorioPDF, caixas: list[tuple[str, str]]):
 
         pdf.set_xy(x + padding, y + padding)
         if titulo:
-            pdf.set_font("Helvetica", "B", 10.5)
+            pdf.set_font("Helvetica", "B", font_size + 0.5)
             pdf.set_text_color(*_hex_para_rgb(NAVY))
-            pdf.multi_cell(largura_texto, 6, titulo)
+            pdf.multi_cell(largura_texto, altura_titulo_linha, titulo)
             pdf.set_x(x + padding)
 
-        pdf.set_font("Helvetica", size=10)
+        pdf.set_font("Helvetica", size=font_size)
         pdf.set_text_color(0, 0, 0)
-        pdf.multi_cell(largura_texto, 5.5, texto)
+        pdf.multi_cell(largura_texto, line_height, texto)
 
     pdf.set_xy(pdf.l_margin, y + altura_linha + 8)
 
@@ -334,19 +345,23 @@ def _bloco_assinatura(pdf: RelatorioPDF, resultado, final: bool = False):
     a partir da pagina 2. Nas paginas normais e uma linha unica e compacta
     (as paginas de conteudo costumam usar quase todo o espaco disponivel, sem
     sobra para um bloco maior sem invadir a faixa do rodape). Na ultima
-    pagina do relatorio (`final=True`), quando sobra espaco, a assinatura
-    fecha o documento formalmente: bloco maior, centralizado, com todos os
-    detalhes (registro profissional e credito, quando existirem).
+    pagina do relatorio (`final=True`) a assinatura fecha o documento
+    formalmente: bloco maior, centralizado, ancorado no rodape da propria
+    pagina, com todos os detalhes (registro profissional e credito, quando
+    existirem).
+
+    NUNCA cria uma pagina nova so para a assinatura (nem na versao final): o
+    relatorio deve sempre terminar na mesma pagina do ultimo conteudo, sem
+    pagina em branco/quase em branco no fim. O bloco final e ancorado no
+    rodape da pagina; garantir que o conteudo acima nao invada essa faixa e
+    responsabilidade de quem monta a pagina (ex: _pagina_reajuste usa fonte/
+    espacamento reduzidos para o conteudo caber com folga acima da
+    assinatura).
 
     Desliga a quebra automatica de pagina para este bloco (e dai em diante),
     pois ele e sempre o ultimo conteudo desenhado na pagina - o resto do
     relatorio ja usa checagens manuais de espaco (_caixa_consideracoes,
-    _linha_ledger), entao isso nao afeta nenhum outro conteudo. NUNCA cria
-    uma pagina nova so para a assinatura (nem na versao final) - o relatorio
-    deve sempre terminar na mesma pagina do ultimo conteudo, sem pagina em
-    branco/quase em branco no fim: quando nao sobra espaco para o bloco
-    grande da assinatura final, usa a mesma versao compacta (uma linha) das
-    paginas normais, que sempre cabe."""
+    _linha_ledger), entao isso nao afeta nenhum outro conteudo."""
     # fpdf2's set_auto_page_break(auto) tem margin=0 como padrao e SEMPRE
     # sobrescreve pdf.b_margin com esse valor, mesmo quando so queremos
     # desligar a quebra automatica - sem preservar o valor atual aqui,
@@ -357,33 +372,27 @@ def _bloco_assinatura(pdf: RelatorioPDF, resultado, final: bool = False):
     largura_util = _largura_util(pdf)
     limite_inferior = pdf.h - pdf.b_margin  # abaixo disso e a faixa do rodape
 
-    bloco_grande = False
     if final:
-        altura_bloco = 34
-        gap_topo = 10
-        if pdf.get_y() + gap_topo + altura_bloco <= limite_inferior:
-            bloco_grande = True
-            y_ancora = limite_inferior - altura_bloco
-            pdf.set_y(max(pdf.get_y() + gap_topo, y_ancora))
-        else:
-            # Nao sobra espaco para o bloco grande - cai para a versao
-            # compacta abaixo (mesmo clamp de seguranca das paginas normais),
-            # em vez de criar uma pagina nova so para a assinatura.
-            pdf.set_y(pdf.get_y() + 2)
-
-    if not bloco_grande:
-        # Nas paginas normais (e no final sem espaco para o bloco grande)
-        # NUNCA pula para uma pagina nova so pela assinatura - o bloco e
-        # minimo (uma linha), entao ainda sobra folga real antes do texto
-        # "Pagina N" (desenhado bem mais embaixo, em pdf.h - 15) mesmo quando
-        # o conteudo da pagina esta quase cheio.
+        # Ancora o bloco de fechamento no rodape da propria pagina (nunca cria
+        # pagina nova). Altura ~28mm: linha + nome + registro + funcao (+
+        # credito, quando existe). Se por acaso o conteudo acima ja tiver
+        # descido demais, ainda ancora no rodape - preferimos uma pequena
+        # sobreposicao com o conteudo a uma pagina extra so com a assinatura;
+        # na pratica _pagina_reajuste garante folga suficiente acima.
+        altura_bloco = 32 if resultado.assinatura_credito else 26
+        pdf.set_y(limite_inferior - altura_bloco)
+    else:
+        # Nas paginas normais NUNCA pula para uma pagina nova so pela
+        # assinatura - o bloco e minimo (uma linha), entao ainda sobra folga
+        # real antes do texto "Pagina N" (desenhado bem mais embaixo, em
+        # pdf.h - 15) mesmo quando o conteudo da pagina esta quase cheio.
         altura_bloco = 5
         gap_topo = 2
         y_padrao = limite_inferior - altura_bloco  # posicao "ideal" quando sobra espaco
         y_maximo_seguro = (pdf.h - 17) - altura_bloco  # nunca ultrapassa isso, mesmo com pouco espaco
         pdf.set_y(min(max(pdf.get_y() + gap_topo, y_padrao), y_maximo_seguro))
 
-    if bloco_grande:
+    if final:
         pdf.set_draw_color(*_hex_para_rgb(GRAY))
         x_linha_inicio = pdf.l_margin + largura_util * 0.3
         pdf.line(x_linha_inicio, pdf.get_y(), x_linha_inicio + largura_util * 0.4, pdf.get_y())
@@ -855,27 +864,31 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado, ultima_pagina: bool = True):
 
     largura_util = _largura_util(pdf)
     pdf.set_fill_color(*_hex_para_rgb(NAVY))
-    altura_destaque = 40
+    # Caixa de destaque um pouco mais compacta (era 40mm) - junto com a fonte
+    # menor nas caixas de consideracoes abaixo, deixa folga para o bloco
+    # grande de assinatura ancorado no rodape desta pagina (que e a ultima
+    # quando nao ha reajuste aplicado), sem empurrar nada para outra pagina.
+    altura_destaque = 32
     y_destaque = pdf.get_y()
     pdf.rect(pdf.l_margin, y_destaque, largura_util, altura_destaque, style="F", round_corners=True, corner_radius=4)
 
-    pdf.set_xy(pdf.l_margin, y_destaque + 6)
+    pdf.set_xy(pdf.l_margin, y_destaque + 5)
     pdf.set_font("Helvetica", size=10)
     pdf.set_text_color(255, 255, 255)
     pdf.cell(largura_util, 6, "Percentual de reajuste proposto", align="C", new_x="LMARGIN", new_y="NEXT")
 
-    pdf.set_xy(pdf.l_margin, y_destaque + 12)
-    pdf.set_font("Helvetica", "B", 40)
+    pdf.set_xy(pdf.l_margin, y_destaque + 11)
+    pdf.set_font("Helvetica", "B", 32)
     pdf.set_text_color(*_hex_para_rgb(CYAN))
-    pdf.cell(largura_util, 20, fmt_pct(resultado.percentual_reajuste_automatico), align="C")
+    pdf.cell(largura_util, 18, fmt_pct(resultado.percentual_reajuste_automatico), align="C")
     pdf.set_text_color(0, 0, 0)
 
-    pdf.set_xy(pdf.l_margin, y_destaque + altura_destaque + 8)
+    pdf.set_xy(pdf.l_margin, y_destaque + altura_destaque + 6)
     if resultado.percentual_reajuste_automatico > 0:
         _badge(pdf, "REAJUSTE NECESSARIO", "#F25C54", icone=ICONE_INADIMPLENCIA)
     else:
         _badge(pdf, "SEM REAJUSTE NECESSARIO", "#2E7D5B", icone=ICONE_CHECK)
-    pdf.ln(10)
+    pdf.ln(8)
 
     totais_receitas = _total_por_classificacao(resultado.receitas_classificadas)
     totais_despesas = _total_por_classificacao(resultado.despesas_classificadas)
@@ -949,13 +962,20 @@ def _pagina_reajuste(pdf: RelatorioPDF, resultado, ultima_pagina: bool = True):
 
     # Lado a lado (nao empilhadas) para as duas caixas ficarem sempre juntas
     # na mesma pagina - a altura total consumida passa a ser a da caixa mais
-    # alta, nao a soma das duas.
+    # alta, nao a soma das duas. Fonte um pouco menor (9pt) e uma reserva no
+    # rodape (`reserva_inferior`) garantem espaco para o bloco grande de
+    # assinatura quando esta e a ultima pagina do relatorio, sem empurrar as
+    # caixas nem a assinatura para uma pagina extra.
+    reserva = 42 if ultima_pagina else 0
     _caixas_lado_a_lado(
         pdf,
         [
             ("Como o reajuste foi apurado", texto_reajuste),
             ("Pontos de atencao: extraordinarias e impacto no caixa", texto_atencao),
         ],
+        font_size=9,
+        line_height=4.8,
+        reserva_inferior=reserva,
     )
 
     _bloco_assinatura(pdf, resultado, final=ultima_pagina)

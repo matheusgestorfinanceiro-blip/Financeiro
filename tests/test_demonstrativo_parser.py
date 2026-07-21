@@ -66,16 +66,31 @@ def test_detectar_cabecalhos_repetidos_encontra_bloco_comum():
         ["W099X SOCIEDADE TESTE (99)", "PRACA SAO JOAO, 151, 151 , TRANCOSO CEP. 45818000", "Despesas"],
         ["W099X SOCIEDADE TESTE (99)", "PRACA SAO JOAO, 151, 151 , TRANCOSO CEP. 45818000", "Total de Receitas"],
     ]
-    assert _detectar_cabecalhos_repetidos(paginas) == [
+    assert set(_detectar_cabecalhos_repetidos(paginas)) == {
         "W099X SOCIEDADE TESTE (99)",
         "PRACA SAO JOAO, 151, 151 , TRANCOSO CEP. 45818000",
-    ]
+    }
 
 
-def test_detectar_cabecalhos_repetidos_para_no_primeiro_conteudo_diferente():
+def test_detectar_cabecalhos_repetidos_pega_endereco_mesmo_com_topo_diferente():
+    # O endereco se repete no topo, mas numa pagina ele veio colado no meio de
+    # uma linha de dados (quebra de pagina) - a abordagem de prefixo identico
+    # falhava aqui; a de frequencia no topo continua reconhecendo o endereco.
     paginas = [
-        ["Cabecalho comum", "Conteudo da pagina 1"],
-        ["Cabecalho comum", "Conteudo da pagina 2"],
+        ["W099X SOCIEDADE TESTE (99)", "PRACA SAO JOAO, 151 CEP. 45818000", "Receitas"],
+        ["W099X SOCIEDADE TESTE (99)", "PRACA SAO JOAO, 151 CEP. 45818000", "Despesas"],
+    ]
+    repetidos = _detectar_cabecalhos_repetidos(paginas)
+    assert "PRACA SAO JOAO, 151 CEP. 45818000" in repetidos
+    assert "W099X SOCIEDADE TESTE (99)" in repetidos
+
+
+def test_detectar_cabecalhos_repetidos_ignora_linhas_com_valores():
+    # Uma linha de subtotal repetida (com valores) nao deve ser tratada como
+    # cabecalho - so linhas sem valores monetarios.
+    paginas = [
+        ["Cabecalho comum", "Total geral 1.000,00 1.000,00"],
+        ["Cabecalho comum", "Total geral 1.000,00 1.000,00"],
     ]
     assert _detectar_cabecalhos_repetidos(paginas) == ["Cabecalho comum"]
 
