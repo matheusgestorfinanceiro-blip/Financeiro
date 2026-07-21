@@ -13,6 +13,7 @@ período" impresso no PDF), só pode agrupar 1-2 linhas na categoria "pai"
 errada. Ver testes de validação (soma das linhas == total do período).
 """
 import re
+from collections import Counter
 
 import pandas as pd
 import pdfplumber
@@ -41,32 +42,38 @@ CABECALHOS_CONHECIDOS = {
 }
 
 
-def _detectar_cabecalhos_repetidos(paginas_linhas: list[list[str]]) -> list[str]:
-    """Descobre quais linhas se repetem literalmente no topo de toda pagina
-    (identificacao do imovel, endereco, cidade/UF, CEP etc.) comparando o
-    inicio de cada pagina entre si - sem depender de saber de antemao o
-    formato exato do endereco (rua, avenida, praca, travessa...) ou de uma
-    lista fixa de palavras: qualquer linha que apareca, igual, no comeco de
-    mais de uma pagina e cabecalho, nao conteudo. Usa a intersecao das linhas
-    iniciais de TODAS as paginas com conteudo (nao so as 2 primeiras), para
-    nao se confundir caso uma pagina especifica comece de forma diferente."""
+def _detectar_cabecalhos_repetidos(paginas_linhas: list[list[str]], linhas_topo: int = 4) -> list[str]:
+    """Descobre quais linhas se repetem no topo das paginas (identificacao do
+    imovel, endereco, cidade/UF, CEP etc.) - sem depender de saber de antemao
+    o formato exato do endereco (rua, avenida, praca, travessa...) nem de uma
+    lista fixa de palavras.
+
+    Conta cada linha distinta que aparece entre as primeiras `linhas_topo`
+    linhas de cada pagina (uma contagem por pagina): qualquer uma que apareca
+    no topo de 2 ou mais paginas e cabecalho repetido, nao conteudo. Isso e
+    mais robusto do que exigir que o bloco seja um prefixo identico de todas
+    as paginas (abordagem anterior, que falhava quando o endereco vinha
+    colado no meio de uma linha de dados numa pagina de quebra, ou quando
+    uma pagina comecava de forma um pouco diferente). Retorna as linhas
+    ordenadas da mais longa para a mais curta, para que a remocao por
+    substring (ver _linhas_do_pdf) tire primeiro o texto maior, evitando
+    sobras quando um cabecalho e prefixo de outro."""
     paginas_com_conteudo = [p for p in paginas_linhas if p]
     if len(paginas_com_conteudo) < 2:
         return []
-    comuns = paginas_com_conteudo[0]
-    for pagina in paginas_com_conteudo[1:]:
-        nova_comum = []
-        for a, b in zip(comuns, pagina):
-            if a != b:
-                break
-            nova_comum.append(a)
-        comuns = nova_comum
-        if not comuns:
-            break
-    # Linhas muito curtas (poucos caracteres) nao valem a pena remover
-    # (baixo risco de coincidencia com conteudo real, mas tambem baixo
-    # beneficio) - evita remover algo trivial por coincidencia.
-    return [c for c in comuns if len(c) >= 4]
+    contagem: Counter = Counter()
+    for pagina in paginas_com_conteudo:
+        # dict.fromkeys preserva a ordem e conta cada linha uma vez por pagina
+        for linha in dict.fromkeys(pagina[:linhas_topo]):
+            contagem[linha] += 1
+    # Linhas muito curtas (poucos caracteres) nao valem a pena remover (baixo
+    # risco de coincidencia, baixo beneficio); linhas com valores monetarios
+    # nunca sao cabecalho (sao dados/subtotais) e nao devem ser removidas.
+    repetidos = [
+        linha for linha, n in contagem.items()
+        if n >= 2 and len(linha) >= 4 and not extrair_numeros(linha)
+    ]
+    return sorted(repetidos, key=len, reverse=True)
 
 
 def _linhas_do_pdf(caminho_pdf: str) -> list[str]:
@@ -97,6 +104,14 @@ def _linhas_do_pdf(caminho_pdf: str) -> list[str]:
 
     cabecalhos_repetidos = _detectar_cabecalhos_repetidos(paginas_linhas)
 
+    # A 1a linha de conteudo da 1a pagina e a identificacao do imovel (usada
+    # por _extrair_condominio). Como ela tambem se repete no topo de cada
+    # pagina, cai em cabecalhos_repetidos e seria removida de TODO lugar - o
+    # que apagaria tambem o nome do condominio. Por isso ela e preservada e
+    # reinserida uma unica vez no inicio (as demais ocorrencias, e o endereco,
+    # continuam sendo removidos como ruido).
+    condominio_linha = next((p[0] for p in paginas_linhas if p), None)
+
     linhas: list[str] = []
     for linhas_pagina in paginas_linhas:
         for linha in linhas_pagina:
@@ -104,6 +119,9 @@ def _linhas_do_pdf(caminho_pdf: str) -> list[str]:
                 linha = linha.replace(cabecalho, "").strip()
             if linha:
                 linhas.append(linha)
+
+    if condominio_linha and (not linhas or linhas[0] != condominio_linha):
+        linhas.insert(0, condominio_linha)
     return linhas
 
 
