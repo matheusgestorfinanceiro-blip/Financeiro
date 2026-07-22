@@ -152,3 +152,71 @@ def test_endereco_colado_no_meio_de_categoria_e_removido():
     subcategorias = dados.df_despesas["subcategoria"].tolist()
     assert any(s.strip() == "Servicos Tercerizados" for s in subcategorias)
     assert not any("PRACA" in s or "CEP" in s for s in subcategorias)
+
+
+class _PaginaFalsa:
+    def __init__(self, linhas):
+        self._texto = "\n".join(linhas)
+
+    def extract_text(self):
+        return self._texto
+
+
+class _PdfFalso:
+    def __init__(self, paginas):
+        self.pages = paginas
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+def _parse_paginas_sinteticas(paginas_linhas):
+    import src.parsers.demonstrativo_parser as demonstrativo_parser
+
+    paginas = [_PaginaFalsa(linhas) for linhas in paginas_linhas]
+    original_open = demonstrativo_parser.pdfplumber.open
+    demonstrativo_parser.pdfplumber.open = lambda _: _PdfFalso(paginas)
+    try:
+        return parse_demonstrativo("caminho-fake.pdf")
+    finally:
+        demonstrativo_parser.pdfplumber.open = original_open
+
+
+def test_endereco_no_rodape_nao_vira_categoria_de_despesa():
+    # Regressao real (condominio "SAM"): neste sistema o endereco do imovel
+    # fica no RODAPE de cada pagina (nao no topo). Quando a quebra de pagina
+    # cai no meio da lista de despesas, o rodape entra no fluxo e o endereco
+    # (uma linha sem valores) era interpretado como o nome de uma categoria de
+    # despesa - aparecendo como categoria no grafico, no balanco e na lista de
+    # maiores despesas extraordinarias. O nome do condominio (topo) deve ser
+    # preservado; a categoria real ("Diversas") nao pode ser substituida pelo
+    # endereco.
+    meses = [f"Mes{i}" for i in range(1, 13)]
+    valores = " ".join(f"{100.0:.2f}".replace(".", ",") for _ in meses)
+    cond_topo = "W003A SOCIEDADE EXEMPLO DO VALE (303)"
+    endereco = "PRACA SAO JOAO, 151, 151 , TRANCOSO CEP. 45818000"
+    rodape = ["SOCIEDADE EXEMPLO DO VALE", endereco, "PORTO SEGURO / BA - Tel: (73)3268-2508", "1 de 2"]
+
+    pagina1 = [
+        cond_topo, "Receitas", f"Rateio Mensal - Taxa de Condominio {valores} 1.200,00",
+        "Despesas", "Com Pessoal", f"Salario {valores} 1.200,00",
+        "Diversas", f"Honorarios de Assessoria {valores} 1.200,00", *rodape,
+    ]
+    pagina2 = [
+        cond_topo, f"Despesas Diversas {valores} 1.200,00", f"Honorarios Advocaticios {valores} 1.200,00",
+        "Total de Despesas 4.800,00", "Total de Receitas 1.200,00", *rodape,
+    ]
+
+    dados = _parse_paginas_sinteticas([pagina1, pagina2])
+
+    assert dados.condominio == cond_topo
+    categorias = set(dados.df_despesas["categoria_pai"])
+    assert not any("PRACA" in c or "CEP" in c for c in categorias)
+    assert "Diversas" in categorias
+    # As subcategorias da secao Diversas (que caiu na quebra de pagina) devem
+    # ficar sob "Diversas", nao sob o endereco.
+    diversas = dados.df_despesas[dados.df_despesas["categoria_pai"] == "Diversas"]["subcategoria"].tolist()
+    assert "Honorarios Advocaticios" in diversas

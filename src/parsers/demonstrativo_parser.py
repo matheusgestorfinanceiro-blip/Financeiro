@@ -42,29 +42,32 @@ CABECALHOS_CONHECIDOS = {
 }
 
 
-def _detectar_cabecalhos_repetidos(paginas_linhas: list[list[str]], linhas_topo: int = 4) -> list[str]:
-    """Descobre quais linhas se repetem no topo das paginas (identificacao do
-    imovel, endereco, cidade/UF, CEP etc.) - sem depender de saber de antemao
-    o formato exato do endereco (rua, avenida, praca, travessa...) nem de uma
+def _detectar_cabecalhos_repetidos(paginas_linhas: list[list[str]], linhas_margem: int = 4) -> list[str]:
+    """Descobre quais linhas se repetem nas MARGENS das paginas - tanto no
+    topo (identificacao do imovel) quanto no rodape (nome do condominio,
+    endereco, cidade/UF, CEP, telefone) - sem depender de saber de antemao o
+    formato exato do endereco (rua, avenida, praca, travessa...) nem de uma
     lista fixa de palavras.
 
-    Conta cada linha distinta que aparece entre as primeiras `linhas_topo`
-    linhas de cada pagina (uma contagem por pagina): qualquer uma que apareca
-    no topo de 2 ou mais paginas e cabecalho repetido, nao conteudo. Isso e
-    mais robusto do que exigir que o bloco seja um prefixo identico de todas
-    as paginas (abordagem anterior, que falhava quando o endereco vinha
-    colado no meio de uma linha de dados numa pagina de quebra, ou quando
-    uma pagina comecava de forma um pouco diferente). Retorna as linhas
-    ordenadas da mais longa para a mais curta, para que a remocao por
-    substring (ver _linhas_do_pdf) tire primeiro o texto maior, evitando
-    sobras quando um cabecalho e prefixo de outro."""
+    Conta cada linha distinta que aparece entre as primeiras OU as ultimas
+    `linhas_margem` linhas de cada pagina (uma contagem por pagina): qualquer
+    uma que apareca na margem de 2 ou mais paginas e cabecalho/rodape
+    repetido, nao conteudo. Olhar tambem o rodape e essencial porque neste
+    sistema o endereco do imovel fica no PE de cada pagina - quando a quebra
+    de pagina cai no meio da lista de despesas, esse endereco entra no fluxo
+    e era interpretado (erradamente) como o nome de uma categoria de despesa.
+
+    Retorna as linhas ordenadas da mais longa para a mais curta, para que a
+    remocao por substring (ver _linhas_do_pdf) tire primeiro o texto maior,
+    evitando sobras quando um cabecalho e prefixo de outro."""
     paginas_com_conteudo = [p for p in paginas_linhas if p]
     if len(paginas_com_conteudo) < 2:
         return []
     contagem: Counter = Counter()
     for pagina in paginas_com_conteudo:
+        margem = pagina[:linhas_margem] + pagina[-linhas_margem:]
         # dict.fromkeys preserva a ordem e conta cada linha uma vez por pagina
-        for linha in dict.fromkeys(pagina[:linhas_topo]):
+        for linha in dict.fromkeys(margem):
             contagem[linha] += 1
     # Linhas muito curtas (poucos caracteres) nao valem a pena remover (baixo
     # risco de coincidencia, baixo beneficio); linhas com valores monetarios
@@ -103,25 +106,33 @@ def _linhas_do_pdf(caminho_pdf: str) -> list[str]:
             paginas_linhas.append(linhas_pagina)
 
     cabecalhos_repetidos = _detectar_cabecalhos_repetidos(paginas_linhas)
+    cabecalhos_set = set(cabecalhos_repetidos)
 
     # A 1a linha de conteudo da 1a pagina e a identificacao do imovel (usada
-    # por _extrair_condominio). Como ela tambem se repete no topo de cada
-    # pagina, cai em cabecalhos_repetidos e seria removida de TODO lugar - o
-    # que apagaria tambem o nome do condominio. Por isso ela e preservada e
-    # reinserida uma unica vez no inicio (as demais ocorrencias, e o endereco,
-    # continuam sendo removidos como ruido).
-    condominio_linha = next((p[0] for p in paginas_linhas if p), None)
-
+    # por _extrair_condominio). Ela tambem se repete no topo de cada pagina,
+    # entao cai em cabecalhos_repetidos - preservamos a PRIMEIRA ocorrencia
+    # intacta (as demais, exatamente iguais, sao descartadas). Importante: o
+    # nome do condominio que aparece no RODAPE (sem o codigo/numero) costuma
+    # ser um pedaco dessa 1a linha; por isso ela e mantida sem passar pela
+    # remocao por substring, que a mutilaria.
     linhas: list[str] = []
+    primeira_preservada = False
     for linhas_pagina in paginas_linhas:
         for linha in linhas_pagina:
+            if not primeira_preservada:
+                linhas.append(linha)
+                primeira_preservada = True
+                continue
+            # Ocorrencia isolada de um cabecalho/rodape repetido: descarta a
+            # linha inteira.
+            if linha in cabecalhos_set:
+                continue
+            # Cabecalho/rodape colado no meio de uma linha de conteudo (quebra
+            # de pagina): remove so o trecho do cabecalho, preserva o resto.
             for cabecalho in cabecalhos_repetidos:
                 linha = linha.replace(cabecalho, "").strip()
             if linha:
                 linhas.append(linha)
-
-    if condominio_linha and (not linhas or linhas[0] != condominio_linha):
-        linhas.insert(0, condominio_linha)
     return linhas
 
 

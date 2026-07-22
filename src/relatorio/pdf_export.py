@@ -696,18 +696,8 @@ def _pagina_inadimplencia(pdf: RelatorioPDF, resultado):
     _caixa_consideracoes(pdf, " ".join(partes_texto))
 
     if tem_unidades:
-        pdf.ln(4)
-        largura_util = _largura_util(pdf)
-        larguras = [largura_util * 0.55, largura_util * 0.25, largura_util * 0.20]
-        _linha_ledger(
-            pdf, larguras, ["Unidade", "Valor em aberto", "Meses em atraso"],
-            fill=NAVY, cor_texto="#FFFFFF", bold=True,
-        )
-        for _, linha_unidade in resultado.inadimplencia_valor_por_unidade.iterrows():
-            _linha_ledger(
-                pdf, larguras,
-                [str(linha_unidade["unidade"]), fmt_moeda(linha_unidade["valor_total"]), str(int(linha_unidade["meses_em_atraso"]))],
-            )
+        pdf.ln(3)
+        _tabela_unidades_inadimplentes(pdf, resultado.inadimplencia_valor_por_unidade)
 
     _bloco_assinatura(pdf, resultado)
 
@@ -795,6 +785,60 @@ def _linha_ledger(pdf: RelatorioPDF, larguras, celulas, fill=None, cor_texto=Non
         x += largura
     pdf.set_xy(x0, y0 + altura)
     pdf.set_text_color(0, 0, 0)
+
+
+def _tabela_unidades_inadimplentes(pdf: RelatorioPDF, df):
+    """Desenha a tabela de unidades inadimplentes (unidade | valor em aberto |
+    meses em atraso). Com poucas unidades usa uma coluna unica; com muitas,
+    divide em DUAS colunas lado a lado (metade das unidades em cada) para a
+    pagina de Inadimplencia caber inteira numa unica pagina - numeros,
+    grafico, consideracoes e o detalhamento por unidade juntos."""
+    registros = [
+        (str(l["unidade"]), fmt_moeda(l["valor_total"]), str(int(l["meses_em_atraso"])))
+        for _, l in df.iterrows()
+    ]
+    largura_util = _largura_util(pdf)
+    altura = 5.5
+
+    # Ate 8 unidades cabem numa coluna so sem apertar a pagina; acima disso,
+    # duas colunas.
+    duas_colunas = len(registros) > 8
+    n_colunas = 2 if duas_colunas else 1
+    gap = 8
+    largura_coluna = (largura_util - gap * (n_colunas - 1)) / n_colunas
+    # Sub-larguras dentro de cada coluna: unidade / valor / meses.
+    sub = [largura_coluna * 0.42, largura_coluna * 0.34, largura_coluna * 0.24]
+    align = ["L", "R", "R"]
+
+    metade = (len(registros) + 1) // 2 if duas_colunas else len(registros)
+    colunas_registros = [registros[:metade], registros[metade:]] if duas_colunas else [registros]
+
+    x_base = pdf.l_margin
+    y_topo = pdf.get_y()
+
+    def desenhar_celulas(x, y, celulas, fill=None, cor_texto=None, bold=False):
+        if fill:
+            pdf.set_fill_color(*_hex_para_rgb(fill))
+        pdf.set_text_color(*_hex_para_rgb(cor_texto)) if cor_texto else pdf.set_text_color(0, 0, 0)
+        pdf.set_font("Helvetica", "B" if bold else "", 8)
+        cx = x
+        for texto, larg, al in zip(celulas, sub, align):
+            pdf.set_xy(cx, y)
+            pdf.cell(larg, altura, texto, align=al, fill=bool(fill))
+            cx += larg
+        pdf.set_text_color(0, 0, 0)
+
+    for i_col, registros_col in enumerate(colunas_registros):
+        x = x_base + i_col * (largura_coluna + gap)
+        y = y_topo
+        desenhar_celulas(x, y, ["Unidade", "Valor em aberto", "Meses"], fill=NAVY, cor_texto="#FFFFFF", bold=True)
+        y += altura
+        for celulas in registros_col:
+            desenhar_celulas(x, y, celulas)
+            y += altura
+
+    linhas_por_coluna = max(len(c) for c in colunas_registros) + 1  # +1 do cabecalho
+    pdf.set_xy(pdf.l_margin, y_topo + linhas_por_coluna * altura)
 
 
 def _pagina_balanco(pdf: RelatorioPDF, resultado):
