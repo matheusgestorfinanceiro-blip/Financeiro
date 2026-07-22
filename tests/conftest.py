@@ -26,6 +26,11 @@ def caminho_inadimplentes_lote():
 
 
 @pytest.fixture
+def caminho_inadimplentes_sigla():
+    return os.path.join(FIXTURES_DIR, "exemplo_inadimplentes_sigla.pdf")
+
+
+@pytest.fixture
 def caminho_demonstrativo():
     return os.path.join(FIXTURES_DIR, "exemplo_demonstrativo.pdf")
 

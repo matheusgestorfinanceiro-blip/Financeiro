@@ -11,12 +11,15 @@ RODAPE_RE = re.compile(
     r"(-?\d{1,3}(?:\.\d{3})*,\d{2})\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})"
 )
 EMAIL_CABECALHO_RE = re.compile(r"^[\w.+-]+@[\w.-]+\.\w+")
-# O codigo da unidade tanto pode vir como "AP 01"/"APTO 01"/"LOJA 01"/"SALA 01"/
-# "Lote 01" quanto so um numero (ex: "05 - NOME"), dependendo do condominio,
-# com capitalizacao variavel (ex: "Lote" em vez de "LOTE"). O nome pode vir
-# seguido de uma tag de status (ex: "Juridico", "1a Notificacao").
+# O codigo da unidade varia bastante entre condominios: "AP 01"/"APTO 01"/
+# "LOJA 01"/"SALA 01"/"Lote 01" (prefixo + numero), so um numero ("05 - NOME"),
+# ou uma sigla com hifen ("C-34 - NOME", "R-02 - NOME"). A capitalizacao varia
+# (ex: "Lote" em vez de "LOTE"). O separador entre codigo e nome e sempre um
+# hifen cercado de espacos (" - "), o que permite distingui-lo do hifen interno
+# do codigo (ex: "C-34"), que nao tem espacos. O nome pode vir seguido de uma
+# tag de status (ex: "Juridico", "1a Notificacao").
 UNIDADE_RE = re.compile(
-    r"^(\d{1,4}|AP\s*\S+|APTO\s*\S+|LOJA\s*\S+|SALA\s*\S+|LOTE\s*\S+)\s*-\s*(.+?)"
+    r"^(\d{1,4}|AP\s*\S+|APTO\s*\S+|LOJA\s*\S+|SALA\s*\S+|LOTE\s*\S+|[A-Za-z]{1,4}-\d+\w*)\s*-\s*(.+?)"
     r"(\s+(?:Jur[íi]dico|\d°\s*Notifica[çc][ãa]o))?$",
     re.IGNORECASE,
 )
