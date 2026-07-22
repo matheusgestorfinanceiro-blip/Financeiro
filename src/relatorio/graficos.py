@@ -198,7 +198,10 @@ def grafico_despesas_ordinaria_x_extraordinaria(resultado):
 
 def grafico_evolucao_inadimplencia(resultado):
     df = resultado.concentracao_inadimplencia
-    fig, ax = plt.subplots(figsize=(8, 4))
+    # Figura mais baixa (8x3.2) que o padrao - a pagina de Inadimplencia
+    # precisa acomodar cartoes + grafico + consideracoes + tabela de unidades
+    # numa unica pagina, entao o grafico nao pode consumir muita altura.
+    fig, ax = plt.subplots(figsize=(8, 3.2))
     if df is None or df.empty:
         ax.text(0.5, 0.5, "Sem cobranças em aberto no período", ha="center", va="center", color=GRAY)
         ax.set_xticks([])

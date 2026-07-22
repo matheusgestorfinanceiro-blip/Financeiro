@@ -59,7 +59,10 @@ def test_gerar_pdf_inadimplencia_formato_horizontal_lista_unidades(caminho_demon
         )
     assert "nao ha unidades inadimplentes" not in texto_pagina_4.lower()
     assert "16" in texto_pagina_4
-    assert "Meses em atraso" in texto_pagina_4
+    # Cabecalho da tabela de unidades (a coluna de meses em atraso e rotulada
+    # "Meses" na tabela compacta, que pode vir em 1 ou 2 colunas).
+    assert "Meses" in texto_pagina_4
+    assert "Valor em aberto" in texto_pagina_4
     # O relatorio gerado nunca deve conter o nome do proprietario, so o codigo da unidade.
     assert "PROPRIETARIO EXEMPLO" not in texto_pagina_4
 
