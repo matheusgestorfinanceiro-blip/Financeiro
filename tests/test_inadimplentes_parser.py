@@ -78,3 +78,22 @@ def test_extrai_unidades_com_codigo_lote_e_coluna_de_atualizacao(caminho_inadimp
     assert (dados.unidades["atualizacao"] == 0.0).all()
     soma = dados.unidades["total"].sum()
     assert round(soma, 2) == round(dados.total_geral, 2)
+
+
+def test_extrai_unidades_com_codigo_sigla_hifen_numero(caminho_inadimplentes_sigla):
+    # Regressão: um formato real usa o codigo de unidade como sigla-hifen-numero
+    # ("C-34", "R-02", "R-13"), diferente de "AP"/"APTO"/"LOJA"/"SALA"/"Lote"/
+    # numero puro. Como o proprio codigo tem um hifen interno (sem espacos) e o
+    # separador codigo-nome e " - " (com espacos), o parser precisa distinguir
+    # os dois - senao a tabela sai vazia (bug relatado: rodape lido, mas nenhuma
+    # linha de unidade reconhecida).
+    dados = parse_inadimplentes(caminho_inadimplentes_sigla)
+    assert dados.qtd_unidades_inadimplentes == 3
+    assert dados.percentual_inadimplencia == pytest.approx(0.125)
+    assert not dados.unidades.empty
+    assert sorted(dados.unidades["unidade"].unique().tolist()) == ["C-34", "R-02", "R-13"]
+    # A tag de status ("Juridico") nao deve virar parte do codigo da unidade.
+    assert not dados.unidades["unidade"].str.contains("Juridico", case=False).any()
+    assert not dados.unidades["unidade"].str.contains(" - ").any()
+    soma = dados.unidades["total"].sum()
+    assert round(soma, 2) == round(dados.total_geral, 2)
