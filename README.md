@@ -336,6 +336,22 @@ na [Streamlit Community Cloud](https://share.streamlit.io), gratuita:
    dar `git push` na branch `main` — a Streamlit Cloud atualiza o endereço
    público sozinha, sem nenhuma ação manual.
 
+### Usar como "app" no celular
+
+O sistema é um app web e funciona no navegador do celular pelo mesmo link
+público. Para ter uma experiência de aplicativo (ícone na tela inicial,
+abertura em tela cheia, sem a barra do navegador):
+
+- **No Android (Chrome):** abra o link, toque no menu **⋮** (canto superior
+  direito) e escolha **Adicionar à tela inicial**.
+- **No iPhone (Safari):** abra o link, toque no botão de **Compartilhar**
+  (quadrado com seta para cima) e escolha **Adicionar à Tela de Início**.
+
+Vai aparecer um ícone com a logo da Azul na tela do celular, que abre o
+sistema como se fosse um app. O layout já é responsivo: no celular as seções
+se empilham automaticamente e os campos/botões ficam maiores para o toque,
+enquanto no computador o layout largo continua igual.
+
 ### Estrutura do projeto
 
 - `app.py` — tela principal (Streamlit).
