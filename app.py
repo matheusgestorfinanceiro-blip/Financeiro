@@ -5,13 +5,22 @@ Para rodar: streamlit run app.py
 import streamlit as st
 
 from src.calculo.previsao import calcular_taxas_reajustadas, gerar_previsao
-from src.ui.estilo import aplicar_estilo_azul, renderizar_logo
+from src.ui.estilo import CAMINHO_LOGO, aplicar_estilo_azul, renderizar_logo
 from src.ui.secao_formulario import renderizar_secao_formulario
 from src.ui.secao_reajuste import renderizar_secao_reajuste
 from src.ui.secao_resultado import renderizar_secao_resultado
 from src.ui.secao_upload import renderizar_secao_upload
 
-st.set_page_config(page_title="Previsão Orçamentária Condominial", layout="wide")
+# page_icon vira o icone da aba do navegador e tambem o icone quando o usuario
+# adiciona o sistema a tela inicial do celular ("app"): usa a logo real da
+# Azul quando o arquivo existe, senao um emoji de predio como reserva.
+_icone_app = str(CAMINHO_LOGO) if CAMINHO_LOGO.exists() else "🏢"
+st.set_page_config(
+    page_title="Previsão Orçamentária Condominial",
+    page_icon=_icone_app,
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 aplicar_estilo_azul()
 
 renderizar_logo()

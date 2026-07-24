@@ -193,6 +193,58 @@ def aplicar_estilo_azul():
         div[data-testid="stNotification"] {{
             border-radius: 10px;
         }}
+
+        /* ================= RESPONSIVO (celular) =================
+           No computador o layout largo continua igual; abaixo de 640px de
+           largura (celular na vertical) as colunas empilham, os campos e
+           botões ficam maiores para o toque e os títulos diminuem para não
+           estourar a tela. */
+        @media (max-width: 640px) {{
+            /* Usa a largura toda da tela, com um respiro pequeno nas bordas */
+            .block-container {{
+                padding-left: 0.8rem !important;
+                padding-right: 0.8rem !important;
+                padding-top: 2.5rem !important;
+            }}
+
+            /* Colunas (st.columns) deixam de ficar lado a lado e empilham -
+               senão no celular virariam colunas estreitas e espremidas. */
+            [data-testid="stHorizontalBlock"] {{
+                flex-direction: column !important;
+                gap: 0.5rem !important;
+            }}
+            [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
+            [data-testid="stHorizontalBlock"] > [data-testid="column"] {{
+                width: 100% !important;
+                flex: 1 1 100% !important;
+                min-width: 100% !important;
+            }}
+
+            /* Títulos menores para caber na tela estreita */
+            h1 {{ font-size: 1.6rem !important; }}
+            h2 {{ font-size: 1.3rem !important; }}
+            h3 {{ font-size: 1.15rem !important; }}
+
+            /* Botões ocupam a largura toda e têm altura confortável de toque */
+            .stButton > button,
+            .stDownloadButton > button,
+            .stFormSubmitButton > button {{
+                width: 100%;
+                min-height: 44px;
+            }}
+
+            /* Áreas de toque maiores nos campos */
+            input, textarea, .stNumberInput input, .stTextInput input,
+            div[data-baseweb="select"] > div {{
+                min-height: 42px !important;
+            }}
+
+            /* Abas do resultado roláveis na horizontal, sem espremer os nomes */
+            div[data-baseweb="tab-list"] {{
+                overflow-x: auto !important;
+                flex-wrap: nowrap !important;
+            }}
+        }}
         </style>
         """,
         unsafe_allow_html=True,
