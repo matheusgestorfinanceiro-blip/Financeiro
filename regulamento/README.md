@@ -1,11 +1,19 @@
 # Regulamento Interno & Código de Conduta — TGA Empreendimentos
 
-Documento no formato **cartilha** (2 colunas, no máximo 4 páginas), moderno e humanizado,
-com identidade visual da TGA (branco, preto e amarelo) e o logo oficial.
+Documento de **4 páginas**, moderno e humanizado, com identidade visual da TGA
+(branco, preto e amarelo) e o logo oficial.
 
-## Arquivo entregue
+## Estrutura (4 páginas)
+
+- **Página 1:** capa
+- **Páginas 2 a 4:** conteúdo em **coluna única** (mais legível); 2 colunas apenas em
+  blocos curtos (valores/compromissos, férias|uniforme, contatos)
+- **Página 4 (última):** Termo de Ciência e Compromisso, com os campos de assinatura
+
+## Arquivos entregues
 
 - **`Regulamento_Interno_TGA.docx`** — versão final, editável no Word / Google Docs.
+- **`Regulamento_Interno_TGA.pdf`** — versão para leitura/impressão e conferência rápida.
 
 ## O que contém
 
